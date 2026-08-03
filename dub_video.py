@@ -189,4 +189,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("បញ្ហា!")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ!")
