@@ -10,10 +10,8 @@ import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
 
-# --- ⚙️ ការកំណត់ប្រព័ន្ធសាកល្បង និងកូដសម្ងាត់ ---
-TRIAL_DAYS = 3  # ចំនួនថ្ងៃដែលឱ្យសាកល្បងហ្វ្រី
+TRIAL_DAYS = 3
 
-# បញ្ជីកូដសម្ងាត់ (Access Keys) សម្រាប់អ្នកដែលទិញដាច់ ឬហួសកំណត់ ៣ថ្ងៃ
 VALID_KEYS = {
     "BUNYIM-VIP-001": "សកម្ម",
     "BUNYIM-VIP-002": "សកម្ម",
@@ -22,7 +20,6 @@ VALID_KEYS = {
 
 telegram_link = "https://t.me/bunyimyoem"  # ប្តូរជា Telegram Username របស់អ្នក
 
-# --- 🔐 ប្រព័ន្ធត្រួតពិនិត្យការចូលប្រើប្រាស់ (Session State) ---
 if "is_authenticated" not in st.session_state:
     st.session_state.is_authenticated = False
 if "user_email" not in st.session_state:
@@ -35,13 +32,12 @@ def check_access():
     st.markdown("### 🔐 សូមចុះឈ្មោះសាកល្បងប្រើ ឬបញ្ចូលកូដសម្ងាត់")
     st.info(f"💡 កម្មវិធីនេះអាចសាកល្បងប្រើដោយឥតគិតថ្លៃរយៈពេល {TRIAL_DAYS} ថ្ងៃ។ បន្ទាប់ពីនោះត្រូវទិញ Access Key។")
     
-    tab1, tab2 = st.tabs(["📧 សាកល្បងប្រើឥតគិតថ្លៃ (Free Trial)", "🔑 វាយបញ្ចូល Access Key (សម្រាប់អ្នកទិញរួច)"])
+    tab1, tab2 = st.tabs(["📧 សាកល្បងប្រើឥតគិតថ្លៃ (Free Trial)", "🔑 វាយបញ្ចូល Access Key"])
 
     with tab1:
         st.markdown("#### ចុះឈ្មោះដោយប្រើ Email ដើម្បីយក 3 ថ្ងៃសាកល្បង")
         email_input = st.text_input("បញ្ចូល Email របស់អ្នក:", key="trial_email_input")
         
-        # ដើម្បីភាពងាយស្រួលលើ Streamlit Cloud យើងរក្សាទុកទិន្នន័យចុះឈ្មោះ និងថ្ងៃខែតាម Browser Session
         if "trial_users" not in st.session_state:
             st.session_state.trial_users = {}
 
@@ -49,10 +45,8 @@ def check_access():
             if email_input and "@" in email_input:
                 now = datetime.now()
                 if email_input not in st.session_state.trial_users:
-                    # កត់ត្រាថ្ងៃចាប់ផ្តើមប្រើដំបូង
                     st.session_state.trial_users[email_input] = now
                 
-                # គណនាថ្ងៃផុតកំណត់ (៣ថ្ងៃក្រោយ)
                 start_date = st.session_state.trial_users[email_input]
                 expiry_date = start_date + timedelta(days=TRIAL_DAYS)
 
@@ -77,15 +71,14 @@ def check_access():
             else:
                 st.error("❌ កូដសម្ងាត់មិនត្រឹមត្រូវ ឬគ្មានក្នុងប្រព័ន្ធទេ!")
 
-    st.markdown(f"👉 *ទិញកូដសម្ងាត់ ឬទំនាក់ទំនង៖* [ឆាតមកកាន់ Telegram ខ្ញុំទីนี้]({telegram_link})")
+    # កែសម្រួលអត្ថបទត្រង់នេះឱ្យដាច់ពីគ្នាដើម្បីកុំឱ្យ Browser ច្រឡំយកទៅបកប្រែខុស
+    st.markdown(f"👉 *ទិញកូដសម្ងាត់ ឬទំនាក់ទំនង Telegram៖* [ចុចទីនេះเพื่อឆាតមក]({telegram_link})")
     return False
 
-# ហៅមុខងារឆែកសិទ្ធិ (បើមិនទាន់ Login ឬអស់សិទ្ធិ វានឹងហាមឃាត់ការប្រើកូដខាងក្រោម)
 if not check_access():
     st.stop()
 
-# --- 🚀 កូដកម្មវិធីหลัก (ដំណើរการបានต่อเมื่อผ่านการตรวจสอบ) ---
-st.success(f"✅ កំពុងប្រើប្រាស់ក្នុងគណនី៖ {st.session_state.get('user_email', 'Access Key VIP')} | [ប្ដូរគណនី/ចេញ] त्यासाठी Refresh Page")
+st.success(f"✅ កំពុងប្រើប្រាស់ក្នុងគណនី៖ {st.session_state.get('user_email', 'Access Key VIP')}")
 
 voice_option = st.selectbox(
     "សូមជ្រើសរើសប្រភេទសំឡេងដែលអ្នកចង់បាន (Choose Voice):",
@@ -197,4 +190,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងการដំណើរការ!")
+                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
