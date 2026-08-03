@@ -512,8 +512,7 @@ import streamlit as st
 st.title("Video Dubbing (English -> Khmer)")
 st.write("សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបកប្រែសំឡេងវីដេអូ!")
 if __name__ == "__main__":
-    main()
-  import streamlit as st
+    main()import streamlit as st
 
 st.title("Video Dubbing (English -> Khmer)")
 st.write("សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបកប្រែសំឡេងវីដេអូ!")
