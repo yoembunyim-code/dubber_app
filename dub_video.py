@@ -8,15 +8,35 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
-st.write("ប្រព័ន្ធបកប្រែសំឡេងវីដេអូស្វ័យប្រវត្តិ ព្រមទាំងการជ្រើសរើសសំឡេងប្រុស ឬស្រី និងការដកដង្ហើម!")
 
-# ផ្នែកជ្រើសរើសសំឡេងតួអង្គ
+# --- បញ្ជីកូដសម្ងាត់សម្រាប់អតិថិជន (Access Keys) ---
+# អ្នកสามารถเพิ่ม ឬលុបកូដទាំងនេះបានតាមចិត្ត ពេលមានអ្នកទិញថ្មី
+# ឧទាហរណ៍៖ កូដនីមួយៗអាចផ្ដល់ឱ្យអតិថិជនម្នាក់ៗដាច់ដោយឡែកពីគ្នា
+VALID_KEYS = {
+    "BUNYIM-VIP-001": "សកម្ម (Active)",
+    "BUNYIM-VIP-002": "សកម្ម (Active)",
+    "TEST-KEY-123": "សកម្ម (Active)"
+}
+
+st.markdown("### 🔐 សូមបញ្ចូលកូដសម្ងាត់របស់អ្នកដើម្បីប្រើប្រាស់")
+st.info("💡 ទំនាក់ទំនងមកកាន់ Telegram របស់អ្នកដើម្បីទិញកូដសម្ងាត់ផ្ទាល់ខ្លួន (កូដ១សម្រាប់ប្រើម្នាក់ឯង)។")
+
+user_key = st.text_input("បញ្ចូល Access Key:", type="password")
+
+# ផ្ទៀងផ្ទាត់កូដ
+if user_key not in VALID_KEYS:
+    if user_key != "":
+        st.error("❌ កូដសម្ងាត់មិនถูกต้อง ឬមិនមានក្នុងប្រព័ន្ធទេ!")
+    st.stop() # ផ្អាកកុំឱ្យដំណើរការកម្មវិធីបើគ្មានកូដត្រឹមត្រូវ
+
+st.success("✅ កូដត្រឹមត្រូវ! សូមរីករាយជាមួយការប្រើប្រាស់កម្មវិធី។")
+
+# --- កូដកម្មវិធីខាងក្រោម (ដំណើរការបានต่อเมื่อវាយកូដត្រូវ) ---
 voice_option = st.selectbox(
     "សូមជ្រើសរើសប្រភេទសំឡេងដែលអ្នកចង់បាន (Choose Voice):",
     ("សំឡេងស្រី (Sreymom)", "សំឡេងប្រុស (Piseth)")
 )
 
-# កំណត់កូដសំឡេងតាមការជ្រើសរើស
 if voice_option == "សំឡេងប្រុស (Piseth)":
     selected_voice = "km-KH-PisethNeural"
 else:
@@ -38,7 +58,6 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 1. ស្រង់សំឡេងចេញពីវីដេអូ
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     model = whisper.load_model("tiny")
@@ -108,7 +127,7 @@ if uploaded_file is not None:
     st.video(input_filename)
     
     if st.button("ចាប់ផ្តើមបកប្រែសំឡេង (Start Dubbing)"):
-        with st.spinner("ប្រព័ន្ធកំពុងដំណើរការ សូមរង់ចាំបន្តិច..."):
+        with st.spinner("ប្រព័ន្ធកំពុងដំណើរการ សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
@@ -123,4 +142,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
+                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងการដំណើរการ!"
