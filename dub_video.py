@@ -1,4 +1,3 @@
-
 import streamlit as st
 import whisper
 import subprocess
@@ -9,7 +8,7 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
-st.write("ប្រព័ន្ធបកប្រែសំឡេងវីដេអូស្វ័យប្រវត្តិ ព្រមទាំងការជ្រើសរើសសំឡេងប្រុស ឬស្រី និងការដកដង្ហើម!")
+st.write("ប្រព័ន្ធបកប្រែសំឡេងវីដេអូស្វ័យប្រវត្តិ ព្រមទាំងการជ្រើសរើសសំឡេងប្រុស ឬស្រី និងការដកដង្ហើម!")
 
 # ផ្នែកជ្រើសរើសសំឡេងតួអង្គ
 voice_option = st.selectbox(
@@ -64,7 +63,6 @@ async def process_video(vid_in, vid_out, voice_name):
         kh_text_ready = add_breathing_pauses(kh_text)
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
-        # ใช้เสียงที่ผู้ใช้เลือกจาก Selectbox
         await edge_tts.Communicate(kh_text_ready, voice_name, rate="-10%", pitch="-2Hz").save(audio_path)
         
         delay_ms = int(seg["start"] * 1000)
@@ -126,5 +124,3 @@ if uploaded_file is not None:
                     )
             else:
                 st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
-Sent
-Compose
