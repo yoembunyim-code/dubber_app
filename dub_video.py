@@ -517,14 +517,9 @@ if __name__ == "__main__":
 st.title("Video Dubbing (English -> Khmer)")
 st.write("សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបកប្រែសំឡេងវីដេអូ!")
 
-# បន្ថែមមុខងារសម្រាប់ Upload វីដេអូ
 uploaded_file = st.file_uploader("សូមជ្រើសរើស ឬទម្លាក់ឯកសារវីដេអូនៅទីនេះ (MP4, AVI)", type=["mp4", "mov", "avi"])
 
 if uploaded_file is not None:
-    # បង្ហាញវីដេអូដែលបាន Upload
     st.video(uploaded_file)
-    
-    # ប៊ូតុងសម្រាប់ចាប់ផ្តើមដំណើរការ Dubbing
     if st.button("ចាប់ផ្តើមបកប្រែសំឡេង (Start Dubbing)"):
         st.success("វីដេអូកំពុងដំណើរការបកប្រែ សូមរង់ចាំបន្តិច...")
-        # (កន្លែងនេះអ្នកអាចដាក់កូដ Python សម្រាប់ភ្ជាប់ជាមួយ AI ឬ API របស់អ្នកនៅទីនេះ)
