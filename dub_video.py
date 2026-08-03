@@ -4,29 +4,88 @@ import subprocess
 import os
 import asyncio
 import shutil
+from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
 import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
 
-# --- បញ្ជីកូដសម្ងាត់សម្រាប់អតិថិជន (Access Keys) ---
+# --- ⚙️ ការកំណត់ប្រព័ន្ធសាកល្បង និងកូដសម្ងាត់ ---
+TRIAL_DAYS = 3  # ចំនួនថ្ងៃដែលឱ្យសាកល្បងហ្វ្រី
+
+# បញ្ជីកូដសម្ងាត់ (Access Keys) សម្រាប់អ្នកដែលទិញដាច់ ឬហួសកំណត់ ៣ថ្ងៃ
 VALID_KEYS = {
-    "BUNYIM-VIP-001": "សកម្ម (Active)",
-    "BUNYIM-VIP-002": "សកម្ម (Active)",
-    "TEST-KEY-123": "សកម្ម (Active)"
+    "BUNYIM-VIP-001": "សកម្ម",
+    "BUNYIM-VIP-002": "សកម្ម",
+    "TEST-KEY-123": "សកម្ម"
 }
 
-st.markdown("### 🔐 សូមបញ្ចូលកូដសម្ងាត់របស់អ្នកដើម្បីប្រើប្រាស់")
-st.info("💡 ទំនាក់ទំនងមកកាន់ Telegram របស់អ្នកដើម្បីទិញកូដសម្ងាត់ផ្ទាល់ខ្លួន។")
+telegram_link = "https://t.me/bunyimyoem"  # ប្តូរជា Telegram Username របស់អ្នក
 
-user_key = st.text_input("បញ្ចូល Access Key:", type="password")
+# --- 🔐 ប្រព័ន្ធត្រួតពិនិត្យការចូលប្រើប្រាស់ (Session State) ---
+if "is_authenticated" not in st.session_state:
+    st.session_state.is_authenticated = False
+if "user_email" not in st.session_state:
+    st.session_state.user_email = ""
 
-if user_key not in VALID_KEYS:
-    if user_key != "":
-        st.error("❌ កូដសម្ងាត់មិនត្រឹមត្រូវ ឬមិនមានក្នុងប្រព័ន្ធទេ!")
+def check_access():
+    if st.session_state.is_authenticated:
+        return True
+
+    st.markdown("### 🔐 សូមចុះឈ្មោះសាកល្បងប្រើ ឬបញ្ចូលកូដសម្ងាត់")
+    st.info(f"💡 កម្មវិធីនេះអាចសាកល្បងប្រើដោយឥតគិតថ្លៃរយៈពេល {TRIAL_DAYS} ថ្ងៃ។ បន្ទាប់ពីនោះត្រូវទិញ Access Key។")
+    
+    tab1, tab2 = st.tabs(["📧 សាកល្បងប្រើឥតគិតថ្លៃ (Free Trial)", "🔑 វាយបញ្ចូល Access Key (សម្រាប់អ្នកទិញរួច)"])
+
+    with tab1:
+        st.markdown("#### ចុះឈ្មោះដោយប្រើ Email ដើម្បីយក 3 ថ្ងៃសាកល្បង")
+        email_input = st.text_input("បញ្ចូល Email របស់អ្នក:", key="trial_email_input")
+        
+        # ដើម្បីភាពងាយស្រួលលើ Streamlit Cloud យើងរក្សាទុកទិន្នន័យចុះឈ្មោះ និងថ្ងៃខែតាម Browser Session
+        if "trial_users" not in st.session_state:
+            st.session_state.trial_users = {}
+
+        if st.button("ចាប់ផ្តើមសាកល្បងប្រើ (Start Free Trial)"):
+            if email_input and "@" in email_input:
+                now = datetime.now()
+                if email_input not in st.session_state.trial_users:
+                    # កត់ត្រាថ្ងៃចាប់ផ្តើមប្រើដំបូង
+                    st.session_state.trial_users[email_input] = now
+                
+                # គណនាថ្ងៃផុតកំណត់ (៣ថ្ងៃក្រោយ)
+                start_date = st.session_state.trial_users[email_input]
+                expiry_date = start_date + timedelta(days=TRIAL_DAYS)
+
+                if now < expiry_date:
+                    st.session_state.is_authenticated = True
+                    st.session_state.user_email = email_input
+                    st.success(f"🎉 ជោគជ័យ! អ្នកអាចសាកល្បងប្រើបានរហូតដល់ថ្ងៃ៖ {expiry_date.strftime('%Y-%m-%d %H:%M')}")
+                    st.rerun()
+                else:
+                    st.error("❌ រយៈពេលសាកល្បង ៣ ថ្ងៃរបស់អ្នកបានផុតកំណត់ហើយ! សូមទិញ Access Key ដើម្បីបន្តប្រើប្រាស់។")
+            else:
+                st.warning("⚠️ សូមបញ្ចូល Email ឱ្យបានត្រឹមត្រូវ!")
+
+    with tab2:
+        st.markdown("#### មាន Access Key រួចហើយ?")
+        key_input = st.text_input("បញ្ចូល Access Key:", type="password", key="access_key_input")
+        if st.button("ផ្ទៀងផ្ទាត់កូដ"):
+            if key_input in VALID_KEYS:
+                st.session_state.is_authenticated = True
+                st.success("✅ កូដត្រឹមត្រូវ! សូមរីករាយជាមួយការប្រើប្រាស់។")
+                st.rerun()
+            else:
+                st.error("❌ កូដសម្ងាត់មិនត្រឹមត្រូវ ឬគ្មានក្នុងប្រព័ន្ធទេ!")
+
+    st.markdown(f"👉 *ទិញកូដសម្ងាត់ ឬទំនាក់ទំនង៖* [ឆាតមកកាន់ Telegram ខ្ញុំទីนี้]({telegram_link})")
+    return False
+
+# ហៅមុខងារឆែកសិទ្ធិ (បើមិនទាន់ Login ឬអស់សិទ្ធិ វានឹងហាមឃាត់ការប្រើកូដខាងក្រោម)
+if not check_access():
     st.stop()
 
-st.success("✅ កូដត្រឹមត្រូវ! សូមរីករាយជាមួយការប្រើប្រាស់កម្មវិធី។")
+# --- 🚀 កូដកម្មវិធីหลัก (ដំណើរการបានต่อเมื่อผ่านการตรวจสอบ) ---
+st.success(f"✅ កំពុងប្រើប្រាស់ក្នុងគណនី៖ {st.session_state.get('user_email', 'Access Key VIP')} | [ប្ដូរគណនី/ចេញ] त्यासाठी Refresh Page")
 
 voice_option = st.selectbox(
     "សូមជ្រើសរើសប្រភេទសំឡេងដែលអ្នកចង់បាន (Choose Voice):",
@@ -123,7 +182,7 @@ if uploaded_file is not None:
     st.video(input_filename)
     
     if st.button("ចាប់ផ្តើមបកប្រែសំឡេង (Start Dubbing)"):
-        with st.spinner("ប្រព័ន្ធកំពុងដំណើរการ សូមរង់ចាំបន្តិច..."):
+        with st.spinner("ប្រព័ន្ធកំពុងដំណើរការ សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
@@ -138,4 +197,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
+                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងการដំណើរការ!")
