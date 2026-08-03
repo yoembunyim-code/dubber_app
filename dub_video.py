@@ -1,3 +1,4 @@
+
 import streamlit as st
 import whisper
 import subprocess
@@ -8,7 +9,19 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
-st.write("ប្រព័ន្ធបកប្រែសំឡេងវីដេអូស្វ័យប្រវត្តិ ព្រមទាំងការដកដង្ហើម និងការលៃល្បឿនតាមតួអង្គ!")
+st.write("ប្រព័ន្ធបកប្រែសំឡេងវីដេអូស្វ័យប្រវត្តិ ព្រមទាំងការជ្រើសរើសសំឡេងប្រុស ឬស្រី និងការដកដង្ហើម!")
+
+# ផ្នែកជ្រើសរើសសំឡេងតួអង្គ
+voice_option = st.selectbox(
+    "សូមជ្រើសរើសប្រភេទសំឡេងដែលអ្នកចង់បាន (Choose Voice):",
+    ("សំឡេងស្រី (Sreymom)", "សំឡេងប្រុស (Piseth)")
+)
+
+# កំណត់កូដសំឡេងតាមការជ្រើសរើស
+if voice_option == "សំឡេងប្រុស (Piseth)":
+    selected_voice = "km-KH-PisethNeural"
+else:
+    selected_voice = "km-KH-SreymomNeural"
 
 def add_breathing_pauses(text):
     words_to_pause = ["និង", "ហើយ", "ប៉ុន្តែ", "ដែល", "ព្រោះ", "ដូច្នេះ", "ម្យ៉ាងទៀត"]
@@ -18,7 +31,7 @@ def add_breathing_pauses(text):
     text = text.replace(",,", ",").replace(", ,", ",")
     return text
 
-async def process_video(vid_in, vid_out):
+async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
     if not os.path.exists(vid_in): 
         st.error("រកមិនឃើញវីដេអូទេ!")
@@ -29,7 +42,6 @@ async def process_video(vid_in, vid_out):
     # 1. ស្រង់សំឡេងចេញពីវីដេអូ
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # ใช้ whisper "tiny" เพื่อความรวดเร็วสูงสุด
     model = whisper.load_model("tiny")
     segments = model.transcribe("temp.mp3")["segments"]
 
@@ -38,7 +50,6 @@ async def process_video(vid_in, vid_out):
     count = 0
     total_segs = len(segments)
 
-    # បង្កើត Progress Bar សម្រាប់តាមដានល្បឿន
     progress_bar = st.progress(0)
     status_text = st.empty()
 
@@ -53,14 +64,14 @@ async def process_video(vid_in, vid_out):
         kh_text_ready = add_breathing_pauses(kh_text)
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
-        await edge_tts.Communicate(kh_text_ready, "km-KH-SreymomNeural", rate="-10%", pitch="-2Hz").save(audio_path)
+        # ใช้เสียงที่ผู้ใช้เลือกจาก Selectbox
+        await edge_tts.Communicate(kh_text_ready, voice_name, rate="-10%", pitch="-2Hz").save(audio_path)
         
         delay_ms = int(seg["start"] * 1000)
         inputs.extend(["-i", audio_path])
         filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{count}]")
         count += 1
 
-        # ធ្វើបច្ចុប្បន្នភាព Progress Bar ឱ្យដើរលឿននិងឃើញសកម្មភាព
         progress_percentage = int(((idx + 1) / total_segs) * 90)
         progress_bar.progress(progress_percentage)
         status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង៖ {idx+1}/{total_segs}")
@@ -100,10 +111,10 @@ if uploaded_file is not None:
     
     if st.button("ចាប់ផ្តើមបកប្រែសំឡេង (Start Dubbing)"):
         with st.spinner("ប្រព័ន្ធកំពុងដំណើរការ សូមរង់ចាំបន្តិច..."):
-            success = asyncio.run(process_video(input_filename, output_filename))
+            success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
-                st.success("ជោគជ័យ ១០០%! វីដេអូបកប្រែារបស់អ្នករួចរាល់ហើយ៖")
+                st.success("ជោគជ័យ ១០០%! វីដេអូបកប្រែរបស់អ្នករួចរាល់ហើយ៖")
                 st.video(output_filename)
                 
                 with open(output_filename, "rb") as file:
@@ -115,3 +126,5 @@ if uploaded_file is not None:
                     )
             else:
                 st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
+Sent
+Compose
