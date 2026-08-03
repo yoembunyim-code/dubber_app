@@ -1,4 +1,4 @@
-import streamlit as st
+បើimport streamlit as st
 import whisper
 import subprocess
 import os
@@ -29,19 +29,19 @@ def check_access():
     if st.session_state.is_authenticated:
         return True
 
-    st.markdown("### 🔐 សូមចុះឈ្មោះសាកល្បងប្រើ ឬបញ្ចូលកូដសម្ងាត់")
-    st.info(f"💡 កម្មវិធីនេះអាចសាកល្បងប្រើដោយឥតគិតថ្លៃរយៈពេល {TRIAL_DAYS} ថ្ងៃ។ បន្ទាប់ពីនោះត្រូវទិញ Access Key។")
+    st.markdown("### 🔐 បញ្ចូលគណនី ឬកូដសម្ងាត់")
+    st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {TRIAL_DAYS} ថ្ងៃ។")
     
-    tab1, tab2 = st.tabs(["📧 សាកល្បងប្រើឥតគិតថ្លៃ (Free Trial)", "🔑 វាយបញ្ចូល Access Key"])
+    tab1, tab2 = st.tabs(["📧 Free Trial", "🔑 Access Key"])
 
     with tab1:
-        st.markdown("#### ចុះឈ្មោះដោយប្រើ Email ដើម្បីយក 3 ថ្ងៃសាកល្បង")
-        email_input = st.text_input("បញ្ចូល Email របស់អ្នក:", key="trial_email_input")
+        st.markdown("#### ចុះឈ្មោះដោយប្រើ Email")
+        email_input = st.text_input("អុីមែលរបស់អ្នក:", key="trial_email_input")
         
         if "trial_users" not in st.session_state:
             st.session_state.trial_users = {}
 
-        if st.button("ចាប់ផ្តើមសាកល្បងប្រើ (Start Free Trial)"):
+        if st.button("ចាប់ផ្តើម"):
             if email_input and "@" in email_input:
                 now = datetime.now()
                 if email_input not in st.session_state.trial_users:
@@ -53,35 +53,34 @@ def check_access():
                 if now < expiry_date:
                     st.session_state.is_authenticated = True
                     st.session_state.user_email = email_input
-                    st.success(f"🎉 ជោគជ័យ! អ្នកអាចសាកល្បងប្រើបានរហូតដល់ថ្ងៃ៖ {expiry_date.strftime('%Y-%m-%d %H:%M')}")
+                    st.success(f"ជោគជ័យ! ប្រើបានដល់ថ្ងៃ៖ {expiry_date.strftime('%Y-%m-%d %H:%M')}")
                     st.rerun()
                 else:
-                    st.error("❌ រយៈពេលសាកល្បង ៣ ថ្ងៃរបស់អ្នកបានផុតកំណត់ហើយ! សូមទិញ Access Key ដើម្បីបន្តប្រើប្រាស់។")
+                    st.error("រយៈពេលសាកល្បងបានផុតកំណត់ហើយ! សូមទិញកូដ។")
             else:
-                st.warning("⚠️ សូមបញ្ចូល Email ឱ្យបានត្រឹមត្រូវ!")
+                st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        st.markdown("#### មាន Access Key រួចហើយ?")
-        key_input = st.text_input("បញ្ចូល Access Key:", type="password", key="access_key_input")
-        if st.button("ផ្ទៀងផ្ទាត់កូដ"):
+        st.markdown("#### វាយបញ្ចូលកូដ")
+        key_input = st.text_input("កូដសម្ងាត់:", type="password", key="access_key_input")
+        if st.button("ផ្ទៀងផ្ទាត់"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
-                st.success("✅ កូដត្រឹមត្រូវ! សូមរីករាយជាមួយការប្រើប្រាស់។")
+                st.success("កូដត្រឹមត្រូវ!")
                 st.rerun()
             else:
-                st.error("❌ កូដសម្ងាត់មិនត្រឹមត្រូវ ឬគ្មានក្នុងប្រព័ន្ធទេ!")
+                st.error("កូដមិនត្រឹមត្រូវ។")
 
-    # កែសម្រួលអត្ថបទត្រង់នេះឱ្យដាច់ពីគ្នាដើម្បីកុំឱ្យ Browser ច្រឡំយកទៅបកប្រែខុស
-    st.markdown(f"👉 *ទិញកូដសម្ងាត់ ឬទំនាក់ទំនង Telegram៖* [ចុចទីនេះเพื่อឆាតមក]({telegram_link})")
+    st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
     return False
 
 if not check_access():
     st.stop()
 
-st.success(f"✅ កំពុងប្រើប្រាស់ក្នុងគណនី៖ {st.session_state.get('user_email', 'Access Key VIP')}")
+st.success(f"គណនី៖ {st.session_state.get('user_email', 'Access Key VIP')}")
 
 voice_option = st.selectbox(
-    "សូមជ្រើសរើសប្រភេទសំឡេងដែលអ្នកចង់បាន (Choose Voice):",
+    "ជ្រើសរើសសំឡេង:",
     ("សំឡេងស្រី (Sreymom)", "សំឡេងប្រុស (Piseth)")
 )
 
@@ -139,10 +138,10 @@ async def process_video(vid_in, vid_out, voice_name):
 
         progress_percentage = int(((idx + 1) / total_segs) * 90)
         progress_bar.progress(progress_percentage)
-        status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង៖ {idx+1}/{total_segs}")
+        status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text(">>> កំពុងចាក់បញ្ចូលសំឡេងថ្មីចូលវីដេអូ...")
+        status_text.text("កំពុងចាក់បញ្ចូលសំឡេងចូលវីដេអូ...")
         mix = "".join([f"[a{i}]" for i in range(count)])
         filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume={count}[outa]"
         
@@ -157,13 +156,13 @@ async def process_video(vid_in, vid_out, voice_name):
         
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         progress_bar.progress(100)
-        status_text.text("រួចរាល់ជាស្រេច!")
+        status_text.text("រួចរាល់!")
     
     if os.path.exists("temp.mp3"): os.remove("temp.mp3")
     shutil.rmtree(temp_dir, ignore_errors=True)
     return count > 0
 
-uploaded_file = st.file_uploader("សូមជ្រើសរើស ឬទម្លាក់ឯកសារវីដេអូ (MP4)", type=["mp4", "mov", "avi"])
+uploaded_file = st.file_uploader("ជ្រើសរើសឯកសារវីដេអូ (MP4)", type=["mp4", "mov", "avi"])
 
 if uploaded_file is not None:
     input_filename = "input_test.mp4"
@@ -174,20 +173,20 @@ if uploaded_file is not None:
         
     st.video(input_filename)
     
-    if st.button("ចាប់ផ្តើមបកប្រែសំឡេង (Start Dubbing)"):
-        with st.spinner("ប្រព័ន្ធកំពុងដំណើរការ សូមរង់ចាំបន្តិច..."):
+    if st.button("ចាប់ផ្តើមបកប្រែសំឡេង"):
+        with st.spinner("កំពុងដំណើរការ..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
-                st.success("ជោគជ័យ ១០០%! វីដេអូបកប្រែរបស់អ្នករួចរាល់ហើយ៖")
+                st.success("ជោគជ័យ!")
                 st.video(output_filename)
                 
                 with open(output_filename, "rb") as file:
                     st.download_button(
-                        label="ទាញយកវីដេអូដែលបានបកប្រែ (Download)",
+                        label="ទាញយកវីដេអូ",
                         data=file,
                         file_name="dubbed_video.mp4",
                         mime="video/mp4"
                     )
             else:
-                st.warning("គ្មានសំឡេងត្រូវបកប្រែ ឬមានបញ្ហាក្នុងការដំណើរការ!")
+                st.warning("បញ្ហា!")
