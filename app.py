@@ -7,13 +7,39 @@ import shutil
 from deep_translator import GoogleTranslator
 import edge_tts
 
-st.set_page_config(page_title="AI Video Dubbing Khmer", layout="centered")
+# ----------------- ការកំណត់ទំព័រ (Page Configuration) -----------------
+st.set_page_config(
+    page_title="AI Video Dubbing Khmer Pro",
+    page_icon="🎬",
+    layout="centered"
+)
 
-st.title("AI Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
+# ----------------- CSS Styling ឱ្យកាន់តែស្រស់ស្អាត -----------------
+st.markdown("""
+    <style>
+    .main-title { font-size: 28px; font-weight: bold; color: #FF4B4B; text-align: center; margin-bottom: 20px; }
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; background-color: #FF4B4B; color: white; }
+    .stButton>button:hover { background-color: #ff3333; color: white; }
+    .telegram-box { background-color: #e6f7ff; padding: 15px; border-radius: 8px; border-left: 5px solid #1890ff; text-align: center; margin-bottom: 20px; }
+    </style>
+""", unsafe_allow_html=True)
 
+st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khmer) 🇰🇭</div>', unsafe_allow_html=True)
+
+# ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក (កែប្រែនៅទីនេះ) -----------------
+TELEGRAM_USERNAME = "your_telegram_username"  # <-- ដាក់ Username តេលេក្រាមរបស់អ្នកទីនេះ (ឧទាហរណ៍: bunyim_code)
+TELEGRAM_LINK = f"https://t.me/bunyimyoem"
+
+# បង្ហាញប្រអប់ទំនាក់ទំនងតេលេក្រាម
+st.markdown(f"""
+    <div class="telegram-box">
+        💬 <b>ចង់បានកូដ VIP ឬមានបញ្ហាในการប្រើប្រាស់?</b><br>
+        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
+    </div>
+""", unsafe_allow_html=True)
+
+# ----------------- ការគ្រប់គ្រងគណនី និងកូដ VIP -----------------
 MAX_FREE_VIDEOS = 3
-telegram_link = "https://t.me/bunyimyoem"
-
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
     "KHMER-VIP-002": "សកម្ម"
@@ -26,75 +52,68 @@ if "user_email" not in st.session_state:
 if "is_vip" not in st.session_state:
     st.session_state.is_vip = False
 if "trial_users" not in st.session_state:
-    st.session_state.trial_users = {} 
+    st.session_state.trial_users = {}
 
 if not st.session_state.is_authenticated:
-    st.markdown("### 🔐 សូមបញ្ចូលគណនី ឬកូដសម្ងាត់ដើម្បីបន្ត")
-    st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {MAX_FREE_VIDEOS} វីដេអូ។")
-    
-    tab1, tab2 = st.tabs(["📧 Free Trial", "🔑 Access Key"])
+    st.markdown("### 🔐 សូមផ្ទៀងផ្ទាត់គណនីដើម្បីចាប់ផ្តើមប្រើប្រាស់")
+    tab1, tab2 = st.tabs(["📧 Free Trial (សាកល្បង)", "🔑 VIP Access Key"])
 
     with tab1:
-        email_input = st.text_input("អុីមែលរបស់អ្នក:", key="trial_email_input")
-        if st.button("ចាប់ផ្តើមសាកល្បង"):
+        email_input = st.text_input("បញ្ចូលអុីមែលរបស់អ្នក:", key="trial_email")
+        if st.button("ចាប់ផ្តើមសាកល្បងដោយឥតគិតថ្លៃ"):
             if email_input and "@" in email_input:
-                used_count = st.session_state.trial_users.get(email_input, 0)
-                if used_count < MAX_FREE_VIDEOS:
+                used = st.session_state.trial_users.get(email_input, 0)
+                if used < MAX_FREE_VIDEOS:
                     st.session_state.is_authenticated = True
                     st.session_state.user_email = email_input
                     st.session_state.is_vip = False
                     if email_input not in st.session_state.trial_users:
                         st.session_state.trial_users[email_input] = 0
-                    st.success("ជោគជ័យ!")
+                    st.success("ចូលគណនីបានជោគជ័យ!")
                     st.rerun()
                 else:
-                    st.error("អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន ៣ វីដេអូហើយ!")
+                    st.error(f"អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូនាពេលកន្លងមកហើយ! សូមទិញកូដ VIP តាម Telegram ខាងលើ។")
             else:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        key_input = st.text_input("កូដសម្ងាត់ VIP:", type="password", key="access_key_input")
-        if st.button("ផ្ទៀងផ្ទាត់កូដ"):
+        key_input = st.text_input("BUNYIM VIP 001:", type="password", key="vip_key")
+        if st.button("ផ្ទៀងផ្ទាត់កូដ VIP"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
-                st.session_state.user_email = f"VIP Key: {key_input}"
+                st.session_state.user_email = f"VIP: {key_input}"
                 st.session_state.is_vip = True
-                st.success("កូដត្រឹមត្រូវ!")
+                st.success("កូដ VIP ត្រឹមត្រូវ!")
                 st.rerun()
             else:
-                st.error("កូដមិនត្រឹមត្រូវ។")
-
+                st.error("កូដសម្ងាត់មិនត្រឹមត្រូវ។")
     st.stop()
 
-col1, col2 = st.columns([4, 1])
-with col1:
-    account_type = "👑 VIP" if st.session_state.is_vip else "🆓 Free Trial"
-    st.success(f"គណនី ({account_type})៖ {st.session_state.user_email}")
-with col2:
+# ----------------- របារបង្ហាញព័ត៌មានអ្នកប្រើប្រាស់ -----------------
+col_acc1, col_acc2 = st.columns([4, 1])
+with col_acc1:
+    acc_type = "👑 VIP Member" if st.session_state.is_vip else "🆓 Free Tier"
+    st.info(f"👤 គណនី៖ *{st.session_state.user_email}* ({acc_type})")
+with col_acc2:
     if st.button("ចាកចេញ"):
         st.session_state.is_authenticated = False
         st.rerun()
 
+# ----------------- ការជ្រើសរើសសំឡេង AI -----------------
 voice_option = st.selectbox(
-    "ជ្រើសរើសសំឡេង:",
-    ("សំឡេងស្រី (Sreymom)", "សំឡេងប្រុស (Piseth)")
+    "🎙️ ជ្រើសរើសសំឡេង AI សម្រាប់បកប្រែ៖",
+    ("សំឡេងស្រីធម្មជាតិ (Sreymom)", "សំឡេងប្រុសធម្មជាតិ (Piseth)")
 )
+selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-selected_voice = "km-KH-PisethNeural" if voice_option == "សំឡេងប្រុស (Piseth)" else "km-KH-SreymomNeural"
-
-def clean_text_for_tts(text):
-    for char in ['"', "'", '\\', '/', ':', '*', '?', '<', '>', '|', '[', ']', '{', '}']:
-        text = text.replace(char, ' ')
-    return text.strip()
-
+# ----------------- កូដចម្បងក្នុងការដំណើរការវីដេអូ និងសំឡេង (Core Processing) -----------------
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
     if not os.path.exists(vid_in): 
         return False
-
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 1. យករយៈពេលវីដេអូសរុបពិតប្រាកដ
+    # 1. យករយៈពេលវីដេអូសរុប (Duration)
     probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
     probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -102,22 +121,24 @@ async def process_video(vid_in, vid_out, voice_name):
     except:
         video_duration = 30.0
 
-    # 2. ស្រង់សំឡេងដើមចេញមកដើម្បីឱ្យ Whisper អាន
-    subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
+    # 2. ស្រង់សំឡេងចេញពីវីដេអូដើមមកធ្វើជា File MP3 ដើម្បីឱ្យ Whisper អាន
+    orig_audio = "temp_orig.mp3"
+    subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
 
+    # 3. ដំណើរការ Whisper AI ដើម្បីទាញយកកថាខណ្ឌ (Segments & Timestamps)
     model = whisper.load_model("base")
     result = model.transcribe(audio_to_transcribe)
     segments = result.get("segments", [])
 
     translator = GoogleTranslator(source='auto', target='km')
-    
+    audio_segments = []
+
     progress_bar = st.progress(0)
     status_text = st.empty()
     total_segs = len(segments)
 
-    audio_segments = []
-
+    # 4. បកប្រែអត្ថបទ និងបង្កើតសំឡេង AI (Edge-TTS) តាមរយះពេលនីមួយៗ
     for idx, seg in enumerate(segments):
         raw_text = seg.get("text", "").strip()
         if not raw_text: 
@@ -131,43 +152,38 @@ async def process_video(vid_in, vid_out, voice_name):
         if not kh_text or kh_text.isspace():
             continue
             
-        kh_text_safe = clean_text_for_tts(kh_text)
-        audio_path = f"{temp_dir}/s_{idx}.mp3"
-        
+        audio_path = f"{temp_dir}/seg_{idx}.mp3"
         try:
-            communicate = edge_tts.Communicate(kh_text_safe, voice_name)
+            communicate = edge_tts.Communicate(kh_text, voice_name)
             await communicate.save(audio_path)
             
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 start_time = float(seg["start"])
                 audio_segments.append((start_time, audio_path))
-        except Exception:
+        except:
             continue
 
         if total_segs > 0:
             progress_bar.progress(int(((idx + 1) / total_segs) * 70))
-        status_text.text(f"កំពុងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
+        status_text.text(f"កំពុងបង្កើតសំឡេង AI ខ្មែរ៖ {idx+1}/{total_segs}")
 
+    # 5. លាយបញ្ចូលសំឡេង AI ចូលទៅក្នុងវីដេអូដោយសុវត្ថិភាពខ្ពស់
     if len(audio_segments) > 0:
-        status_text.text("កំពុងផ្គុំសំឡេង AI ចូលក្នុងវីដេអូ...")
+        status_text.text("កំពុងផ្គុំសំឡេង AI ចូលក្នុងវីដេអូពេញលេញ...")
         
-        # វិធីសាស្ត្រទម្លាក់សំឡេង AI តាមថិរវេលា (Offset Audio Mapping) ដោយមិនប្រើ filter_complex ស្មុគស្មាញ
-        cmd = ["ffmpeg", "-i", vid_in]
-        for _, path in audio_segments:
-            cmd.extend(["-i", path])
+        inputs = ["-i", vid_in]
+        filter_complex = "anullsrc=r=44100:cl=stereo[base];"
         
-        filter_parts = []
-        for i, (start_t, _) in enumerate(audio_segments):
+        for i, (start_t, path) in enumerate(audio_segments):
+            inputs.extend(["-i", path])
             delay_ms = int(start_t * 1000)
-            filter_parts.append(f"[{i+1}:a]adelay={delay_ms}|{delay_ms}[a{i}]")
+            filter_complex += f"[{i+1}:a]adelay={delay_ms}|{delay_ms},volume=1.5[a{i}];"
+            
+        mix_inputs = "[base]" + "".join([f"[a{i}]" for i in range(len(audio_segments))])
+        filter_complex += f"{mix_inputs}amix=inputs={len(audio_segments)+1}:duration=first:dropout_transition=0[outa]"
         
-        mix_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
-        filter_parts.append(f"{mix_inputs}amix=inputs={len(audio_segments)}:duration=longest:dropout_transition=0[outa]")
-        
-        filter_str = ";".join(filter_parts)
-        
-        cmd.extend([
-            "-filter_complex", filter_str,
+        cmd = ["ffmpeg"] + inputs + [
+            "-filter_complex", filter_complex,
             "-map", "0:v:0",
             "-map", "[outa]",
             "-c:v", "copy",
@@ -175,22 +191,23 @@ async def process_video(vid_in, vid_out, voice_name):
             "-b:a", "192k",
             "-t", str(video_duration),
             "-y", vid_out
-        ])
+        ]
         
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         progress_bar.progress(100)
-        status_text.text("រួចរាល់!")
+        status_text.text("ការបកប្រែវីដេអូទទួលបានជោគជ័យរហូតដល់ចប់!")
     else:
         shutil.copy(vid_in, vid_out)
 
-    if os.path.exists("temp_orig.mp3"):
-        os.remove("temp_orig.mp3")
+    if os.path.exists(orig_audio): 
+        os.remove(orig_audio)
     shutil.rmtree(temp_dir, ignore_errors=True)
+    
     return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
 
-# ----------------- កន្លែងអាប់ឡូតវីដេអូ -----------------
+# ----------------- ចំណុចអាប់ឡូតវីដេអូ (File Uploader UI) -----------------
 st.markdown("---")
-uploaded_file = st.file_uploader("📂 ជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
+uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
 
 if uploaded_file is not None:
     input_filename = "input_test.mp4"
@@ -199,23 +216,25 @@ if uploaded_file is not None:
     with open(input_filename, "wb") as f:
         f.write(uploaded_file.getbuffer())
         
+    st.subheader("វីដេអូដើមរបស់អ្នក៖")
     st.video(input_filename)
     
-    can_generate = True
+    can_proceed = True
     if not st.session_state.is_vip:
-        used = st.session_state.trial_users.get(st.session_state.user_email, 0)
-        if used >= MAX_FREE_VIDEOS:
-            st.error("🔒 គណនី Free របស់អ្នកបានប្រើប្រាស់អស់ ៣ វីដេអូហើយ! សូមទិញកូដ VIP។")
-            can_generate = False
+        used_count = st.session_state.trial_users.get(st.session_state.user_email, 0)
+        if used_count >= MAX_FREE_VIDEOS:
+            st.error(f"🔒 គណនីសាកល្បងរបស់អ្នកបានអស់កូតាប្រើប្រាស់ហើយ។ សូមទាក់ទងមកកាន់ Telegram: @{TELEGRAM_USERNAME} ដើម្បីទិញកូដ VIP!")
+            can_proceed = False
         else:
-            st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
+            st.info(f"✨ អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។")
 
-    if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការបកប្រែជាសំឡេង AI ខ្មែរ..."):
+    if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេងជា AI ខ្មែរ"):
+        with st.spinner("កំពុងដំណើរការបកប្រែដោយប្រព័ន្ធ AI... សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
-                st.success("ជោគជ័យ!")
+                st.success("🎉 បកប្រែវីដេអូបានសម្រេចជោគជ័យ ១០០%!")
+                st.subheader("លទ្ធផលវីដេអូដែលបានបកប្រែរួច៖")
                 st.video(output_filename)
                 
                 if not st.session_state.is_vip:
@@ -223,10 +242,10 @@ if uploaded_file is not None:
                 
                 with open(output_filename, "rb") as file:
                     st.download_button(
-                        label="📥 ទាញយកវីដេអូ",
+                        label="📥 ទាញយកវីដេអូដែលបានបកប្រែ",
                         data=file,
-                        file_name="dubbed_video.mp4",
+                        file_name="khmer_dubbed_video.mp4",
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
+                st.error("❌ មានបញ្ហាក្នុងដំណើរការកាត់តវីដេអូ! សូមពិនិត្យមើលទ្រង់ទ្រាយវីដេអូរបស់អ្នកឡើងវិញ។")
