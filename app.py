@@ -24,17 +24,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khmer) 🇰🇭</div>', unsafe_allow_html=True)
+# ចំណងជើងដែលបានដកអក្សរ KH ចេញ
+st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khmer)</div>', unsafe_allow_html=True)
 
 # ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក (កែប្រែនៅទីនេះ) -----------------
-TELEGRAM_USERNAME = "your_telegram_username"  # <-- ដាក់ Username តេលេក្រាមរបស់អ្នកទីនេះ (ឧទាហរណ៍: bunyim_code)
-TELEGRAM_LINK = f"https://t.me/bunyimyoem"
+TELEGRAM_USERNAME = "your_telegram_username"  # <-- ដាក់ Username តេលេក្រាមរបស់អ្នកទីនេះ
+TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 
-# បង្ហាញប្រអប់ទំនាក់ទំនងតេលេក្រាម
 st.markdown(f"""
     <div class="telegram-box">
-        💬 <b>ចង់បានកូដ VIP ឬមានបញ្ហាในการប្រើប្រាស់?</b><br>
-        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
+        💬 <b>ចង់បានកូដ VIP ឬមានបញ្ហាក្នុងការប្រើប្រាស់?</b><br>
+        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{t.me/bunyimyoem}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
     </div>
 """, unsafe_allow_html=True)
 
@@ -77,7 +77,7 @@ if not st.session_state.is_authenticated:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        key_input = st.text_input("BUNYIM VIP 001:", type="password", key="vip_key")
+        key_input = st.text_input("បញ្ចូលកូដសម្ងាត់ VIP:", type="password", key="vip_key")
         if st.button("ផ្ទៀងផ្ទាត់កូដ VIP"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
@@ -113,7 +113,6 @@ async def process_video(vid_in, vid_out, voice_name):
         return False
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 1. យករយៈពេលវីដេអូសរុប (Duration)
     probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
     probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -121,12 +120,10 @@ async def process_video(vid_in, vid_out, voice_name):
     except:
         video_duration = 30.0
 
-    # 2. ស្រង់សំឡេងចេញពីវីដេអូដើមមកធ្វើជា File MP3 ដើម្បីឱ្យ Whisper អាន
     orig_audio = "temp_orig.mp3"
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
 
-    # 3. ដំណើរការ Whisper AI ដើម្បីទាញយកកថាខណ្ឌ (Segments & Timestamps)
     model = whisper.load_model("base")
     result = model.transcribe(audio_to_transcribe)
     segments = result.get("segments", [])
@@ -138,7 +135,6 @@ async def process_video(vid_in, vid_out, voice_name):
     status_text = st.empty()
     total_segs = len(segments)
 
-    # 4. បកប្រែអត្ថបទ និងបង្កើតសំឡេង AI (Edge-TTS) តាមរយះពេលនីមួយៗ
     for idx, seg in enumerate(segments):
         raw_text = seg.get("text", "").strip()
         if not raw_text: 
@@ -167,7 +163,6 @@ async def process_video(vid_in, vid_out, voice_name):
             progress_bar.progress(int(((idx + 1) / total_segs) * 70))
         status_text.text(f"កំពុងបង្កើតសំឡេង AI ខ្មែរ៖ {idx+1}/{total_segs}")
 
-    # 5. លាយបញ្ចូលសំឡេង AI ចូលទៅក្នុងវីដេអូដោយសុវត្ថិភាពខ្ពស់
     if len(audio_segments) > 0:
         status_text.text("កំពុងផ្គុំសំឡេង AI ចូលក្នុងវីដេអូពេញលេញ...")
         
