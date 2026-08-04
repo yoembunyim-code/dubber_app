@@ -28,7 +28,7 @@ st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khm
 
 # ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក -----------------
 TELEGRAM_USERNAME = "bunyimyoem"  # <-- Username របស់អ្នក
-TELEGRAM_LINK = f"https://t.me/{bunyimyoem}"
+TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 
 # កែសម្រួលកូដ HTML ត្រង់នេះឱ្យមានសញ្ញាសម្រង់ត្រឹមត្រូវ
 st.markdown(f"""
