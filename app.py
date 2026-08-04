@@ -1,4 +1,3 @@
-
 import streamlit as st
 import whisper
 import subprocess
@@ -95,7 +94,7 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 1. យករយៈពេលវីដេអូសរុប
+    # 1. យករយៈពេលវីដេអូសរុបពិតប្រាកដ
     probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
     probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
@@ -103,7 +102,7 @@ async def process_video(vid_in, vid_out, voice_name):
     except:
         video_duration = 30.0
 
-    # 2. ស្រង់សំឡេងដើមដើម្បីឱ្យ Whisper អាន
+    # 2. ស្រង់សំឡេងដើមដើម្បី Whisper អាន
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
 
@@ -143,9 +142,9 @@ async def process_video(vid_in, vid_out, voice_name):
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 start_time = float(seg["start"])
                 inputs.extend(["-i", audio_path])
-                # រៀបចំកូដបញ្ជា delay ឱ្យត្រូវម៉ោងពិតប្រាកដដោយប្រើ aeval ឬ adelay
                 delay_ms = int(start_time * 1000)
-                filter_parts.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms}[a{count}]")
+                # ពន្យារពេលសំឡេង AI នីមួយៗឱ្យត្រូវម៉ោង និងដំឡើងកម្លាំងសំឡេងឱ្យดังច្បាស់ (volume=2.0)
+                filter_parts.append(f"[{count}:a]adelay={delay_ms}|{delay_ms},volume=2.0[a{count}]")
                 count += 1
         except Exception:
             continue
@@ -155,23 +154,26 @@ async def process_video(vid_in, vid_out, voice_name):
         status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេង AI រហូតដល់ចប់វីដេអូ...")
+        status_text.text("កំពុងបញ្ចូលសំឡេង AI ខ្មែរ និងកាត់សំឡេងដើមចេញ...")
         
-        # បង្កើតការលាយសំឡេងគ្រប់ផ្នែកបញ្ចូលគ្នាជាមួយ background silent track ដើម្បីការពារកុំឱ្យដាច់សំឡេង
-        mix_inputs = "".join([f"[a{i}]" for i in range(count)])
-        filter_complex = f"anullsrc=r=44100:cl=stereo[base_audio];"
+        # បង្កើត Null Audio Track ទំហំប៉ុនវីដេអូដើម ហើយយកសំឡេង AI ទាំងអស់មកផាត់បញ្ចូលគ្នា (amix)
+        filter_complex = f"anullsrc=r=44100:cl=stereo[base];"
+        mix_str = "[base]"
         for i in range(count):
-            filter_complex += f"[{i+1}:a]adelay={int(segments[i]['start']*1000)}|{int(segments[i]['start']*1000)}[delayed_{i}];"
+            filter_complex += filter_parts[i] + ";"
+            mix_str += f"[a{i}]"
         
-        mix_list = "".join([f"[delayed_{i}]" for i in range(count)])
-        filter_complex += f"[base_audio]{mix_list}amix=inputs={count+1}:duration=first:dropout_transition=0[outa]"
+        filter_complex += f"{mix_str}amix=inputs={count+1}:duration=first:dropout_transition=0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
         ] + inputs + [
             "-filter_complex", filter_complex,
-            "-map", "0:v:0", "-map", "[outa]",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-map", "0:v:0", # យកវីដេអូដើម
+            "-map", "[outa]", # យកតែសំឡេង AI ខ្មែរដែលបានលាយរួច (កាត់សំឡេងដើមចោលមិនឱ្យរំខាន)
+            "-c:v", "copy", 
+            "-c:a", "aac", 
+            "-b:a", "192k",
             "-t", str(video_duration),
             "-y", vid_out
         ]
@@ -210,7 +212,7 @@ if uploaded_file is not None:
             st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
 
     if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការបកប្រែពេញលេញ..."):
+        with st.spinner("កំពុងដំណើរការបកប្រែជាសំឡេង AI ខ្មែរ..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
