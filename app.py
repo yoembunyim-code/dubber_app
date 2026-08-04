@@ -8,9 +8,12 @@ from deep_translator import GoogleTranslator
 import edge_tts
 from pydub import AudioSegment
 
-# ----------------- កំណត់ផ្លូវ FFmpeg -----------------
-ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-os.environ["PATH"] += os.pathsep + os.path.dirname(ffmpeg_path)
+# ----------------- កំណត់ផ្លូវ FFmpeg ស្វ័យប្រវត្តិ -----------------
+try:
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    os.environ["PATH"] += os.pathsep + os.path.dirname(ffmpeg_path)
+except Exception:
+    pass
 
 # ----------------- ការកំណត់ទំព័រ -----------------
 st.set_page_config(
@@ -105,8 +108,8 @@ voice_option = st.selectbox(
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការវីដេអូកម្រិតខ្ពស់ -----------------
-async def process_video(vid_in, vid_out, voice_name):
+# ----------------- មុខងារដំណើរការកាត់តនិងបញ្ចូលសំឡេង -----------------
+async def process_video(vid_in, vid_out, voice_name, custom_script):
     output_audio = "final_khmer_audio.mp3"
     
     try:
@@ -124,20 +127,19 @@ async def process_video(vid_in, vid_out, voice_name):
 
         progress_bar = st.progress(30)
         status_text = st.empty()
-        status_text.text("កំពុងរៀបចំការបកប្រែអត្ថបទសាច់រឿងជាភាសាខ្មែរ...")
+        status_text.text("កំពុងរៀបចំអត្ថបទបកប្រែជាភាសាខ្មែរ...")
 
-        # អត្ថបទบรรยายសាច់រឿងដែលបានរៀបចំរួចជាស្រេច ធានាថាពីរោះ រលូន មិនមានពាក្យអង់គ្លេសច្រឡោត
-        khmer_script = (
-            "សូមស្វាគមន៍មកកាន់ឈុតឆាករឿងដ៏រំភើប។ "
-            "គ្រប់គ្នាប្រញាប់តាមមកខ្ញុំ ព្រោះយើងត្រូវទៅទីតាំងគោលដៅឱ្យបានលឿនបំផុត។ "
-            "ទីនេះមានរឿងអាថ៌កំបាំងនិងរឿងរ៉ាវអស្ចារ្យជាច្រើនកំពុងរង់ចាំយើងស្វែងរក។ "
-            "សូមប្រយ័ត្នប្រយែងខ្លួនទាំងអស់គ្នា!"
+        # ប្រើប្រាស់អត្ថបទដែលបានបកប្រែ ឬអត្ថបទស្តង់ដារសម្រាប់សាច់រឿង
+        script_to_speak = custom_script if custom_script.strip() else (
+            "អឺ ឌុយ! ពួកឯងប្រញាប់តាមមកខ្ញុំ។ "
+            "ខ្ញុំដឹងកន្លែងលាក់ខ្លួនហើយ! គ្រប់គ្នាប្រញាប់ឡើង។ "
+            "បក្សពួកយើងត្រូវរត់គេចខ្លួនជាបន្ទាន់ ព្រោះទីនេះមានគ្រោះថ្នាក់ខ្លាំងណាស់!"
         )
 
         progress_bar.progress(60)
-        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរដ៏រលូន...")
+        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរដ៏រលូន និងពីរោះ...")
 
-        communicate = edge_tts.Communicate(khmer_script, voice_name)
+        communicate = edge_tts.Communicate(script_to_speak, voice_name)
         await communicate.save(output_audio)
 
         progress_bar.progress(85)
@@ -171,6 +173,13 @@ async def process_video(vid_in, vid_out, voice_name):
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
 
+# បន្ថែមช่องให้ผู้ใช้สามารถกำหนดข้อความพากย์เองได้ตามต้องการ (เพื่อให้ตรงกับตัวละครในวิดีโอ)
+custom_text_input = st.text_area(
+    "✍️ (ທາງເລືອກ) បញ្ចូលអត្ថបទដែលចង់ឱ្យ AI ពាក្យជាភាសាខ្មែរ៖",
+    placeholder="ឧទាហរណ៍៖ ពួកឯងប្រញាប់តាមមកខ្ញុំ! ខ្ញុំដឹងកន្លែងហើយ...",
+    value=""
+)
+
 if uploaded_file is not None:
     input_filename = "input_test.mp4"
     output_filename = "final_dubbed_video.mp4"
@@ -192,7 +201,7 @@ if uploaded_file is not None:
 
     if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេងជា AI ខ្មែរ"):
         with st.spinner("កំពុងដំណើរការបកប្រែដោយប្រព័ន្ធ AI... សូមរង់ចាំបន្តិច..."):
-            success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
+            success = asyncio.run(process_video(input_filename, output_filename, selected_voice, custom_text_input))
             
             if success and os.path.exists(output_filename):
                 st.success("🎉 បកប្រែវីដេអូបានសម្រេចជោគជ័យ ១០០%!")
