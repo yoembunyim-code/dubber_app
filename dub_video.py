@@ -9,17 +9,14 @@ import edge_tts
 
 st.title("Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
 
-# កំណត់ចំនួនវីដេអូរយៈពេលសាកល្បង (Free Trial)
 MAX_FREE_VIDEOS = 3
-telegram_link = "https://t.me/bunyimyoem" # ប្តូរដាក់តំណ Telegram របស់អ្នក
+telegram_link = "https://t.me/bunyimyoem"
 
-# ទាញយកកូដសម្ងាត់ពី Streamlit Secrets
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
     "BUNYIM-VIP-002": "សកម្ម"
 })
 
-# រៀបចំ Session State សម្រាប់ចងចាំការប្រើប្រាស់
 if "is_authenticated" not in st.session_state:
     st.session_state.is_authenticated = False
 if "user_email" not in st.session_state:
@@ -117,6 +114,7 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
+    # ទាញយកសំឡេងពីវីដេអូដើមមកទុកពិនិត្យ
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     model = whisper.load_model("base")
@@ -164,14 +162,15 @@ async def process_video(vid_in, vid_out, voice_name):
     if count > 0:
         status_text.text("កំពុងចាក់បញ្ចូលសំឡេងចូលវីដេអូ...")
         mix = "".join([f"[a{i}]" for i in range(count)])
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume={count}[outa]"
+        # កែសម្រួលសំឡេងឱ្យកាន់តែดัง (Volume 2.0) និងលាយបញ្ចូលគ្នាដោយរលូន
+        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume=2.0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
         ] + inputs + [
             "-filter_complex", filter_str,
             "-map", "0:v:0", "-map", "[outa]",
-            "-c:v", "copy", "-c:a", "aac", 
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
             "-shortest", "-y", vid_out
         ]
         
