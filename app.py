@@ -15,7 +15,7 @@ try:
 except Exception:
     pass
 
-# ----------------- ការកំណត់ទំព័រ -----------------
+# ----------------- ការកំណត់ទំព័រ និងរចនាប័ទ្ម UI ដ៏ស្រស់ស្អាត -----------------
 st.set_page_config(
     page_title="AI Video Dubbing Khmer Pro",
     page_icon="🎬",
@@ -24,14 +24,47 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    .main-title { font-size: 28px; font-weight: bold; color: #FF4B4B; text-align: center; margin-bottom: 20px; }
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; background-color: #FF4B4B; color: white; }
-    .stButton>button:hover { background-color: #ff3333; color: white; }
-    .telegram-box { background-color: #e6f7ff; padding: 15px; border-radius: 8px; border-left: 5px solid #1890ff; text-align: center; margin-bottom: 20px; }
+    .main-title { 
+        font-size: 32px; 
+        font-weight: 800; 
+        color: #FF4B4B; 
+        text-align: center; 
+        margin-bottom: 5px; 
+    }
+    .sub-title {
+        font-size: 16px;
+        color: #666666;
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 10px; 
+        font-weight: bold; 
+        background: linear-gradient(135deg, #FF4B4B 0%, #FF2222 100%);
+        color: white; 
+        padding: 10px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .stButton>button:hover { 
+        background: linear-gradient(135deg, #ff3333, #e00000);
+        color: white; 
+    }
+    .telegram-box { 
+        background: linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%); 
+        padding: 15px; 
+        border-radius: 12px; 
+        border-left: 6px solid #1890ff; 
+        text-align: center; 
+        margin-bottom: 25px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🎬 AI Video Dubbing (Professional Khmer)</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🎬 AI Video Dubbing Khmer Pro</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែនិងพាក្យសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិកកម្រិតខ្ពស់</div>', unsafe_allow_html=True)
 
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
@@ -58,6 +91,7 @@ if "is_vip" not in st.session_state:
 if "trial_users" not in st.session_state:
     st.session_state.trial_users = {}
 
+# ----------------- ប្រព័ន្ធផ្ទៀងផ្ទាត់គណនី (Authentication) -----------------
 if not st.session_state.is_authenticated:
     st.markdown("### 🔐 សូមផ្ទៀងផ្ទាត់គណនីដើម្បីចាប់ផ្តើមប្រើប្រាស់")
     tab1, tab2 = st.tabs(["📧 Free Trial (សាកល្បង)", "🔑 VIP Access Key"])
@@ -93,6 +127,7 @@ if not st.session_state.is_authenticated:
                 st.error("កូដសម្ងាត់មិនត្រឹមត្រូវ។")
     st.stop()
 
+# ----------------- បان់បង្ហាញព័ត៌មានអ្នកប្រើប្រាស់ -----------------
 col_acc1, col_acc2 = st.columns([4, 1])
 with col_acc1:
     acc_type = "👑 VIP Member" if st.session_state.is_vip else "🆓 Free Tier"
@@ -102,13 +137,14 @@ with col_acc2:
         st.session_state.is_authenticated = False
         st.rerun()
 
+# ----------------- ការជ្រើសរើសសំឡេង AI -----------------
 voice_option = st.selectbox(
-    "🎙️ ជ្រើសរើសសំឡេង AI សម្រាប់បកប្រែ៖",
+    "🎙️ ជ្រើសរើសសំឡេង AI សម្រាប់พាក្យ៖",
     ("សំឡេងស្រីធម្មជាតិ (Sreymom)", "សំឡេងប្រុសធម្មជាតិ (Piseth)")
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការកាត់តនិងបញ្ចូលសំឡេង -----------------
+# ----------------- មុខងារដំណើរការវីដេអូ (Video Processing Engine) -----------------
 async def process_video(vid_in, vid_out, voice_name, custom_script):
     output_audio = "final_khmer_audio.mp3"
     
@@ -127,17 +163,17 @@ async def process_video(vid_in, vid_out, voice_name, custom_script):
 
         progress_bar = st.progress(30)
         status_text = st.empty()
-        status_text.text("កំពុងរៀបចំអត្ថបទបកប្រែជាភាសាខ្មែរ...")
+        status_text.text("កំពុងរៀបចំអត្ថបទพាក្យជាភាសាខ្មែរ...")
 
-        # ប្រើប្រាស់អត្ថបទដែលបានបកប្រែ ឬអត្ថបទស្តង់ដារសម្រាប់សាច់រឿង
+        # ប្រើប្រាស់អត្ថបទដែលអ្នកបានបញ្ចូលស្របតាមតួអង្គក្នុងវីដេអូ
         script_to_speak = custom_script if custom_script.strip() else (
-            "អឺ ឌុយ! ពួកឯងប្រញាប់តាមមកខ្ញុំ។ "
-            "ខ្ញុំដឹងកន្លែងលាក់ខ្លួនហើយ! គ្រប់គ្នាប្រញាប់ឡើង។ "
-            "បក្សពួកយើងត្រូវរត់គេចខ្លួនជាបន្ទាន់ ព្រោះទីនេះមានគ្រោះថ្នាក់ខ្លាំងណាស់!"
+            "សូមស្វាគមន៍មកកាន់ការបកប្រែវីដេអូ AI។ "
+            "គ្រប់គ្នាប្រញាប់តាមមកខ្ញុំ ព្រោះយើងត្រូវទៅទីតាំងគោលដៅឱ្យបានលឿនបំផុត។ "
+            "ទីនេះមានរឿងរ៉ាវអស្ចារ្យជាច្រើនកំពុងរង់ចាំយើង!"
         )
 
         progress_bar.progress(60)
-        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរដ៏រលូន និងពីរោះ...")
+        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរដ៏រលូន និងមានជីវិតរស់រវើក...")
 
         communicate = edge_tts.Communicate(script_to_speak, voice_name)
         await communicate.save(output_audio)
@@ -171,12 +207,12 @@ async def process_video(vid_in, vid_out, voice_name, custom_script):
             except: pass
 
 st.markdown("---")
-uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
+uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "avi"])
 
-# បន្ថែមช่องให้ผู้ใช้สามารถกำหนดข้อความพากย์เองได้ตามต้องการ (เพื่อให้ตรงกับตัวละครในวิดีโอ)
+# ប្រអប់បញ្ចូលអត្ថបទតាមតួអង្គ (Character Script Input)
 custom_text_input = st.text_area(
-    "✍️ (ທາງເລືອກ) បញ្ចូលអត្ថបទដែលចង់ឱ្យ AI ពាក្យជាភាសាខ្មែរ៖",
-    placeholder="ឧទាហរណ៍៖ ពួកឯងប្រញាប់តាមមកខ្ញុំ! ខ្ញុំដឹងកន្លែងហើយ...",
+    "✍️ បញ្ចូលអត្ថបទសាច់រឿងដែលចង់ឱ្យ AI និយាយជាភាសាខ្មែរ (ឱ្យត្រូវនឹងតួអង្គ):",
+    placeholder="ឧទាហរណ៍៖ ពួកឯងប្រញាប់តាមមកខ្ញុំ! ខ្ញុំដឹងកន្លែងលាក់ខ្លួនហើយ...",
     value=""
 )
 
@@ -199,8 +235,8 @@ if uploaded_file is not None:
         else:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។")
 
-    if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេងជា AI ខ្មែរ"):
-        with st.spinner("កំពុងដំណើរការបកប្រែដោយប្រព័ន្ធ AI... សូមរង់ចាំបន្តិច..."):
+    if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែនិងពាក្យសំឡេង AI ខ្មែរ"):
+        with st.spinner("កំពុងដំណើរការបង្កើតវីដេអូដោយប្រព័ន្ធ AI... សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice, custom_text_input))
             
             if success and os.path.exists(output_filename):
@@ -213,7 +249,7 @@ if uploaded_file is not None:
                 
                 with open(output_filename, "rb") as file:
                     st.download_button(
-                        label="📥 ទាញយកវីដេអូដែលបានបកប្រែ",
+                        label="📥 ទាញយកវីដេអូដែលបានបកប្រែរួច",
                         data=file,
                         file_name="khmer_dubbed_video.mp4",
                         mime="video/mp4"
