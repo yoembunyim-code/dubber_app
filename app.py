@@ -12,7 +12,7 @@ st.set_page_config(page_title="AI Video Dubbing Khmer", layout="centered")
 st.title("AI Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
 
 MAX_FREE_VIDEOS = 3
-telegram_link = "https://t.me/bunyimyoeme"
+telegram_link = "https://t.me/bunyimyoem"
 
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
@@ -28,7 +28,6 @@ if "is_vip" not in st.session_state:
 if "trial_users" not in st.session_state:
     st.session_state.trial_users = {} 
 
-# ប្រព័ន្ធចូលគណនី (Authentication Check)
 if not st.session_state.is_authenticated:
     st.markdown("### 🔐 សូមបញ្ចូលគណនី ឬកូដសម្ងាត់ដើម្បីបន្ត")
     st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {MAX_FREE_VIDEOS} វីដេអូ។")
@@ -95,6 +94,15 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
+    # 1. ទាញយករយៈពេលវីដេអូដើមពិតប្រាកដ (Duration) ទុកជាវិនាທີ
+    probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
+    probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        video_duration = float(probe_res.stdout.strip())
+    except:
+        video_duration = 30.0 # ការពារក្រែងអានអត់ចេញ
+
+    # 2. ស្រង់សំឡេងដើមចេញមកដើម្បី Whisper អានអត្ថបទ
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
 
@@ -133,7 +141,8 @@ async def process_video(vid_in, vid_out, voice_name):
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 delay_ms = int(seg["start"] * 1000)
                 inputs.extend(["-i", audio_path])
-                filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},volume=3.0[a{count}]")
+                # ប្រើប្រាស់ adelay ដើម្បីរុញសំឡេងទៅដាក់តាមម៉ោងដែលបានកំណត់ដោយមិនកាត់រយៈពេលវីដេអូ
+                filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms}[a{count}]")
                 count += 1
         except Exception:
             continue
@@ -143,11 +152,11 @@ async def process_video(vid_in, vid_out, voice_name):
         status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេងខ្មែរពេញលេញ...")
+        status_text.text("កំពុងបញ្ចូលសំឡេងខ្មែរ និងរក្សារយៈពេលវីដេអូដើម...")
         mix = "".join([f"[a{i}]" for i in range(count)])
         
-        # ប្រើប្រាស់ duration=longest ដើម្បីការពារកុំឱ្យវីដេអូត្រូវកាត់ផ្ដាច់ខ្លី
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest:dropout_transition=0[outa]"
+        # ប្រើប្រាស់ amix ជាមួយ duration=longest និង tpad ដើម្បីបង្ខំឱ្យវីដេអូរត់ចប់ពេញលេញតាមប្រវែងដើម
+        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest[mixed_audio];[mixed_audio]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
@@ -155,7 +164,8 @@ async def process_video(vid_in, vid_out, voice_name):
             "-filter_complex", filter_str,
             "-map", "0:v:0", "-map", "[outa]",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-            "-shortest", "-y", vid_out
+            "-t", str(video_duration), # ចាក់បន្លាយពេលវេលាឱ្យស្មើវីដេអូដើមเป๊ะ
+            "-y", vid_out
         ]
         
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -192,7 +202,7 @@ if uploaded_file is not None:
             st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
 
     if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការបកប្រែ និងបញ្ចូលសំឡេង AI ពេញលេញ..."):
+        with st.spinner("កំពុងដំណើរការបកប្រែពេញលេញ ៣០វិនាទី..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
