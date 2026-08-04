@@ -14,7 +14,7 @@ telegram_link = "https://t.me/bunyimyoem"
 
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
-    "BUNYIM-VIP-002": "សកម្ម"
+    "KHMER-VIP-002": "សកម្ម"
 })
 
 if "is_authenticated" not in st.session_state:
@@ -71,7 +71,7 @@ def check_access():
             else:
                 st.error("កូដមិនត្រឹមត្រូវ។")
 
-    st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
+    st.markdown(f"ទិញកូដ Telegram: [ចុចទីนี่]({telegram_link})")
     return False
 
 if not check_access():
@@ -114,11 +114,22 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # ទាញយកសំឡេងពីវីដេអូដើមមកទុកពិនិត្យ
+    # ទាញយកសំឡេងដើមមកវិភាគ
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     model = whisper.load_model("base")
-    segments = model.transcribe("temp.mp3")["segments"]
+    result = model.transcribe("temp.mp3")
+    segments = result.get("segments", [])
+    
+    # ទាញយករយៈពេលសរុបរបស់វីដេអូ (Duration) ជាវិនាទី
+    duration_cmd = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    try:
+        total_duration = float(duration_cmd.stdout.strip())
+    except:
+        total_duration = 10.0
 
     translator = GoogleTranslator(source='auto', target='km')
     inputs, filters = [], []
@@ -149,21 +160,22 @@ async def process_video(vid_in, vid_out, voice_name):
         except Exception:
             continue
         
-        if os.path.exists(audio_path):
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             delay_ms = int(seg["start"] * 1000)
             inputs.extend(["-i", audio_path])
-            filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{count}]")
+            # បង្កើត pad សំឡេងឱ្យវែងស្មើនឹងវីដេអូទាំងមូល ដើម្បីកុំឱ្យបាត់សំឡេង
+            filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad=whole_dur={total_duration}[a{count}]")
             count += 1
 
-        progress_percentage = int(((idx + 1) / total_segs) * 90)
+        progress_percentage = int(((idx + 1) / (total_segs if total_segs > 0 else 1)) * 90)
         progress_bar.progress(progress_percentage)
         status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
         status_text.text("កំពុងចាក់បញ្ចូលសំឡេងចូលវីដេអូ...")
         mix = "".join([f"[a{i}]" for i in range(count)])
-        # កែសម្រួលសំឡេងឱ្យកាន់តែดัง (Volume 2.0) និងលាយបញ្ចូលគ្នាដោយរលូន
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume=2.0[outa]"
+        # amix ជាមួយ duration=first ដើម្បីរក្សារយៈពេលវីដេអូដើម និងដំឡើង Volume ឱ្យខ្លាំងច្បាស់
+        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=first:dropout_transition=0,volume=3.0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
