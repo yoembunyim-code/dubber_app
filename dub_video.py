@@ -11,7 +11,7 @@ st.title("Video Dubbing (English -> Khmer)")
 
 # កំណត់ចំនួនវីដេអូសម្រាប់ Free Trial
 MAX_FREE_VIDEOS = 3
-telegram_link = "https://t.me/your_telegram_username" # ប្តូរដាក់តំណ Telegram របស់អ្នក
+telegram_link = "https://t.me/bunyimyoem" # ប្តូរដាក់តំណ Telegram របស់អ្នក
 
 # ទាញយកកូដសម្ងាត់ពី Streamlit Secrets
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
