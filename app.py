@@ -3,23 +3,15 @@ import subprocess
 import os
 import asyncio
 import shutil
+import imageio_ffmpeg
 from deep_translator import GoogleTranslator
 import edge_tts
 import speech_recognition as sr
 from pydub import AudioSegment
 
-# ----------------- ដំឡើង FFmpeg ដោយស្វ័យប្រវត្តិក្នុង Streamlit Cloud -----------------
-@st.cache_resource
-def install_ffmpeg():
-    try:
-        # စစ်មើលសិនថាមាន ffmpeg ហើយឬยัง
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # បើអត់ទាន់មាន ធ្វើការ Download និង Install ចូល Linux system ស្វ័យប្រវត្តិ
-        subprocess.run(["apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(["apt-get", "install", "-y", "ffmpeg"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-install_ffmpeg()
+# ----------------- កំណត់ផ្លូវ FFmpeg ដោយស្វ័យប្រវត្តិពី Python Package -----------------
+ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+os.environ["PATH"] += os.pathsep + os.path.dirname(ffmpeg_path)
 
 # ----------------- ការកំណត់ទំព័រ (Page Configuration) -----------------
 st.set_page_config(
