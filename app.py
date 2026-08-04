@@ -39,8 +39,8 @@ TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 st.markdown(f"""
     <div class="notice-box">
         🎁 <b>គោលការណ៍ប្រើប្រាស់ប្រព័ន្ធ៖</b><br>
-        - អ្នកអាចសាកល្បងបកប្រែវីដេអូដោយឥតគិតថ្លៃបានចំនួន <b>៣ វីដេអូដំបូង</b> ប៉ុណ្ណោះតាមរយៈ Free Trial។<br>
-        - បន្ទាប់ពីអស់កូតា ៣ វីដេអូនេះ អ្នកត្រូវ<b>ទិញកូដ VIP Access Key</b> ដើម្បីបន្តប្រើប្រាស់ជានិច្ច។<br>
+        - អ្នកអាចសាកល្បងបកប្រែវីដេអូដោយឥតគិតថ្លៃបានចំនួន <b>៣ វីដេអូដំបូង</b> ប៉ុណ្ណោះតាមរយៈ Free Trial。<br>
+        - បន្ទាប់ពីអស់កូតា ៣ វីដេអូនេះ អ្នកត្រូវ<b>ទិញកូដ VIP Access Key</b> ដើម្បីបន្តប្រើប្រាស់ជានិច្ច。<br>
         💬 ទិញកូដ VIP តាមរយៈ Telegram: <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
     </div>
 """, unsafe_allow_html=True)
@@ -139,8 +139,13 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         status_text = st.empty()
         status_text.text("កំពុងទាញយកសំឡេងចេញពីវីដេអូ...")
 
-        # ទាញយក File Audio មកជា WAV
-        extract_cmd = ['ffmpeg', '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', extracted_audio]
+        # ប្រើប្រាស់ imageio_ffmpeg ដើម្បីធានាថាមានផ្លូវ FFmpeg ច្បាស់លាស់
+        try:
+            FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
+        except:
+            FFMPEG_BIN = "ffmpeg"
+
+        extract_cmd = [FFMPEG_BIN, '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', extracted_audio]
         subprocess.run(extract_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         progress_bar.progress(40)
@@ -166,7 +171,7 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         translated_text = translator.translate(recognized_text)
 
         progress_bar.progress(75)
-        status_text.text("កំពុងបង្កើតសំឡេងพูด AI ភាសាខ្មែរ...")
+        status_text.text("កំពុងបង្កើតសំឡេងនិយាយ AI ភាសាខ្មែរ...")
 
         communicate = edge_tts.Communicate(translated_text, voice_name)
         await communicate.save(output_audio)
@@ -174,7 +179,7 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         # យករយៈពេលវីដេអូដើម
         video_duration = 30.0
         try:
-            probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
+            probe_cmd = [FFMPEG_BIN.replace('ffmpeg', 'ffprobe'), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
             probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
             if probe_res.returncode == 0 and probe_res.stdout.strip():
                 video_duration = float(probe_res.stdout.strip())
@@ -185,7 +190,7 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         status_text.text("កំពុងដាក់បញ្ចូលសំឡេងនិយាយខ្មែរថ្មីជំនួសសំឡេងដើមក្នុងវីដេអូ...")
 
         cmd = [
-            'ffmpeg', '-i', vid_in, '-i', output_audio,
+            FFMPEG_BIN, '-i', vid_in, '-i', output_audio,
             '-map', '0:v:0', '-map', '1:a:0',
             '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
             '-t', str(video_duration), '-y', vid_out
@@ -193,7 +198,7 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         
         process_res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if process_res.returncode != 0:
-            fallback_cmd = ['ffmpeg', '-i', vid_in, '-i', output_audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-shortest', '-y', vid_out]
+            fallback_cmd = [FFMPEG_BIN, '-i', vid_in, '-i', output_audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-shortest', '-y', vid_out]
             subprocess.run(fallback_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         progress_bar.progress(100)
