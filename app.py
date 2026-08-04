@@ -24,17 +24,17 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ចំណងជើងដែលបានដកអក្សរ KH ចេញ
 st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khmer)</div>', unsafe_allow_html=True)
 
-# ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក (កែប្រែនៅទីនេះ) -----------------
-TELEGRAM_USERNAME = "your_telegram_username"  # <-- ដាក់ Username តេលេក្រាមរបស់អ្នកទីនេះ
-TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
+# ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក -----------------
+TELEGRAM_USERNAME = "bunyimyoem"  # <-- Username របស់អ្នក
+TELEGRAM_LINK = f"https://t.me/{bunyimyoem}"
 
+# កែសម្រួលកូដ HTML ត្រង់នេះឱ្យមានសញ្ញាសម្រង់ត្រឹមត្រូវ
 st.markdown(f"""
     <div class="telegram-box">
         💬 <b>ចង់បានកូដ VIP ឬមានបញ្ហាក្នុងការប្រើប្រាស់?</b><br>
-        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{t.me/bunyimyoem}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
+        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
     </div>
 """, unsafe_allow_html=True)
 
