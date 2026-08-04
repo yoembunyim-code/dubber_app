@@ -1,3 +1,4 @@
+
 import streamlit as st
 import whisper
 import subprocess
@@ -94,15 +95,15 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # 1. ទាញយករយៈពេលវីដេអូដើមពិតប្រាកដ (Duration) ទុកជាវិនាທີ
+    # 1. យករយៈពេលវីដេអូសរុប
     probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
     probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         video_duration = float(probe_res.stdout.strip())
     except:
-        video_duration = 30.0 # ការពារក្រែងអានអត់ចេញ
+        video_duration = 30.0
 
-    # 2. ស្រង់សំឡេងដើមចេញមកដើម្បី Whisper អានអត្ថបទ
+    # 2. ស្រង់សំឡេងដើមដើម្បីឱ្យ Whisper អាន
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
 
@@ -111,7 +112,8 @@ async def process_video(vid_in, vid_out, voice_name):
     segments = result.get("segments", [])
 
     translator = GoogleTranslator(source='auto', target='km')
-    inputs, filters = [], []
+    inputs = []
+    filter_parts = []
     count = 0
 
     progress_bar = st.progress(0)
@@ -139,10 +141,11 @@ async def process_video(vid_in, vid_out, voice_name):
             await communicate.save(audio_path)
             
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                delay_ms = int(seg["start"] * 1000)
+                start_time = float(seg["start"])
                 inputs.extend(["-i", audio_path])
-                # ប្រើប្រាស់ adelay ដើម្បីរុញសំឡេងទៅដាក់តាមម៉ោងដែលបានកំណត់ដោយមិនកាត់រយៈពេលវីដេអូ
-                filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms}[a{count}]")
+                # រៀបចំកូដបញ្ជា delay ឱ្យត្រូវម៉ោងពិតប្រាកដដោយប្រើ aeval ឬ adelay
+                delay_ms = int(start_time * 1000)
+                filter_parts.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms}[a{count}]")
                 count += 1
         except Exception:
             continue
@@ -152,19 +155,24 @@ async def process_video(vid_in, vid_out, voice_name):
         status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេងខ្មែរ និងរក្សារយៈពេលវីដេអូដើម...")
-        mix = "".join([f"[a{i}]" for i in range(count)])
+        status_text.text("កំពុងបញ្ចូលសំឡេង AI រហូតដល់ចប់វីដេអូ...")
         
-        # ប្រើប្រាស់ amix ជាមួយ duration=longest និង tpad ដើម្បីបង្ខំឱ្យវីដេអូរត់ចប់ពេញលេញតាមប្រវែងដើម
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest[mixed_audio];[mixed_audio]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[outa]"
+        # បង្កើតការលាយសំឡេងគ្រប់ផ្នែកបញ្ចូលគ្នាជាមួយ background silent track ដើម្បីការពារកុំឱ្យដាច់សំឡេង
+        mix_inputs = "".join([f"[a{i}]" for i in range(count)])
+        filter_complex = f"anullsrc=r=44100:cl=stereo[base_audio];"
+        for i in range(count):
+            filter_complex += f"[{i+1}:a]adelay={int(segments[i]['start']*1000)}|{int(segments[i]['start']*1000)}[delayed_{i}];"
+        
+        mix_list = "".join([f"[delayed_{i}]" for i in range(count)])
+        filter_complex += f"[base_audio]{mix_list}amix=inputs={count+1}:duration=first:dropout_transition=0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
         ] + inputs + [
-            "-filter_complex", filter_str,
+            "-filter_complex", filter_complex,
             "-map", "0:v:0", "-map", "[outa]",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-            "-t", str(video_duration), # ចាក់បន្លាយពេលវេលាឱ្យស្មើវីដេអូដើមเป๊ะ
+            "-t", str(video_duration),
             "-y", vid_out
         ]
         
@@ -202,7 +210,7 @@ if uploaded_file is not None:
             st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
 
     if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការបកប្រែពេញលេញ ៣០វិនាទី..."):
+        with st.spinner("កំពុងដំណើរការបកប្រែពេញលេញ..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
@@ -220,4 +228,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
+                st.warning("មានបញ្ហាក្នុងการដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
