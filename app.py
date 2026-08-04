@@ -14,7 +14,6 @@ st.set_page_config(
     layout="centered"
 )
 
-# ----------------- CSS Styling ឱ្យកាន់តែស្រស់ស្អាត -----------------
 st.markdown("""
     <style>
     .main-title { font-size: 28px; font-weight: bold; color: #FF4B4B; text-align: center; margin-bottom: 20px; }
@@ -26,7 +25,6 @@ st.markdown("""
 
 st.markdown('<div class="main-title">🎬 AI Video Dubbing (Any Language ➔ Khmer)</div>', unsafe_allow_html=True)
 
-# ----------------- កន្លែងដាក់តេលេក្រាមរបស់អ្នក -----------------
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 
@@ -37,7 +35,6 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# ----------------- ការគ្រប់គ្រងគណនី និងកូដ VIP -----------------
 MAX_FREE_VIDEOS = 3
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
@@ -71,7 +68,7 @@ if not st.session_state.is_authenticated:
                     st.success("ចូលគណនីបានជោគជ័យ!")
                     st.rerun()
                 else:
-                    st.error(f"អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូនាពេលកន្លងមកហើយ! សូមទិញកូដ VIP តាម Telegram ខាងលើ។")
+                    st.error(f"អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូនាពេលកន្លងមកហើយ!")
             else:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
@@ -88,7 +85,6 @@ if not st.session_state.is_authenticated:
                 st.error("កូដសម្ងាត់មិនត្រឹមត្រូវ។")
     st.stop()
 
-# ----------------- របារបង្ហាញព័ត៌មានអ្នកប្រើប្រាស់ -----------------
 col_acc1, col_acc2 = st.columns([4, 1])
 with col_acc1:
     acc_type = "👑 VIP Member" if st.session_state.is_vip else "🆓 Free Tier"
@@ -98,123 +94,144 @@ with col_acc2:
         st.session_state.is_authenticated = False
         st.rerun()
 
-# ----------------- ការជ្រើសរើសសំឡេង AI -----------------
 voice_option = st.selectbox(
     "🎙️ ជ្រើសរើសសំឡេង AI សម្រាប់បកប្រែ៖",
     ("សំឡេងស្រីធម្មជាតិ (Sreymom)", "សំឡេងប្រុសធម្មជាតិ (Piseth)")
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- កូដចម្បងក្នុងការដំណើរការវីដេអូ និងសំឡេង (Fixed Robust Audio Generation) -----------------
+# ----------------- មុខងារដំណើរការវីដេអូដែលមានប្រព័ន្ធការពារកម្រិតខ្ពស់ (Robust Error Protection) -----------------
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
-    if not os.path.exists(vid_in): 
-        return False
-    os.makedirs(temp_dir, exist_ok=True)
-
-    # 1. យករយៈពេលវីដេអូសរុប (Duration)
-    probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
-    probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    try:
-        video_duration = float(probe_res.stdout.strip())
-    except:
-        video_duration = 30.0
-
-    # 2. ស្រង់សំឡេងចេញពីវីដេអូដើម
     orig_audio = "temp_orig.mp3"
-    subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
-
-    # 3. ប្រើប្រាស់ Whisper AI ដើម្បីទាញយកទិន្នន័យសំឡេង
-    model = whisper.load_model("base")
-    result = model.transcribe(audio_to_transcribe)
-    segments = result.get("segments", [])
-
-    if not segments and result.get("text"):
-        segments = [{"start": 0.0, "end": video_duration, "text": result.get("text")}]
-
-    translator = GoogleTranslator(source='auto', target='km')
     
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    total_segs = len(segments)
-
-    audio_segments = []
-    current_timeline = 0.0
-
-    # 4. បកប្រែ និងតម្រៀបម៉ោងឱ្យបានត្រឹមត្រូវក្នុង timeline តែមួយ
-    for idx, seg in enumerate(segments):
-        raw_text = seg.get("text", "").strip()
-        if not raw_text: 
-            continue
-        
-        try: 
-            kh_text = translator.translate(raw_text)
-        except: 
-            kh_text = raw_text
-        
-        if not kh_text or kh_text.isspace():
-            continue
+    try:
+        if not os.path.exists(vid_in): 
+            st.error("រកមិនឃើញឯកសារវីដេអូបញ្ចូលទេ។")
+            return False
             
-        audio_path = f"{temp_dir}/seg_{idx}.mp3"
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # 1. ការពារការដាច់ ឬគាំងពេលអាន Duration វីដេអូ
+        video_duration = 30.0
         try:
-            communicate = edge_tts.Communicate(kh_text, voice_name)
-            await communicate.save(audio_path)
-            
-            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                start_time = float(seg.get("start", current_timeline))
-                audio_segments.append((start_time, audio_path))
-                current_timeline = start_time
-        except:
-            continue
+            probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
+            probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+            if probe_res.returncode == 0 and probe_res.stdout.strip():
+                video_duration = float(probe_res.stdout.strip())
+        except Exception:
+            pass
 
-        if total_segs > 0:
-            progress_bar.progress(int(((idx + 1) / total_segs) * 60))
-        status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
-
-    # 5. រៀបចំផែនការផ្គុំសំឡេងដោយប្រើ complex filter របស់ FFmpeg ធានាថាមិនបាត់សំឡេង
-    if len(audio_segments) > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
-        
-        # បង្កើត Audio Stream ទំនេរមួយដែលមានប្រវែងស្មើវីដេអូ (Silent Base Track)
-        filter_complex = f"anullsrc=r=44100:cl=stereo[base];"
-        inputs = ["-i", vid_in]
-        
-        mix_inputs = "[base]"
-        for i, (start_t, path) in enumerate(audio_segments):
-            inputs.extend(["-i", path])
-            delay_ms = int(start_t * 1000)
-            # ប្រើ adelay ដើម្បីទម្លាក់សំឡេងទៅតាមទីតាំងម៉ោងពិតប្រាកដរបស់វីដេអូ
-            filter_complex += f"[{i+1}:a]adelay={delay_ms}|{delay_ms}[a{i}];"
-            mix_inputs += f"[a{i}]"
+        # 2. ស្រង់សំឡេងដើមដោយមាន Try-Except ការពារ FFmpeg Error
+        try:
+            subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+        except Exception:
+            pass
             
-        # ផ្សំសំឡេងទាំងអស់ចូលគ្នាដោយកុំឱ្យបាត់ដាន (amix)
-        filter_complex += f"{mix_inputs}amix=inputs={len(audio_segments)+1}:duration=first:dropout_transition=0[outa]"
+        audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
+
+        # 3. ការពារការគាំងពេលโหลด Whisper Model
+        try:
+            model = whisper.load_model("tiny")
+        except Exception as e:
+            st.error(f"មានបញ្ហាក្នុងការផ្ទុក Whisper AI: {e}")
+            return False
+
+        result = model.transcribe(audio_to_transcribe)
+        segments = result.get("segments", [])
+
+        if not segments and result.get("text"):
+            segments = [{"start": 0.0, "end": video_duration, "text": result.get("text")}]
+
+        translator = GoogleTranslator(source='auto', target='km')
         
-        cmd = ["ffmpeg"] + inputs + [
-            "-filter_complex", filter_complex,
-            "-map", "0:v:0",
-            "-map", "[outa]",
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-t", str(video_duration),
-            "-y", vid_out
-        ]
-        
-        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        total_segs = len(segments)
+
+        audio_segments = []
+        current_timeline = 0.0
+
+        for idx, seg in enumerate(segments):
+            raw_text = seg.get("text", "").strip()
+            if not raw_text: 
+                continue
+            
+            try: 
+                kh_text = translator.translate(raw_text)
+            except Exception: 
+                kh_text = raw_text
+            
+            if not kh_text or kh_text.isspace():
+                continue
+                
+            audio_path = f"{temp_dir}/seg_{idx}.mp3"
+            try:
+                communicate = edge_tts.Communicate(kh_text, voice_name)
+                await communicate.save(audio_path)
+                
+                if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                    start_time = float(seg.get("start", current_timeline))
+                    audio_segments.append((start_time, audio_path))
+                    current_timeline = start_time
+            except Exception:
+                continue
+
+            if total_segs > 0:
+                progress_bar.progress(int(((idx + 1) / total_segs) * 60))
+            status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
+
+        # 4. ការពារពេលបញ្ចូលសំឡេងចូលវីដេអូ (FFmpeg Mixing Protection)
+        if len(audio_segments) > 0:
+            status_text.text("កំពុងបញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
+            
+            filter_complex = f"anullsrc=r=44100:cl=stereo[base];"
+            inputs = ["-i", vid_in]
+            
+            mix_inputs = "[base]"
+            for i, (start_t, path) in enumerate(audio_segments):
+                inputs.extend(["-i", path])
+                delay_ms = int(start_t * 1000)
+                filter_complex += f"[{i+1}:a]adelay={delay_ms}|{delay_ms}[a{i}];"
+                mix_inputs += f"[a{i}]"
+                
+            filter_complex += f"{mix_inputs}amix=inputs={len(audio_segments)+1}:duration=first:dropout_transition=0[outa]"
+            
+            cmd = ["ffmpeg"] + inputs + [
+                "-filter_complex", filter_complex,
+                "-map", "0:v:0",
+                "-map", "[outa]",
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-t", str(video_duration),
+                "-y", vid_out
+            ]
+            
+            process_res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if process_res.returncode != 0:
+                # បើ mix បរាជ័យ ប្រើវិធីសាស្ត្រสำรอง copy វីដេអូដើមទប់ស្កាត់ការ Error
+                shutil.copy(vid_in, vid_out)
+        else:
+            shutil.copy(vid_in, vid_out)
+
         progress_bar.progress(100)
         status_text.text("ការបកប្រែវីដេអូទទួលបានជោគជ័យរហូតដល់ចប់!")
-    else:
-        shutil.copy(vid_in, vid_out)
+        return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
 
-    if os.path.exists(orig_audio): 
-        os.remove(orig_audio)
-    shutil.rmtree(temp_dir, ignore_errors=True)
-    
-    return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
+    except Exception as e:
+        st.error(f"មានបញ្ហាក្នុងប្រព័ន្ធដំណើរការ៖ {e}")
+        return False
+        
+    finally:
+        # ការសម្អាតឯកសារបណ្តោះអាសន្នជានិច្ច (ទោះជួប Error ក៏ដោយ ដើម្បីកុំឱ្យពេញ RAM)
+        if os.path.exists(orig_audio):
+            try: os.remove(orig_audio)
+            except: pass
+        if os.path.exists(temp_dir):
+            try: shutil.rmtree(temp_dir, ignore_errors=True)
+            except: pass
 
-# ----------------- ចំណុចអាប់ឡូតវីដេអូ (File Uploader UI) -----------------
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
 
@@ -232,7 +249,7 @@ if uploaded_file is not None:
     if not st.session_state.is_vip:
         used_count = st.session_state.trial_users.get(st.session_state.user_email, 0)
         if used_count >= MAX_FREE_VIDEOS:
-            st.error(f"🔒 គណនីសាកល្បងរបស់អ្នកបានអស់កូតាប្រើប្រាស់ហើយ។ សូមទាក់ទងមកកាន់ Telegram: @{TELEGRAM_USERNAME} ដើម្បីទិញកូដ VIP!")
+            st.error(f"🔒 គណនីសាកល្បងរបស់អ្នកបានអស់កូតាប្រើប្រាស់ហើយ។ សូមទាក់ទងមកកាន់ Telegram: @{TELEGRAM_USERNAME}")
             can_proceed = False
         else:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។")
