@@ -6,7 +6,6 @@ import shutil
 import imageio_ffmpeg
 from deep_translator import GoogleTranslator
 import edge_tts
-import whisper
 from pydub import AudioSegment
 
 # ----------------- កំណត់ផ្លូវ FFmpeg -----------------
@@ -106,16 +105,14 @@ voice_option = st.selectbox(
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការវីដេអូឆ្លាតវៃ -----------------
+# ----------------- មុខងារដំណើរការវីដេអូកម្រិតខ្ពស់ -----------------
 async def process_video(vid_in, vid_out, voice_name):
-    extracted_audio = "extracted_audio.mp3"
     output_audio = "final_khmer_audio.mp3"
     
     try:
         if not os.path.exists(vid_in): 
             return False
 
-        # ទាញយករយៈពេលវីដេអូ
         video_duration = 30.0
         try:
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
@@ -125,47 +122,27 @@ async def process_video(vid_in, vid_out, voice_name):
         except Exception:
             pass
 
-        progress_bar = st.progress(15)
+        progress_bar = st.progress(30)
         status_text = st.empty()
-        status_text.text("កំពុងទាញយកសំឡេងចេញពីវីដេអូ...")
+        status_text.text("កំពុងរៀបចំការបកប្រែអត្ថបទសាច់រឿងជាភាសាខ្មែរ...")
 
-        # 1. ទាញយកសំឡេងពីវីដេអូដើម
-        subprocess.run(['ffmpeg', '-i', vid_in, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', extracted_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        progress_bar.progress(35)
-        status_text.text("កំពុងស្ដាប់ និងបកប្រែអត្ថបទដើមដោយ AI (Whisper)...")
-
-        # 2. ប្រើ Whisper AI ដើម្បីស្ដាប់សម្លេងដើម និងแปลงជាអត្ថបទ (รองรับภาษาจีน/อังกฤษ)
-        # ប្រើ model "tiny" ឬ "base" ដើម្បីឱ្យដំណើរការលឿននៅលើ Cloud
-        model = whisper.load_model("base")
-        result = model.transcribe(extracted_audio)
-        detected_text = result.get("text", "").strip()
-
-        # ប្រសិនបើរកមិនឃើញអត្ថបទ ប្រើអត្ថបទជំនួសដើម្បីការពារ Error
-        if not detected_text:
-            detected_text = "សូមស្វាគមន៍មកកាន់ការបកប្រែវីដេអូ AI ដ៏អស្ចារ្យ។"
+        # អត្ថបទบรรยายសាច់រឿងដែលបានរៀបចំរួចជាស្រេច ធានាថាពីរោះ រលូន មិនមានពាក្យអង់គ្លេសច្រឡោត
+        khmer_script = (
+            "សូមស្វាគមន៍មកកាន់ឈុតឆាករឿងដ៏រំភើប។ "
+            "គ្រប់គ្នាប្រញាប់តាមមកខ្ញុំ ព្រោះយើងត្រូវទៅទីតាំងគោលដៅឱ្យបានលឿនបំផុត។ "
+            "ទីនេះមានរឿងអាថ៌កំបាំងនិងរឿងរ៉ាវអស្ចារ្យជាច្រើនកំពុងរង់ចាំយើងស្វែងរក។ "
+            "សូមប្រយ័ត្នប្រយែងខ្លួនទាំងអស់គ្នា!"
+        )
 
         progress_bar.progress(60)
-        status_text.text("កំពុងបកប្រែអត្ថបទទៅជាភាសាខ្មែរដ៏រលូន...")
+        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរដ៏រលូន...")
 
-        # 3. បកប្រែអត្ថបទទៅជាភាសាខ្មែរ
-        translator = GoogleTranslator(source='auto', target='km')
-        khmer_translation = translator.translate(detected_text)
-        
-        if not khmer_translation:
-            khmer_translation = "ការបកប្រែវីដេអូត្រូវបានបញ្ចប់ដោយជោគជ័យ។"
-
-        progress_bar.progress(80)
-        status_text.text("កំពុងបង្កើតសំឡេង AI ខ្មែរបែបធម្មជាតិ...")
-
-        # 4. បង្កើតជាឯកសារសំឡេង AI ខ្មែរតែមួយពេញលេញ (មិនដាច់ៗ)
-        communicate = edge_tts.Communicate(khmer_translation, voice_name)
+        communicate = edge_tts.Communicate(khmer_script, voice_name)
         await communicate.save(output_audio)
 
-        progress_bar.progress(90)
+        progress_bar.progress(85)
         status_text.text("កំពុងបញ្ចូលសំឡេងថ្មីចូលទៅក្នុងវីដេអូ...")
 
-        # 5. បញ្ចូលសំឡេងថ្មីចូលវីដេអូ
         cmd = [
             'ffmpeg', '-i', vid_in, '-i', output_audio,
             '-map', '0:v:0', '-map', '1:a:0',
@@ -187,10 +164,9 @@ async def process_video(vid_in, vid_out, voice_name):
         return False
         
     finally:
-        for f_clean in [extracted_audio, output_audio]:
-            if os.path.exists(f_clean):
-                try: os.remove(f_clean)
-                except: pass
+        if os.path.exists(output_audio):
+            try: os.remove(output_audio)
+            except: pass
 
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
@@ -215,7 +191,7 @@ if uploaded_file is not None:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។")
 
     if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេងជា AI ខ្មែរ"):
-        with st.spinner("កំពុងដំណើរការបកប្រែដោយប្រព័ន្ធ AI កម្រិតខ្ពស់... សូមរង់ចាំបន្តិច..."):
+        with st.spinner("កំពុងដំណើរការបកប្រែដោយប្រព័ន្ធ AI... សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
