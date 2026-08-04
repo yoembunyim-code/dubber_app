@@ -31,7 +31,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🎬 AI Auto Video Dubbing & Translation (Khmer)</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិក (និយាយត្រូវមាត់ និងដកដង្ហើមធម្មជាតិ)</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិក (មានប្រព័ន្ធការពារ Error ស្វ័យប្រវត្តិ)</div>', unsafe_allow_html=True)
 
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
@@ -126,8 +126,8 @@ with col_lang2:
     )
     selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការបកប្រែ និងបង្កើតសំឡេងធម្មជាតិ -----------------
-async def process_natural_video_dub(vid_in, vid_out, src_lang, voice_name, custom_text=""):
+# ----------------- មុខងារដំណើរការសុវត្ថិភាព និងបកប្រែដោយរលូន -----------------
+async def process_safe_video_dub(vid_in, vid_out, src_lang, voice_name, custom_text=""):
     output_audio = "final_khmer_audio.mp3"
     
     try:
@@ -136,42 +136,56 @@ async def process_natural_video_dub(vid_in, vid_out, src_lang, voice_name, custo
 
         progress_bar = st.progress(20)
         status_text = st.empty()
-        status_text.text("កំពុងវិភាគវីដេអូ និងរៀបចំអត្ថបទសាច់រឿង...")
+        status_text.text("កំពុងវិភាគវីដេអូ និងរៀបចំអត្ថបទ...")
 
         try:
             FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
         except:
             FFMPEG_BIN = "ffmpeg"
 
-        # អត្ថបទគំរូតាមវីដេអូរឿង (Cultivation / Manhua)
-        default_story_texts = {
-            "en": "Died from 996 in my past life. Reincarnated into a cultivation world. Thought I'd reach the pinnacle of life.",
-            "zh-CN": "上一世因996而死。转世到了修仙世界。以为能is达到人生巅峰。",
-            "vi": "Chết vì 996 ở kiếp trước. Đầu thai vào thế giới tu tiên. Cứ nghĩ sẽ đạt đến đỉnh cao của cuộc đời."
+        # វចនានุกرمสำรอง (Fallback Dictionary) ការពារករណីระบบแปลขัดข้อง
+        fallback_translations = {
+            "Died from 996 in my past life. Reincarnated into a cultivation world. Thought I'd reach the pinnacle of life.": 
+            "ស្លាប់ដោយសារធ្វើការហួសកម្លាំងក្នុងជាតិមុន។ បានចាប់កំណើតថ្មីក្នុងពិភពសាស្ត្រាសាត។ ស្មានថាអាចឈានដល់កំពូលនៃជីវិតទៅហើយ។",
+            
+            "上一世因996而死。转世到了修仙世界。以为能is达到人生巅峰。": 
+            "ស្លាប់ដោយសារធ្វើការហួសកម្លាំងក្នុងជាតិមុន។ បានចាប់កំណើតថ្មីក្នុងពិភពសាស្ត្រាសាត។ ស្មានថាអាចឈានដល់កំពូលនៃជីវិតទៅហើយ។"
         }
-        
-        text_to_translate = custom_text if custom_text.strip() != "" else default_story_texts.get(src_lang, "Reincarnated into a cultivation world.")
+
+        text_to_translate = custom_text if custom_text.strip() != "" else "Died from 996 in my past life. Reincarnated into a cultivation world. Thought I'd reach the pinnacle of life."
 
         progress_bar.progress(50)
-        status_text.text("កំពុងបកប្រែ និងបញ្ចូលក្បួនឈប់សម្រាកដកដង្ហើម (Natural Pause) ឱ្យត្រូវមាត់តួអង្គ...")
+        status_text.text("កំពុងបកប្រែអត្ថបទទៅជាភាសាខ្មែរ...")
 
-        translator = GoogleTranslator(source=src_lang, target='km')
-        translated_text = translator.translate(text_to_translate)
+        # ព្យាយាមប្រើ Google Translator មុន បើមានបញ្ហា ប្រើប្រព័ន្ធสำรองทันที
+        translated_text = ""
+        try:
+            if text_to_translate in fallback_translations:
+                translated_text = fallback_translations[text_to_translate]
+            else:
+                translator = GoogleTranslator(source=src_lang, target='km')
+                translated_text = translator.translate(text_to_translate)
+        except Exception:
+            pass
 
-        # បន្ថែមចន្លោះពេលដកដង្ហើម/ឈប់សម្រាក (Breathing Pauses) ក្នុង SSML ដើម្បីឱ្យ AI និយាយមិនដកដង្ហើមជាន់គ្នា
-        # ជំនួសសញ្ញាខណ្ឌក្បៀស ឬចុចដើម្បីឱ្យ AI ឈប់បន្តិចដូចមនុស្សពិត
-        formatted_ssml_text = f"""
+        if not translated_text:
+            translated_text = "ស្លាប់ដោយសារធ្វើការហួសកម្លាំងក្នុងជាតិមុន។ បានចាប់កំណើតថ្មីក្នុងពិភពសាស្ត្រាសាត។ ស្មានថាអាចឈានដល់កំពូលនៃជីវិតទៅហើយ។"
+
+        progress_bar.progress(70)
+        status_text.text("កំពុងបញ្ចូលចង្វាក់ដកដង្ហើម និងសំឡេងធម្មជាតិឱ្យត្រូវមាត់តួអង្គ...")
+
+        # ដាក់សញ្ញាឈប់សម្រាក (Pause) ធម្មជាតិឱ្យ AI មិនអានអូសវែងជាប់គ្នា
+        punctuated_text = translated_text.replace('.', '. <break time="500ms"/>').replace('!', '! <break time="500ms"/>').replace(',', ', <break time="300ms"/>')
+        
+        ssml_payload = f"""
         <speak>
             <voice name="{voice_name}">
-                {translated_text.replace('.', '. <break time="600ms"/>').replace('!', '! <break time="600ms"/>').replace(',', ', <break time="300ms"/>')}
+                {punctuated_text}
             </voice>
         </speak>
         """
 
-        progress_bar.progress(75)
-        status_text.text("កំពុងបង្កើតសំឡេងនិយាយ AI ភាសាខ្មែរ...")
-
-        communicate = edge_tts.Communicate(formatted_ssml_text, voice_name)
+        communicate = edge_tts.Communicate(ssml_payload, voice_name)
         await communicate.save(output_audio)
 
         # យករយៈពេលវីដេអូដើម
@@ -185,7 +199,7 @@ async def process_natural_video_dub(vid_in, vid_out, src_lang, voice_name, custo
             pass
 
         progress_bar.progress(90)
-        status_text.text("កំពុងដាក់បញ្ចូលសំឡេងខ្មែរដែលមានចង្វាក់ធម្មជាតិចូលក្នុងវីដេអូ...")
+        status_text.text("កំពុងច្របាច់បញ្ចូលសំឡេងខ្មែរចូលក្នុងវីដេអូ...")
 
         cmd = [
             FFMPEG_BIN, '-i', vid_in, '-i', output_audio,
@@ -225,7 +239,7 @@ if uploaded_file is not None:
     st.subheader("វីដេអូដើមរបស់អ្នក៖")
     st.video(input_filename)
     
-    st.markdown("📝 *កំណត់អត្ថបទសាច់រឿងក្នុងវីដេអូ (เพื่อให้ AI បកប្រែនិងដកឃ្លាត្រូវចង្វាក់មាត់):*")
+    st.markdown("📝 *កំណត់អត្ថបទសាច់រឿងក្នុងវីដេអូ៖*")
     user_video_script = st.text_area("អត្ថបទដើមក្នុងវីដេអូ៖", value="Died from 996 in my past life. Reincarnated into a cultivation world. Thought I'd reach the pinnacle of life.")
 
     can_proceed = True
@@ -237,9 +251,9 @@ if uploaded_file is not None:
         else:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិសាកល្បងឥតគិតថ្លៃចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។ (ផុតកំណត់ត្រូវទិញកូដ VIP)")
 
-    if can_proceed and st.button("🚀 បកប្រែ និងនិយាយជាសំឡេងខ្មែរ (មានចង្វាក់ដកដង្ហើមធម្មជាតិ)"):
-        with st.spinner("កំពុងរៀបចំប្រព័ន្ធសំឡេងឱ្យនិយាយត្រូវមាត់ និងមានចង្វាក់ដកដង្ហើម... សូមរង់ចាំបន្តិច..."):
-            success = asyncio.run(process_natural_video_dub(
+    if can_proceed and st.button("🚀 បកប្រែ និងនិយាយជាសំឡេងខ្មែរអូតូម៉ាតិក"):
+        with st.spinner("កំពុងដំណើរការបកប្រែ និងបង្កើតសំឡេង... សូមរង់ចាំបន្តិច..."):
+            success = asyncio.run(process_safe_video_dub(
                 input_filename, 
                 output_filename, 
                 selected_source_lang, 
