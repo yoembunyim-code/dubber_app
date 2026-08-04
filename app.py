@@ -102,7 +102,7 @@ async def process_video(vid_in, vid_out, voice_name):
     except:
         video_duration = 30.0
 
-    # 2. ស្រង់សំឡេងដើមដើម្បី Whisper អាន
+    # 2. ស្រង់សំឡេងដើមចេញមកដើម្បីឱ្យ Whisper អាន
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
 
@@ -111,13 +111,12 @@ async def process_video(vid_in, vid_out, voice_name):
     segments = result.get("segments", [])
 
     translator = GoogleTranslator(source='auto', target='km')
-    inputs = []
-    filter_parts = []
-    count = 0
-
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     total_segs = len(segments)
+
+    audio_segments = []
 
     for idx, seg in enumerate(segments):
         raw_text = seg.get("text", "").strip()
@@ -133,7 +132,7 @@ async def process_video(vid_in, vid_out, voice_name):
             continue
             
         kh_text_safe = clean_text_for_tts(kh_text)
-        audio_path = f"{temp_dir}/s_{count}.mp3"
+        audio_path = f"{temp_dir}/s_{idx}.mp3"
         
         try:
             communicate = edge_tts.Communicate(kh_text_safe, voice_name)
@@ -141,42 +140,42 @@ async def process_video(vid_in, vid_out, voice_name):
             
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 start_time = float(seg["start"])
-                inputs.extend(["-i", audio_path])
-                delay_ms = int(start_time * 1000)
-                # ពន្យារពេលសំឡេង AI នីមួយៗឱ្យត្រូវម៉ោង និងដំឡើងកម្លាំងសំឡេងឱ្យดังច្បាស់ (volume=2.0)
-                filter_parts.append(f"[{count}:a]adelay={delay_ms}|{delay_ms},volume=2.0[a{count}]")
-                count += 1
+                audio_segments.append((start_time, audio_path))
         except Exception:
             continue
 
         if total_segs > 0:
-            progress_bar.progress(int(((idx + 1) / total_segs) * 80))
-        status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
+            progress_bar.progress(int(((idx + 1) / total_segs) * 70))
+        status_text.text(f"កំពុងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
 
-    if count > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេង AI ខ្មែរ និងកាត់សំឡេងដើមចេញ...")
+    if len(audio_segments) > 0:
+        status_text.text("កំពុងផ្គុំសំឡេង AI ចូលក្នុងវីដេអូ...")
         
-        # បង្កើត Null Audio Track ទំហំប៉ុនវីដេអូដើម ហើយយកសំឡេង AI ទាំងអស់មកផាត់បញ្ចូលគ្នា (amix)
-        filter_complex = f"anullsrc=r=44100:cl=stereo[base];"
-        mix_str = "[base]"
-        for i in range(count):
-            filter_complex += filter_parts[i] + ";"
-            mix_str += f"[a{i}]"
+        # វិធីសាស្ត្រទម្លាក់សំឡេង AI តាមថិរវេលា (Offset Audio Mapping) ដោយមិនប្រើ filter_complex ស្មុគស្មាញ
+        cmd = ["ffmpeg", "-i", vid_in]
+        for _, path in audio_segments:
+            cmd.extend(["-i", path])
         
-        filter_complex += f"{mix_str}amix=inputs={count+1}:duration=first:dropout_transition=0[outa]"
+        filter_parts = []
+        for i, (start_t, _) in enumerate(audio_segments):
+            delay_ms = int(start_t * 1000)
+            filter_parts.append(f"[{i+1}:a]adelay={delay_ms}|{delay_ms}[a{i}]")
         
-        cmd = [
-            "ffmpeg", "-i", vid_in
-        ] + inputs + [
-            "-filter_complex", filter_complex,
-            "-map", "0:v:0", # យកវីដេអូដើម
-            "-map", "[outa]", # យកតែសំឡេង AI ខ្មែរដែលបានលាយរួច (កាត់សំឡេងដើមចោលមិនឱ្យរំខាន)
-            "-c:v", "copy", 
-            "-c:a", "aac", 
+        mix_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
+        filter_parts.append(f"{mix_inputs}amix=inputs={len(audio_segments)}:duration=longest:dropout_transition=0[outa]")
+        
+        filter_str = ";".join(filter_parts)
+        
+        cmd.extend([
+            "-filter_complex", filter_str,
+            "-map", "0:v:0",
+            "-map", "[outa]",
+            "-c:v", "copy",
+            "-c:a", "aac",
             "-b:a", "192k",
             "-t", str(video_duration),
             "-y", vid_out
-        ]
+        ])
         
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         progress_bar.progress(100)
@@ -230,4 +229,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងการដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
