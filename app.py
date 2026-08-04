@@ -114,7 +114,7 @@ with col_lang1:
         "🌐 ជ្រើសរើសភាសាដើមរបស់វីដេអូ៖",
         ("អង់គ្លេស (English)", "ចិន (Chinese)", "វៀតណាម (Vietnamese)")
     )
-    lang_code_map = {"ថៃ (Thai)": "th", "អង់គ្លេស (English)": "en", "ចិន (Chinese)": "zh-CN", "វៀតណាម (Vietnamese)": "vi"}
+    lang_code_map ="អង់គ្លេស (English)": "en", "ចិន (Chinese)": "zh-CN", "វៀតណាម (Vietnamese)": "vi"}
     selected_source_lang = lang_code_map[source_lang_option]
 
 with col_lang2:
