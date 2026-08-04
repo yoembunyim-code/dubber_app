@@ -7,16 +7,16 @@ import shutil
 from deep_translator import GoogleTranslator
 import edge_tts
 
-st.title("Video Dubbing (English -> Khmer)")
+st.title("Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
 
-# កំណត់ចំនួនវីដេអូសម្រាប់ Free Trial
+# កំណត់ចំនួនវីដេអូរយៈពេលសាកល្បង (Free Trial)
 MAX_FREE_VIDEOS = 3
 telegram_link = "https://t.me/bunyimyoem" # ប្តូរដាក់តំណ Telegram របស់អ្នក
 
 # ទាញយកកូដសម្ងាត់ពី Streamlit Secrets
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
-    "KHMER-VIP-002": "សកម្ម"
+    "BUNYIM-VIP-002": "សកម្ម"
 })
 
 # រៀបចំ Session State សម្រាប់ចងចាំការប្រើប្រាស់
@@ -27,10 +27,9 @@ if "user_email" not in st.session_state:
 if "is_vip" not in st.session_state:
     st.session_state.is_vip = False
 if "trial_users" not in st.session_state:
-    st.session_state.trial_users = {} # ផ្ទុកទិន្នន័យឧទាហរណ៍: {'user@gmail.com': 1}
+    st.session_state.trial_users = {} 
 
 def check_access():
-    # បើធ្លាប់ Login ហើយ
     if st.session_state.is_authenticated:
         return True
 
@@ -45,7 +44,6 @@ def check_access():
         
         if st.button("ចាប់ផ្តើមសាកល្បង"):
             if email_input and "@" in email_input:
-                # ឆែកមើលថាតើអុីមែលនេះធ្លាប់ប្រើអស់ឬនៅ
                 used_count = st.session_state.trial_users.get(email_input, 0)
                 
                 if used_count < MAX_FREE_VIDEOS:
@@ -79,11 +77,9 @@ def check_access():
     st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
     return False
 
-# ឆែកសិទ្ធិមុននឹងបង្ហាញកម្មវិធី
 if not check_access():
     st.stop()
 
-# បង្ហាញព័ត៌មានគណនី និងប៊ូតុង Logout
 col1, col2 = st.columns([4, 1])
 with col1:
     account_type = "👑 VIP" if st.session_state.is_vip else "🆓 Free Trial"
@@ -123,7 +119,6 @@ async def process_video(vid_in, vid_out, voice_name):
 
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # ផ្លាស់ប្តូរពី "tiny" ទៅ "base" ដើម្បីឱ្យវាស្តាប់អង់គ្លេសបានត្រឹមត្រូវ និងច្បាស់ជាងមុន
     model = whisper.load_model("base")
     segments = model.transcribe("temp.mp3")["segments"]
 
@@ -140,19 +135,27 @@ async def process_video(vid_in, vid_out, voice_name):
         if not text: 
             continue
         
-        try: kh_text = translator.translate(text)
-        except: kh_text = text
+        try: 
+            kh_text = translator.translate(text)
+        except: 
+            kh_text = text
         
+        if not kh_text or kh_text.isspace():
+            continue
+            
         kh_text_ready = add_breathing_pauses(kh_text)
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
-        # កែសម្រួលសំឡេងឱ្យធម្មជាតិ (ដក rate និង pitch ចេញដើម្បីកុំឱ្យវាស្តាប់ទៅដូចរ៉ូបូត)
-        await edge_tts.Communicate(kh_text_ready, voice_name).save(audio_path)
+        try:
+            await edge_tts.Communicate(kh_text_ready, voice_name).save(audio_path)
+        except Exception:
+            continue
         
-        delay_ms = int(seg["start"] * 1000)
-        inputs.extend(["-i", audio_path])
-        filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{count}]")
-        count += 1
+        if os.path.exists(audio_path):
+            delay_ms = int(seg["start"] * 1000)
+            inputs.extend(["-i", audio_path])
+            filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{count}]")
+            count += 1
 
         progress_percentage = int(((idx + 1) / total_segs) * 90)
         progress_bar.progress(progress_percentage)
@@ -191,7 +194,6 @@ if uploaded_file is not None:
         
     st.video(input_filename)
     
-    # ត្រួតពិនិត្យការកំណត់ ៣ វីដេអូសម្រាប់ Free Trial មុននឹងឱ្យប៊ូតុង "ចាប់ផ្តើម" បង្ហាញ
     can_generate = True
     if not st.session_state.is_vip:
         used = st.session_state.trial_users.get(st.session_state.user_email, 0)
@@ -209,7 +211,6 @@ if uploaded_file is not None:
                 st.success("ជោគជ័យ!")
                 st.video(output_filename)
                 
-                # បូកបញ្ជូលចំនួនប្រើប្រាស់សម្រាប់ Free Trial បន្ទាប់ពីជោគជ័យ
                 if not st.session_state.is_vip:
                     st.session_state.trial_users[st.session_state.user_email] += 1
                 
@@ -221,4 +222,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងម្ដងទៀត។")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ ឬគ្មានសំឡេងក្នុងវីដេអូ! សូមសាកល្បងវីដេអូផ្សេងម្ដងទៀត។")
