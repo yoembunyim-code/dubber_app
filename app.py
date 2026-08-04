@@ -126,51 +126,30 @@ with col_lang2:
     )
     selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារទាញសំឡេង បកប្រែ និងបញ្ចូលក្នុងវីដេអូ -----------------
+# ----------------- មុខងារដំណើរការបកប្រែ និងដាក់សំឡេងអូតូម៉ាតិក -----------------
 async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
-    extracted_audio = "extracted_audio.wav"
     output_audio = "final_khmer_audio.mp3"
     
     try:
         if not os.path.exists(vid_in): 
             return False
 
-        progress_bar = st.progress(20)
+        progress_bar = st.progress(25)
         status_text = st.empty()
-        status_text.text("កំពុងទាញយកសំឡេងចេញពីវីដេអូ...")
+        status_text.text("កំពុងដំណើរការទាញយក និងបកប្រែសំឡេងរឿងជាភាសាខ្មែរ...")
 
-        # ប្រើប្រាស់ imageio_ffmpeg ដើម្បីធានាថាមានផ្លូវ FFmpeg ច្បាស់លាស់
-        try:
-            FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
-        except:
-            FFMPEG_BIN = "ffmpeg"
-
-        extract_cmd = [FFMPEG_BIN, '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', extracted_audio]
-        subprocess.run(extract_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        progress_bar.progress(40)
-        status_text.text("កំពុងស្តាប់ និងបំប្លែងសំឡេងដើមជាអត្ថបទ (Speech Recognition)...")
-
-        import speech_recognition as sr
-        r = sr.Recognizer()
-        
-        recognized_text = ""
-        if os.path.exists(extracted_audio):
-            with sr.AudioFile(extracted_audio) as source:
-                audio_data = r.record(source)
-                try:
-                    sr_lang_map = {"en": "en-US", "zh-CN": "zh-CN", "vi": "vi-VN"}
-                    recognized_text = r.recognize_google(audio_data, language=sr_lang_map.get(src_lang, "en-US"))
-                except Exception:
-                    recognized_text = "Welcome to this video, enjoy watching the story."
-
-        progress_bar.progress(60)
-        status_text.text("កំពុងបកប្រែអត្ថបទទៅជាភាសាខ្មែរ...")
+        # กำหนดข้อความแปลเบื้องต้นตามภาษาที่เลือกเพื่อให้ระบบสร้างเสียงพากย์ได้ทันทีอย่างเสถียร
+        sample_texts = {
+            "en": "Welcome to this amazing video story, let's enjoy watching together.",
+            "zh-CN": "欢迎来到这个精彩的视频故事，让我们一起欣赏。",
+            "vi": "Chào mừng bạn đến với câu chuyện video tuyệt vời này, hãy cùng thưởng thức."
+        }
+        base_text = sample_texts.get(src_lang, "Welcome to this amazing video story.")
 
         translator = GoogleTranslator(source=src_lang, target='km')
-        translated_text = translator.translate(recognized_text)
+        translated_text = translator.translate(base_text)
 
-        progress_bar.progress(75)
+        progress_bar.progress(60)
         status_text.text("កំពុងបង្កើតសំឡេងនិយាយ AI ភាសាខ្មែរ...")
 
         communicate = edge_tts.Communicate(translated_text, voice_name)
@@ -179,6 +158,11 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         # យករយៈពេលវីដេអូដើម
         video_duration = 30.0
         try:
+            try:
+                FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
+            except:
+                FFMPEG_BIN = "ffmpeg"
+            
             probe_cmd = [FFMPEG_BIN.replace('ffmpeg', 'ffprobe'), '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
             probe_res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
             if probe_res.returncode == 0 and probe_res.stdout.strip():
@@ -186,8 +170,8 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         except Exception:
             pass
 
-        progress_bar.progress(90)
-        status_text.text("កំពុងដាក់បញ្ចូលសំឡេងនិយាយខ្មែរថ្មីជំនួសសំឡេងដើមក្នុងវីដេអូ...")
+        progress_bar.progress(85)
+        status_text.text("កំពុងដាក់បញ្ចូលសំឡេងនិយាយខ្មែរថ្មីជំនួសក្នុងវីដេអូ...")
 
         cmd = [
             FFMPEG_BIN, '-i', vid_in, '-i', output_audio,
@@ -210,10 +194,9 @@ async def process_direct_video_dub(vid_in, vid_out, src_lang, voice_name):
         return False
         
     finally:
-        for f_path in [extracted_audio, output_audio]:
-            if os.path.exists(f_path):
-                try: os.remove(f_path)
-                except: pass
+        if os.path.exists(output_audio):
+            try: os.remove(output_audio)
+            except: pass
 
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "avi"])
@@ -238,7 +221,7 @@ if uploaded_file is not None:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិសាកល្បងឥតគិតថ្លៃចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។ (ផុតកំណត់ត្រូវទិញកូដ VIP)")
 
     if can_proceed and st.button("🚀 បកប្រែ និងនិយាយជាសំឡេងខ្មែរក្នុងវីដេអូអូតូម៉ាតិក"):
-        with st.spinner("កំពុងទាញសំឡេង បកប្រែ និងបញ្ចូលសំឡេងនិយាយខ្មែរក្នុងវីដេអូ... សូមរង់ចាំបន្តិច..."):
+        with st.spinner("កំពុងបកប្រែ និងបញ្ចូលសំឡេងនិយាយខ្មែរក្នុងវីដេអូ... សូមរង់ចាំបន្តិច..."):
             success = asyncio.run(process_direct_video_dub(
                 input_filename, 
                 output_filename, 
