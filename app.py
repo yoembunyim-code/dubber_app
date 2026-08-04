@@ -7,10 +7,12 @@ import shutil
 from deep_translator import GoogleTranslator
 import edge_tts
 
+st.set_page_config(page_title="AI Video Dubbing Khmer", layout="centered")
+
 st.title("AI Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
 
 MAX_FREE_VIDEOS = 3
-telegram_link = "https://t.me/bunyimyoem"
+telegram_link = "https://t.me/bunyimyoeme"
 
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
@@ -26,66 +28,53 @@ if "is_vip" not in st.session_state:
 if "trial_users" not in st.session_state:
     st.session_state.trial_users = {} 
 
-def check_access():
-    if st.session_state.is_authenticated:
-        return True
-
-    st.markdown("### 🔐 បញ្ចូលគណនី ឬកូដសម្ងាត់")
+# ប្រព័ន្ធចូលគណនី (Authentication Check)
+if not st.session_state.is_authenticated:
+    st.markdown("### 🔐 សូមបញ្ចូលគណនី ឬកូដសម្ងាត់ដើម្បីបន្ត")
     st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {MAX_FREE_VIDEOS} វីដេអូ។")
     
     tab1, tab2 = st.tabs(["📧 Free Trial", "🔑 Access Key"])
 
     with tab1:
-        st.markdown("#### ចុះឈ្មោះដោយប្រើ Email")
         email_input = st.text_input("អុីមែលរបស់អ្នក:", key="trial_email_input")
-        
         if st.button("ចាប់ផ្តើមសាកល្បង"):
             if email_input and "@" in email_input:
                 used_count = st.session_state.trial_users.get(email_input, 0)
-                
                 if used_count < MAX_FREE_VIDEOS:
                     st.session_state.is_authenticated = True
                     st.session_state.user_email = email_input
                     st.session_state.is_vip = False
-                    
                     if email_input not in st.session_state.trial_users:
                         st.session_state.trial_users[email_input] = 0
-                        
-                    st.success(f"ជោគជ័យ! អ្នកអាចប្រើប្រាស់បាន {MAX_FREE_VIDEOS - used_count} វីដេអូទៀត។")
+                    st.success("ជោគជ័យ!")
                     st.rerun()
                 else:
-                    st.error("អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន ៣ វីដេអូហើយ! សូមទិញកូដ VIP។")
+                    st.error("អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន ៣ វីដេអូហើយ!")
             else:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        st.markdown("#### វាយបញ្ចូលកូដ VIP")
-        key_input = st.text_input("កូដសម្ងាត់:", type="password", key="access_key_input")
-        if st.button("ផ្ទៀងផ្ទាត់"):
+        key_input = st.text_input("កូដសម្ងាត់ VIP:", type="password", key="access_key_input")
+        if st.button("ផ្ទៀងផ្ទាត់កូដ"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
                 st.session_state.user_email = f"VIP Key: {key_input}"
                 st.session_state.is_vip = True
-                st.success("កូដត្រឹមត្រូវ! អ្នកអាចប្រើបានគ្មានដែនកំណត់។")
+                st.success("កូដត្រឹមត្រូវ!")
                 st.rerun()
             else:
                 st.error("កូដមិនត្រឹមត្រូវ។")
 
-    st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
-    return False
+    st.stop() # ឈប់ដំណើរការកូដខាងក្រោមបើទាន់ Login
 
-if not check_access():
-    st.stop()
-
+# បើ Login ជោគជ័យ បង្ហាញផ្ទាំងមុខងារចម្បង
 col1, col2 = st.columns([4, 1])
 with col1:
     account_type = "👑 VIP" if st.session_state.is_vip else "🆓 Free Trial"
     st.success(f"គណនី ({account_type})៖ {st.session_state.user_email}")
 with col2:
-    if st.button("ចាកចេញ (Logout)"):
+    if st.button("ចាកចេញ"):
         st.session_state.is_authenticated = False
-        st.session_state.user_email = ""
-        st.session_state.is_vip = False
         st.rerun()
 
 voice_option = st.selectbox(
@@ -96,8 +85,7 @@ voice_option = st.selectbox(
 selected_voice = "km-KH-PisethNeural" if voice_option == "សំឡេងប្រុស (Piseth)" else "km-KH-SreymomNeural"
 
 def clean_text_for_tts(text):
-    # លុបសញ្ញាពិសេសដែលអាចធ្វើឱ្យ Edge-TTS គាំង
-    for char in ['"', "'", '\\', '/', ':', '*', '?', '"', '<', '>', '|', '[', ']', '{', '}']:
+    for char in ['"', "'", '\\', '/', ':', '*', '?', '<', '>', '|', '[', ']', '{', '}']:
         text = text.replace(char, ' ')
     return text.strip()
 
@@ -108,7 +96,6 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # ស្រង់សំឡេងដើមចេញមកដើម្បីវិភាគអត្ថបទតាម Whisper
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp_orig.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = 'temp_orig.mp3' if os.path.exists('temp_orig.mp3') and os.path.getsize('temp_orig.mp3') > 0 else vid_in
 
@@ -141,7 +128,6 @@ async def process_video(vid_in, vid_out, voice_name):
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
         try:
-            # ការពារកុំឱ្យ Error ពេល Edge-TTS ដាច់តំណភ្ជាប់
             communicate = edge_tts.Communicate(kh_text_safe, voice_name)
             await communicate.save(audio_path)
             
@@ -150,8 +136,7 @@ async def process_video(vid_in, vid_out, voice_name):
                 inputs.extend(["-i", audio_path])
                 filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},volume=3.0[a{count}]")
                 count += 1
-        except Exception as e:
-            # បើ segment ណាមានបញ្ហា រំលងវាចោលភ្លាមដោយមិនឱ្យកម្មវិធីគាំង
+        except Exception:
             continue
 
         if total_segs > 0:
@@ -175,3 +160,53 @@ async def process_video(vid_in, vid_out, voice_name):
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         progress_bar.progress(100)
         status_text.text("រួចរាល់!")
+    else:
+        shutil.copy(vid_in, vid_out)
+
+    if os.path.exists("temp_orig.mp3"):
+        os.remove("temp_orig.mp3")
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
+
+# ----------------- កន្លែងអាប់ឡូតវីដេអូ (File Uploader) -----------------
+st.markdown("---")
+uploaded_file = st.file_uploader("📂 ជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
+
+if uploaded_file is not None:
+    input_filename = "input_test.mp4"
+    output_filename = "final_dubbed_video.mp4"
+    
+    with open(input_filename, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+        
+    st.video(input_filename)
+    
+    can_generate = True
+    if not st.session_state.is_vip:
+        used = st.session_state.trial_users.get(st.session_state.user_email, 0)
+        if used >= MAX_FREE_VIDEOS:
+            st.error("🔒 គណនី Free របស់អ្នកបានប្រើប្រាស់អស់ ៣ វីដេអូហើយ! សូមទិញកូដ VIP។")
+            can_generate = False
+        else:
+            st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
+
+    if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
+        with st.spinner("កំពុងដំណើរការបកប្រែ និងបញ្ចូលសំឡេង AI..."):
+            success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
+            
+            if success and os.path.exists(output_filename):
+                st.success("ជោគជ័យ!")
+                st.video(output_filename)
+                
+                if not st.session_state.is_vip:
+                    st.session_state.trial_users[st.session_state.user_email] += 1
+                
+                with open(output_filename, "rb") as file:
+                    st.download_button(
+                        label="📥 ទាញយកវីដេអូ",
+                        data=file,
+                        file_name="dubbed_video.mp4",
+                        mime="video/mp4"
+                    )
+            else:
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូខ្លីផ្សេងទៀត។")
