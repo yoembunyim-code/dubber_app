@@ -5,7 +5,6 @@ import asyncio
 import imageio_ffmpeg
 from deep_translator import GoogleTranslator
 import edge_tts
-from pydub import AudioSegment
 
 # ----------------- កំណត់ផ្លូវ FFmpeg ស្វ័យប្រវត្តិ -----------------
 try:
@@ -28,6 +27,7 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; background: linear-gradient(135deg, #FF4B4B 0%, #FF2222 100%); color: white; padding: 10px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .stButton>button:hover { background: linear-gradient(135deg, #ff3333, #e00000); color: white; }
     .telegram-box { background: linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%); padding: 15px; border-radius: 12px; border-left: 6px solid #1890ff; text-align: center; margin-bottom: 20px; }
+    .notice-box { background: linear-gradient(135deg, #fffbe6 0%, #fff1b8 100%); padding: 15px; border-radius: 12px; border-left: 6px solid #faad14; margin-bottom: 20px; color: #d46b08; font-size: 14px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -37,10 +37,13 @@ st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែ�
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 
+# ប្រអប់ជូនដំណឹងអំពីលក្ខខណ្ឌសាកល្បង និងការទិញ VIP
 st.markdown(f"""
-    <div class="telegram-box">
-        💬 <b>ចង់បានកូដ VIP ឬមានបញ្ហាក្នុងការប្រើប្រាស់?</b><br>
-        សូមទាក់ទងមកកាន់តេលេក្រាមរបស់យើងខ្ញុំ៖ <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
+    <div class="notice-box">
+        🎁 <b>គោលការណ៍ប្រើប្រាស់ប្រព័ន្ធ៖</b><br>
+        - អ្នកអាចសាកល្បងបកប្រែវីដេអូដោយឥតគិតថ្លៃបានចំនួន <b>៣ វីដេអូដំបូង</b> ប៉ុណ្ណោះតាមរយៈ Free Trial។<br>
+        - បន្ទាប់ពីអស់កូតា ៣ វីដេអូនេះ អ្នកត្រូវ<b>ទិញកូដ VIP Access Key</b> ដើម្បីបន្តប្រើប្រាស់ជានិច្ច។<br>
+        💬 ទិញកូដ VIP តាមរយៈ Telegram: <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
     </div>
 """, unsafe_allow_html=True)
 
@@ -62,10 +65,10 @@ if "trial_users" not in st.session_state:
 # ----------------- ប្រព័ន្ធផ្ទៀងផ្ទាត់គណនី -----------------
 if not st.session_state.is_authenticated:
     st.markdown("### 🔐 សូមផ្ទៀងផ្ទាត់គណនីដើម្បីចាប់ផ្តើមប្រើប្រាស់")
-    tab1, tab2 = st.tabs(["📧 Free Trial (សាកល្បង)", "🔑 VIP Access Key"])
+    tab1, tab2 = st.tabs(["📧 Free Trial (សាកល្បង ៣ វីដេអូ)", "🔑 VIP Access Key (ទិញកូដ)"])
 
     with tab1:
-        email_input = st.text_input("បញ្ចូលអុីមែលរបស់អ្នក:", key="trial_email")
+        email_input = st.text_input("បញ្ចូលអុីមែលរបស់អ្នកដើម្បីចាប់ផ្តើមសាកល្បង ៣ វីដេអូ:", key="trial_email")
         if st.button("ចាប់ផ្តើមសាកល្បងដោយឥតគិតថ្លៃ"):
             if email_input and "@" in email_input:
                 used = st.session_state.trial_users.get(email_input, 0)
@@ -75,29 +78,29 @@ if not st.session_state.is_authenticated:
                     st.session_state.is_vip = False
                     if email_input not in st.session_state.trial_users:
                         st.session_state.trial_users[email_input] = 0
-                    st.success("ចូលគណនីបានជោគជ័យ!")
+                    st.success("ចូលគណនីសាកល្បងបានជោគជ័យ!")
                     st.rerun()
                 else:
-                    st.error(f"អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូនាពេលកន្លងមកហើយ!")
+                    st.error(f"អុីមែលនេះបានប្រើប្រាស់កូតាសាកល្បងអស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូរួចហើយ! សូមទិញកូដ VIP តាមរយៈ Telegram: @{TELEGRAM_USERNAME}")
             else:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        key_input = st.text_input("បញ្ចូលកូដសម្ងាត់ VIP:", type="password", key="vip_key")
+        key_input = st.text_input("បញ្ចូលកូដសម្ងាត់ VIP ដែលបានទិញ:", type="password", key="vip_key")
         if st.button("ផ្ទៀងផ្ទាត់កូដ VIP"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
                 st.session_state.user_email = f"VIP: {key_input}"
                 st.session_state.is_vip = True
-                st.success("កូដ VIP ត្រឹមត្រូវ!")
+                st.success("កូដ VIP ត្រឹមត្រូវ! ស្វាគមន៍មកកាន់សមាជិកភាព VIP ។")
                 st.rerun()
             else:
-                st.error("កូដសម្ងាត់មិនត្រឹមត្រូវ។")
+                st.error(f"កូដសម្ងាត់មិនត្រឹមត្រូវទេ។ ចង់ទិញកូដ សូមទាក់ទង Telegram: @{TELEGRAM_USERNAME}")
     st.stop()
 
 col_acc1, col_acc2 = st.columns([4, 1])
 with col_acc1:
-    acc_type = "👑 VIP Member" if st.session_state.is_vip else "🆓 Free Tier"
+    acc_type = "👑 VIP Member (ប្រើប្រាស់អត់ដែនកំណត់)" if st.session_state.is_vip else "🆓 Free Tier (សាកល្បង)"
     st.info(f"👤 គណនី៖ *{st.session_state.user_email}* ({acc_type})")
 with col_acc2:
     if st.button("ចាកចេញ"):
@@ -142,7 +145,6 @@ async def process_video_translation(vid_in, vid_out, src_lang, voice_name, forei
         status_text = st.empty()
         status_text.text("កំពុងធ្វើការបកប្រែអត្ថបទពីភាសាបរទេសមកជាភាសាខ្មែរ...")
 
-        # បកប្រែអត្ថបទដែលបានបញ្ចូលស្វ័យប្រវត្តិដោយប្រើ GoogleTranslator
         translator = GoogleTranslator(source=src_lang, target='km')
         translated_text = translator.translate(foreign_script)
 
@@ -171,7 +173,7 @@ async def process_video_translation(vid_in, vid_out, src_lang, voice_name, forei
             subprocess.run(fallback_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         progress_bar.progress(100)
-        status_text.text("ការបកប្រែនិងพាក្យវីដេអូរឿងបានសម្រេចជោគជ័យ ១០០%!")
+        status_text.text("ការបកប្រែនិងពាក្យវីដេអូរឿងបានសម្រេចជោគជ័យ ១០០%!")
         return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
 
     except Exception as e:
@@ -186,7 +188,6 @@ async def process_video_translation(vid_in, vid_out, src_lang, voice_name, forei
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូរឿងរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "avi"])
 
-# ប្រអប់សម្រាប់ដាក់អត្ថបទដើម (ឧ. ភាសាថៃ ឬអង់គ្លេសពីក្នុងរឿង) ដើម្បីឱ្យវាបកប្រែមកខ្មែរ
 foreign_script_input = st.text_area(
     "✍️ បញ្ចូលអត្ថបទដើមរបស់តួអង្គក្នុងវីដេអូ (ឧ. ភាសាថៃ ឬអង់គ្លេស) ដើម្បីឱ្យប្រព័ន្ធបកប្រែនិងពាក្យជាខ្មែរ៖",
     placeholder="ឧទាហរណ៍ (ភាសាថៃ)៖ ทุกคนรีบตามฉันมา ฉันรู้ที่ซ่อนแล้ว!",
@@ -207,10 +208,10 @@ if uploaded_file is not None:
     if not st.session_state.is_vip:
         used_count = st.session_state.trial_users.get(st.session_state.user_email, 0)
         if used_count >= MAX_FREE_VIDEOS:
-            st.error(f"🔒 គណនីសាកល្បងរបស់អ្នកបានអស់កូតាប្រើប្រាស់ហើយ។ សូមទាក់ទងមកកាន់ Telegram: @{TELEGRAM_USERNAME}")
+            st.error(f"🔒 គណនីសាកល្បងរបស់អ្នកបានប្រើប្រាស់អស់ចំនួន {MAX_FREE_VIDEOS} វីដេអូហើយ! សូមទាក់ទងទិញកូដ VIP ຜ່ານ Telegram: @{TELEGRAM_USERNAME} ដើម្បីបន្តប្រើប្រាស់។")
             can_proceed = False
         else:
-            st.info(f"✨ អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។")
+            st.info(f"✨ អ្នកនៅសល់សិទ្ធិសាកល្បងឥតគិតថ្លៃចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។ (ផុតកំណត់ត្រូវទិញកូដ VIP)")
 
     if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែ និងពាក្យសំឡេង AI ខ្មែរ"):
         if not foreign_script_input.strip():
