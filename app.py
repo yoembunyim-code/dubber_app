@@ -105,7 +105,7 @@ voice_option = st.selectbox(
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- កូដចម្បងក្នុងការដំណើរការវីដេអូ និងសំឡេង (Fixed Audio Processing) -----------------
+# ----------------- កូដចម្បងក្នុងការដំណើរការវីដេអូ និងសំឡេង (Fixed Robust Audio Generation) -----------------
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
     if not os.path.exists(vid_in): 
@@ -125,23 +125,24 @@ async def process_video(vid_in, vid_out, voice_name):
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
 
-    # 3. ប្រើប្រាស់ Whisper AI ដើម្បីទាញយកកថាខណ្ឌ
+    # 3. ប្រើប្រាស់ Whisper AI ដើម្បីទាញយកទិន្នន័យសំឡេង
     model = whisper.load_model("base")
-    result = model.transcribe(audio_to_transcribe, word_timestamps=False)
+    result = model.transcribe(audio_to_transcribe)
     segments = result.get("segments", [])
 
-    # ប្រសិនបើរកមិនឃើញ segments វានឹងយកទាំងមូលមកបកប្រែម្តងហ្មងដើម្បីការពារការអត់លឺសំឡេង
     if not segments and result.get("text"):
         segments = [{"start": 0.0, "end": video_duration, "text": result.get("text")}]
 
     translator = GoogleTranslator(source='auto', target='km')
-    audio_segments = []
-
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     total_segs = len(segments)
 
-    # 4. បកប្រែ និងបង្កើតសំឡេង MP3 នីមួយៗ
+    audio_segments = []
+    current_timeline = 0.0
+
+    # 4. បកប្រែ និងតម្រៀបម៉ោងឱ្យបានត្រឹមត្រូវក្នុង timeline តែមួយ
     for idx, seg in enumerate(segments):
         raw_text = seg.get("text", "").strip()
         if not raw_text: 
@@ -161,57 +162,47 @@ async def process_video(vid_in, vid_out, voice_name):
             await communicate.save(audio_path)
             
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                start_time = float(seg.get("start", 0))
+                start_time = float(seg.get("start", current_timeline))
                 audio_segments.append((start_time, audio_path))
+                current_timeline = start_time
         except:
             continue
 
         if total_segs > 0:
-            progress_bar.progress(int(((idx + 1) / total_segs) * 70))
-        status_text.text(f"កំពុងបង្កើតសំឡេង AI ខ្មែរ៖ {idx+1}/{total_segs}")
+            progress_bar.progress(int(((idx + 1) / total_segs) * 60))
+        status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
 
-    # 5. វិធីសាស្ត្រថ្មីក្នុងការផ្គុំសំឡេងដោយប្រើ concat filter (លែងទើសបញ្ហា amix កាត់ផ្តាច់សំឡេង)
+    # 5. រៀបចំផែនការផ្គុំសំឡេងដោយប្រើ complex filter របស់ FFmpeg ធានាថាមិនបាត់សំឡេង
     if len(audio_segments) > 0:
-        status_text.text("កំពុងផ្គុំសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
+        status_text.text("កំពុងបញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
         
-        # រៀបចំបញ្ជី ፋይልសម្រាប់ FFmpeg Concat
-        list_file_path = os.path.join(temp_dir, "file_list.txt")
-        sorted_segs = sorted(audio_segments, key=lambda x: x[0])
+        # បង្កើត Audio Stream ទំនេរមួយដែលមានប្រវែងស្មើវីដេអូ (Silent Base Track)
+        filter_complex = f"anullsrc=r=44100:cl=stereo[base];"
+        inputs = ["-i", vid_in]
         
-        current_time = 0.0
-        with open(list_file_path, "w", encoding="utf-8") as f_list:
-            for start_t, path in sorted_segs:
-                # បើមានគម្លាតស្ងាត់ ដាក់ silent audio បន្ថែម
-                if start_t > current_time:
-                    gap_duration = start_t - current_time
-                    silence_path = os.path.join(temp_dir, f"silence_{current_time}.mp3")
-                    subprocess.run([
-                        'ffmpeg', '-f', 'lavfi', '-i', f'anullsrc=r=44100:cl=stereo', 
-                        '-t', str(gap_duration), '-q:a', '9', '-acodec', 'libmp3lame', silence_path, '-y'
-                    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    if os.path.exists(silence_path):
-                        f_list.write(f"file '{os.path.abspath(silence_path)}'\n")
-                
-                f_list.write(f"file '{os.path.abspath(path)}'\n")
-                # បង្ហាញរយៈពេលសំឡេងប៉ាន់ស្មាន (អាចប្រើ ffprobe រំលងដើម្បីលឿន)
-                current_time = start_t + 3.0 
-
-        combined_audio = os.path.join(temp_dir, "combined_dub.mp3")
-        subprocess.run([
-            'ffmpeg', '-f', 'concat', '-safe', '0', '-i', list_file_path, '-c', 'copy', combined_audio, '-y'
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        if os.path.exists(combined_audio) and os.path.getsize(combined_audio) > 0:
-            cmd = [
-                'ffmpeg', '-i', vid_in, '-i', combined_audio,
-                '-map', '0:v:0', '-map', '1:a:0',
-                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-                '-t', str(video_duration), '-y', vid_out
-            ]
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        else:
-            shutil.copy(vid_in, vid_out)
-
+        mix_inputs = "[base]"
+        for i, (start_t, path) in enumerate(audio_segments):
+            inputs.extend(["-i", path])
+            delay_ms = int(start_t * 1000)
+            # ប្រើ adelay ដើម្បីទម្លាក់សំឡេងទៅតាមទីតាំងម៉ោងពិតប្រាកដរបស់វីដេអូ
+            filter_complex += f"[{i+1}:a]adelay={delay_ms}|{delay_ms}[a{i}];"
+            mix_inputs += f"[a{i}]"
+            
+        # ផ្សំសំឡេងទាំងអស់ចូលគ្នាដោយកុំឱ្យបាត់ដាន (amix)
+        filter_complex += f"{mix_inputs}amix=inputs={len(audio_segments)+1}:duration=first:dropout_transition=0[outa]"
+        
+        cmd = ["ffmpeg"] + inputs + [
+            "-filter_complex", filter_complex,
+            "-map", "0:v:0",
+            "-map", "[outa]",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-t", str(video_duration),
+            "-y", vid_out
+        ]
+        
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         progress_bar.progress(100)
         status_text.text("ការបកប្រែវីដេអូទទួលបានជោគជ័យរហូតដល់ចប់!")
     else:
