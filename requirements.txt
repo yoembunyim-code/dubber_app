@@ -1,5 +1,5 @@
 streamlit
 deep-translator
 edge-tts
-pydub
 imageio-ffmpeg
+SpeechRecognition
