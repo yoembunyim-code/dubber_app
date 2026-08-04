@@ -65,9 +65,8 @@ if not st.session_state.is_authenticated:
             else:
                 st.error("កូដមិនត្រឹមត្រូវ។")
 
-    st.stop() # ឈប់ដំណើរការកូដខាងក្រោមបើទាន់ Login
+    st.stop()
 
-# បើ Login ជោគជ័យ បង្ហាញផ្ទាំងមុខងារចម្បង
 col1, col2 = st.columns([4, 1])
 with col1:
     account_type = "👑 VIP" if st.session_state.is_vip else "🆓 Free Trial"
@@ -144,9 +143,11 @@ async def process_video(vid_in, vid_out, voice_name):
         status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text("កំពុងបញ្ចូលសំឡេងខ្មែរ...")
+        status_text.text("កំពុងបញ្ចូលសំឡេងខ្មែរពេញលេញ...")
         mix = "".join([f"[a{i}]" for i in range(count)])
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=first:dropout_transition=0[outa]"
+        
+        # ប្រើប្រាស់ duration=longest ដើម្បីការពារកុំឱ្យវីដេអូត្រូវកាត់ផ្ដាច់ខ្លី
+        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest:dropout_transition=0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
@@ -168,7 +169,7 @@ async def process_video(vid_in, vid_out, voice_name):
     shutil.rmtree(temp_dir, ignore_errors=True)
     return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
 
-# ----------------- កន្លែងអាប់ឡូតវីដេអូ (File Uploader) -----------------
+# ----------------- កន្លែងអាប់ឡូតវីដេអូ -----------------
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 ជ្រើសរើសឯកសារវីដេអូ (MP4, MOV)", type=["mp4", "mov", "avi"])
 
@@ -191,7 +192,7 @@ if uploaded_file is not None:
             st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
 
     if can_generate and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការបកប្រែ និងបញ្ចូលសំឡេង AI..."):
+        with st.spinner("កំពុងដំណើរការបកប្រែ និងបញ្ចូលសំឡេង AI ពេញលេញ..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
@@ -209,4 +210,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូខ្លីផ្សេងទៀត។")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
