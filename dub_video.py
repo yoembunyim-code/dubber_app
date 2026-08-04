@@ -7,7 +7,7 @@ import shutil
 from deep_translator import GoogleTranslator
 import edge_tts
 
-st.title("Video Dubbing (Any Language ➔ Khmer) 🇰🇭")
+st.title("AI Video Dubbing & Noise Reduction (Any Language ➔ Khmer) 🇰🇭")
 
 MAX_FREE_VIDEOS = 3
 telegram_link = "https://t.me/bunyimyoem"
@@ -71,7 +71,7 @@ def check_access():
             else:
                 st.error("កូដមិនត្រឹមត្រូវ។")
 
-    st.markdown(f"ទិញកូដ Telegram: [ចុចទីนี่]({telegram_link})")
+    st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
     return False
 
 if not check_access():
@@ -99,10 +99,11 @@ else:
     selected_voice = "km-KH-SreymomNeural"
 
 def add_breathing_pauses(text):
-    words_to_pause = ["និង", "ហើយ", "ប៉ុន្តែ", "ដែល", "ព្រោះ", "ដូច្នេះ", "ម្យ៉ាងទៀត"]
+    # បន្ថែមសញ្ញាក្បៀសដើម្បីឱ្យ Edge TTS មានដង្ហើម និងចន្លោះពេលនិយាយធម្មជាតិ
+    words_to_pause = ["និង", "ហើយ", "ប៉ុន្តែ", "ដែល", "ព្រោះ", "ដូច្នេះ", "ម្យ៉ាងទៀត", "ដូចជា", "ពេលនោះ"]
     for word in words_to_pause:
         text = text.replace(word, f", {word}")
-    text = text.replace("។", "។ ") 
+    text = text.replace("។", "។... ") 
     text = text.replace(",,", ",").replace(", ,", ",")
     return text
 
@@ -114,14 +115,22 @@ async def process_video(vid_in, vid_out, voice_name):
 
     os.makedirs(temp_dir, exist_ok=True)
 
-    # ទាញយកសំឡេងដើមមកវិភាគ
-    subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # ទាញយក និងកាត់សំឡេងរំខានចេញពីវីដេអូដើម (Noise Reduction filter: highpass & lowpass)
+    subprocess.run([
+        'ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 
+        '-af', 'highpass=f=200,lowpass=f=3000', 'temp_clean.mp3', '-y'
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
+    # បើក temp.mp3 ធម្មតាបើ temp_clean គ្មានសំឡេង
+    audio_source = 'temp_clean.mp3' if os.path.exists('temp_clean.mp3') and os.path.getsize('temp_clean.mp3') > 0 else 'temp.mp3'
+    if audio_source == 'temp.mp3':
+        subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     model = whisper.load_model("base")
-    result = model.transcribe("temp.mp3")
+    result = model.transcribe(audio_source)
     segments = result.get("segments", [])
     
-    # ទាញយករយៈពេលសរុបរបស់វីដេអូ (Duration) ជាវិនាទី
+    # រក្សារយៈពេលសរុបរបស់វីដេអូ
     duration_cmd = subprocess.run(
         ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -163,19 +172,19 @@ async def process_video(vid_in, vid_out, voice_name):
         if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             delay_ms = int(seg["start"] * 1000)
             inputs.extend(["-i", audio_path])
-            # បង្កើត pad សំឡេងឱ្យវែងស្មើនឹងវីដេអូទាំងមូល ដើម្បីកុំឱ្យបាត់សំឡេង
-            filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad=whole_dur={total_duration}[a{count}]")
+            # កំណត់ pad និងកម្រិតសំឡេងឱ្យត្រូវចង្វាក់មាត់
+            filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad=whole_dur={total_duration},volume=2.5[a{count}]")
             count += 1
 
         progress_percentage = int(((idx + 1) / (total_segs if total_segs > 0 else 1)) * 90)
         progress_bar.progress(progress_percentage)
-        status_text.text(f"កំពុងបកប្រែ៖ {idx+1}/{total_segs}")
+        status_text.text(f"កំពុងបកប្រែសំឡេង៖ {idx+1}/{total_segs}")
 
     if count > 0:
-        status_text.text("កំពុងចាក់បញ្ចូលសំឡេងចូលវីដេអូ...")
+        status_text.text("កំពុងចាក់បញ្ចូលសំឡេង AI ចូលវីដេអូ...")
         mix = "".join([f"[a{i}]" for i in range(count)])
-        # amix ជាមួយ duration=first ដើម្បីរក្សារយៈពេលវីដេអូដើម និងដំឡើង Volume ឱ្យខ្លាំងច្បាស់
-        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=first:dropout_transition=0,volume=3.0[outa]"
+        # amix ជាមួយ duration=first ដើម្បីរក្សាលំនឹងវីដេអូដើមមិនឱ្យរត់លឿន ឬយឺតខុសប្រក្រតី
+        filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=first:dropout_transition=0[outa]"
         
         cmd = [
             "ffmpeg", "-i", vid_in
@@ -190,7 +199,10 @@ async def process_video(vid_in, vid_out, voice_name):
         progress_bar.progress(100)
         status_text.text("រួចរាល់!")
     
-    if os.path.exists("temp.mp3"): os.remove("temp.mp3")
+    # សម្អាត File កាកសំណល់បណ្តោះអាសន្ន
+    for tmp_f in ["temp.mp3", "temp_clean.mp3"]:
+        if os.path.exists(tmp_f): 
+            os.remove(tmp_f)
     shutil.rmtree(temp_dir, ignore_errors=True)
     return count > 0
 
@@ -215,7 +227,7 @@ if uploaded_file is not None:
             st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
 
     if can_generate and st.button("ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការ... អាចចំណាយពេលបន្តិច..."):
+        with st.spinner("កំពុងដំណើរការកាត់សំឡេងរំខាន និងបកប្រែ..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
@@ -233,4 +245,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ ឬគ្មានសំឡេងក្នុងវីដេអូ! សូមសាកល្បងវីដេអូផ្សេងម្ដងទៀត។")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ ឬគ្មានទិន្នន័យសំឡេងក្នុងវីដេអូ! សូមប្តូរវីដេអូផ្សេងម្ដងទៀត។")
