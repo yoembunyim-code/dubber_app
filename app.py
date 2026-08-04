@@ -14,7 +14,7 @@ telegram_link = "https://t.me/bunyimyoem"
 
 VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
-    "BUNYIM-VIP-002": "សកម្ម"
+    "KHMER-VIP-002": "សកម្ម"
 })
 
 if "is_authenticated" not in st.session_state:
@@ -95,12 +95,11 @@ voice_option = st.selectbox(
 
 selected_voice = "km-KH-PisethNeural" if voice_option == "សំឡេងប្រុស (Piseth)" else "km-KH-SreymomNeural"
 
-def add_breathing_pauses(text):
-    words_to_pause = ["និង", "ហើយ", "ប៉ុន្តែ", "ដែល", "ព្រោះ", "ដូច្នេះ", "ម្យ៉ាងទៀត"]
-    for word in words_to_pause:
-        text = text.replace(word, f", {word}")
-    text = text.replace("។", "។... ") 
-    return text
+def clean_text_for_tts(text):
+    # លុបសញ្ញាពិសេសដែលអាចធ្វើឱ្យ Edge-TTS គាំង
+    for char in ['"', "'", '\\', '/', ':', '*', '?', '"', '<', '>', '|', '[', ']', '{', '}']:
+        text = text.replace(char, ' ')
+    return text.strip()
 
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
@@ -126,29 +125,33 @@ async def process_video(vid_in, vid_out, voice_name):
     total_segs = len(segments)
 
     for idx, seg in enumerate(segments):
-        text = seg["text"].strip()
-        if not text: 
+        raw_text = seg.get("text", "").strip()
+        if not raw_text: 
             continue
         
         try: 
-            kh_text = translator.translate(text)
+            kh_text = translator.translate(raw_text)
         except: 
-            kh_text = text
+            kh_text = raw_text
         
         if not kh_text or kh_text.isspace():
             continue
             
-        kh_text_ready = add_breathing_pauses(kh_text)
+        kh_text_safe = clean_text_for_tts(kh_text)
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
         try:
-            await edge_tts.Communicate(kh_text_ready, voice_name).save(audio_path)
+            # ការពារកុំឱ្យ Error ពេល Edge-TTS ដាច់តំណភ្ជាប់
+            communicate = edge_tts.Communicate(kh_text_safe, voice_name)
+            await communicate.save(audio_path)
+            
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 delay_ms = int(seg["start"] * 1000)
                 inputs.extend(["-i", audio_path])
                 filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},volume=3.0[a{count}]")
                 count += 1
-        except Exception:
+        except Exception as e:
+            # បើ segment ណាមានបញ្ហា រំលងវាចោលភ្លាមដោយមិនឱ្យកម្មវិធីគាំង
             continue
 
         if total_segs > 0:
@@ -172,51 +175,3 @@ async def process_video(vid_in, vid_out, voice_name):
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         progress_bar.progress(100)
         status_text.text("រួចរាល់!")
-    else:
-        shutil.copy(vid_in, vid_out)
-
-    if os.path.exists("temp_orig.mp3"):
-        os.remove("temp_orig.mp3")
-    shutil.rmtree(temp_dir, ignore_errors=True)
-    return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
-
-uploaded_file = st.file_uploader("ជ្រើសរើសឯកសារវីដេអូ (MP4)", type=["mp4", "mov", "avi"])
-
-if uploaded_file is not None:
-    input_filename = "input_test.mp4"
-    output_filename = "final_dubbed_video.mp4"
-    
-    with open(input_filename, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-        
-    st.video(input_filename)
-    
-    can_generate = True
-    if not st.session_state.is_vip:
-        used = st.session_state.trial_users.get(st.session_state.user_email, 0)
-        if used >= MAX_FREE_VIDEOS:
-            st.error("🔒 គណនី Free របស់អ្នកបានប្រើប្រាស់អស់ ៣ វីដេអូហើយ! សូមទិញកូដ VIP។")
-            can_generate = False
-        else:
-            st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
-
-    if can_generate and st.button("ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការ..."):
-            success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
-            
-            if success and os.path.exists(output_filename):
-                st.success("ជោគជ័យ!")
-                st.video(output_filename)
-                
-                if not st.session_state.is_vip:
-                    st.session_state.trial_users[st.session_state.user_email] += 1
-                
-                with open(output_filename, "rb") as file:
-                    st.download_button(
-                        label="ទាញយកវីដេអូ",
-                        data=file,
-                        file_name="dubbed_video.mp4",
-                        mime="video/mp4"
-                    )
-            else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងវីដេអូផ្សេងទៀត។")
