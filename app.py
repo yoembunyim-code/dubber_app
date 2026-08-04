@@ -37,11 +37,10 @@ st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែ�
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
 
-# ប្រអប់ជូនដំណឹងអំពីលក្ខខណ្ឌសាកល្បង និងការទិញ VIP
 st.markdown(f"""
     <div class="notice-box">
         🎁 <b>គោលការណ៍ប្រើប្រាស់ប្រព័ន្ធ៖</b><br>
-        - អ្នកអាចសាកល្បងបកប្រែវីដេអូដោយឥតគិតថ្លៃបានចំនួន <b>៣ វីដេអូដំបូង</b> ប៉ុណ្ណោះតាមរយៈ Free Trial។<br>
+        - អ្នកអាចសាកល្បងបកប្រែវីដេអូដោយឥតគិតថ្លៃได้ចំនួន <b>៣ វីដេអូដំបូង</b> ប៉ុណ្ណោះតាមរយៈ Free Trial។<br>
         - បន្ទាប់ពីអស់កូតា ៣ វីដេអូនេះ អ្នកត្រូវ<b>ទិញកូដ VIP Access Key</b> ដើម្បីបន្តប្រើប្រាស់ជានិច្ច។<br>
         💬 ទិញកូដ VIP តាមរយៈ Telegram: <a href="{TELEGRAM_LINK}" target="_blank"><b>@{TELEGRAM_USERNAME}</b></a>
     </div>
@@ -107,14 +106,18 @@ with col_acc2:
         st.session_state.is_authenticated = False
         st.rerun()
 
-# ----------------- ការកំណត់ភាសាដើម និងសំឡេង AI -----------------
+# ----------------- ការកំណត់ភាសាដើម និងសំឡេង AI (លុបថៃចេញរួច) -----------------
 col_lang1, col_lang2 = st.columns(2)
 with col_lang1:
     source_lang_option = st.selectbox(
         "🌐 ជ្រើសរើសភាសាដើមរបស់វីដេអូ៖",
         ("អង់គ្លេស (English)", "ចិន (Chinese)", "វៀតណាម (Vietnamese)")
     )
-    lang_code_map ="អង់គ្លេស (English)": "en", "ចិន (Chinese)": "zh-CN", "វៀតណាម (Vietnamese)": "vi"}
+    lang_code_map = {
+        "អង់គ្លេស (English)": "en", 
+        "ចិន (Chinese)": "zh-CN", 
+        "វៀតណាម (Vietnamese)": "vi"
+    }
     selected_source_lang = lang_code_map[source_lang_option]
 
 with col_lang2:
@@ -189,8 +192,8 @@ st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូរឿងរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "avi"])
 
 foreign_script_input = st.text_area(
-    "✍️ បញ្ចូលអត្ថបទដើមរបស់តួអង្គក្នុងវីដេអូ (ឧ. ភាសាថៃ ឬអង់គ្លេស) ដើម្បីឱ្យប្រព័ន្ធបកប្រែនិងពាក្យជាខ្មែរ៖",
-    placeholder="ឧទាហរណ៍ (ភាសាថៃ)៖ ทุกคนรีบตามฉันมา ฉันรู้ที่ซ่อนแล้ว!",
+    "✍️ បញ្ចូលអត្ថបទដើមរបស់តួអង្គក្នុងវីដេអូ (ឧ. ភាសាអង់គ្លេស ឬចិន) ដើម្បីឱ្យប្រព័ន្ធបកប្រែនិងពាក្យជាខ្មែរ៖",
+    placeholder="ឧទាហរណ៍ (English): Everybody follow me, I know where the hiding place is!",
     value=""
 )
 
