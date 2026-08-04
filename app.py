@@ -1,11 +1,12 @@
 import streamlit as st
-import whisper
 import subprocess
 import os
 import asyncio
 import shutil
 from deep_translator import GoogleTranslator
 import edge_tts
+import speech_recognition as sr
+from pydub import AudioSegment
 
 # ----------------- ការកំណត់ទំព័រ (Page Configuration) -----------------
 st.set_page_config(
@@ -100,19 +101,19 @@ voice_option = st.selectbox(
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការវីដេអូដែលមានប្រព័ន្ធការពារកម្រិតខ្ពស់ (Robust Error Protection) -----------------
+# ----------------- មុខងារដំណើរការវីដេអូដោយប្រើប្រាស់ប្រព័ន្ធស្រាល (Lightweight Speech Recognition) -----------------
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
-    orig_audio = "temp_orig.mp3"
+    orig_audio_wav = "temp_orig.wav"
+    orig_audio_mp3 = "temp_orig.mp3"
     
     try:
         if not os.path.exists(vid_in): 
-            st.error("រកមិនឃើញឯកសារវីដេអូបញ្ចូលទេ។")
             return False
             
         os.makedirs(temp_dir, exist_ok=True)
 
-        # 1. ការពារការដាច់ ឬគាំងពេលអាន Duration វីដេអូ
+        # 1. យក Duration វីដេអូ
         video_duration = 30.0
         try:
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
@@ -122,66 +123,65 @@ async def process_video(vid_in, vid_out, voice_name):
         except Exception:
             pass
 
-        # 2. ស្រង់សំឡេងដើមដោយមាន Try-Except ការពារ FFmpeg Error
-        try:
-            subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
-        except Exception:
-            pass
-            
-        audio_to_transcribe = orig_audio if os.path.exists(orig_audio) and os.path.getsize(orig_audio) > 0 else vid_in
+        # 2. បំប្លែងសំឡេងវីដេអូជា WAV សម្រាប់ Speech Recognition
+        subprocess.run(['ffmpeg', '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', orig_audio_wav, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio_mp3, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # 3. ការពារការគាំងពេលโหลด Whisper Model
-        try:
-            model = whisper.load_model("tiny")
-        except Exception as e:
-            st.error(f"មានបញ្ហាក្នុងការផ្ទុក Whisper AI: {e}")
-            return False
-
-        result = model.transcribe(audio_to_transcribe)
-        segments = result.get("segments", [])
-
-        if not segments and result.get("text"):
-            segments = [{"start": 0.0, "end": video_duration, "text": result.get("text")}]
-
-        translator = GoogleTranslator(source='auto', target='km')
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        total_segs = len(segments)
-
+        # 3. ញែកសំឡេងជាបំណែកៗ (Chunks) នីមួយៗរៀងរាល់ ៥ វិនាទី ដើម្បីងាយស្រួលបកប្រែ និងដាក់ចូលវិញ
         audio_segments = []
-        current_timeline = 0.0
-
-        for idx, seg in enumerate(segments):
-            raw_text = seg.get("text", "").strip()
-            if not raw_text: 
-                continue
+        if os.path.exists(orig_audio_wav):
+            song = AudioSegment.from_wav(orig_audio_wav)
+            chunk_length_ms = 5000 # 5 វិនាទីក្នុងមួយបំណែក
+            chunks = [song[i:i + chunk_length_ms] for i in range(0, len(song), chunk_length_ms)]
             
-            try: 
-                kh_text = translator.translate(raw_text)
-            except Exception: 
-                kh_text = raw_text
+            recognizer = sr.Recognizer()
+            translator = GoogleTranslator(source='auto', target='km')
             
-            if not kh_text or kh_text.isspace():
-                continue
-                
-            audio_path = f"{temp_dir}/seg_{idx}.mp3"
-            try:
-                communicate = edge_tts.Communicate(kh_text, voice_name)
-                await communicate.save(audio_path)
-                
-                if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                    start_time = float(seg.get("start", current_timeline))
-                    audio_segments.append((start_time, audio_path))
-                    current_timeline = start_time
-            except Exception:
-                continue
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            total_chunks = len(chunks)
 
-            if total_segs > 0:
-                progress_bar.progress(int(((idx + 1) / total_segs) * 60))
-            status_text.text(f"កំពុងបកប្រែ និងបង្កើតសំឡេង AI៖ {idx+1}/{total_segs}")
+            for idx, chunk in enumerate(chunks):
+                chunk_path = f"{temp_dir}/chunk_{idx}.wav"
+                chunk.export(chunk_path, format="wav")
+                
+                text = ""
+                try:
+                    with sr.AudioFile(chunk_path) as source:
+                        audio_data = recognizer.record(source)
+                        # ប្តូរជាភាសាអង់គ្លេស ឬចិន (អាស្រ័យលើសំឡេងដើម ប៉ុន្តែ Google Speech គាំទ្រ auto-detect តាមរយៈ lang='zh-CN' ឬ 'en-US')
+                        text = recognizer.recognize_google(audio_data, language='zh-CN')
+                except Exception:
+                    try:
+                        # បើចិនមិនចេញ សាកល្បងអង់គ្លេស
+                        with sr.AudioFile(chunk_path) as source:
+                            audio_data = recognizer.record(source)
+                            text = recognizer.recognize_google(audio_data, language='en-US')
+                    except Exception:
+                        text = ""
 
-        # 4. ការពារពេលបញ្ចូលសំឡេងចូលវីដេអូ (FFmpeg Mixing Protection)
+                if text.strip():
+                    try:
+                        kh_text = translator.translate(text)
+                    except Exception:
+                        kh_text = text
+
+                    if kh_text and not kh_text.isspace():
+                        audio_path = f"{temp_dir}/seg_{idx}.mp3"
+                        try:
+                            communicate = edge_tts.Communicate(kh_text, voice_name)
+                            await communicate.save(audio_path)
+                            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                                start_time = float(idx * 5.0)
+                                audio_segments.append((start_time, audio_path))
+                        except Exception:
+                            pass
+
+                if total_chunks > 0:
+                    progress_bar.progress(int(((idx + 1) / total_chunks) * 60))
+                status_text.text(f"កំពុងបកប្រែសំឡេង AI៖ {idx+1}/{total_chunks}")
+
+        # 4. បញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូវិញ
         if len(audio_segments) > 0:
             status_text.text("កំពុងបញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
             
@@ -210,7 +210,6 @@ async def process_video(vid_in, vid_out, voice_name):
             
             process_res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if process_res.returncode != 0:
-                # បើ mix បរាជ័យ ប្រើវិធីសាស្ត្រสำรอง copy វីដេអូដើមទប់ស្កាត់ការ Error
                 shutil.copy(vid_in, vid_out)
         else:
             shutil.copy(vid_in, vid_out)
@@ -224,10 +223,10 @@ async def process_video(vid_in, vid_out, voice_name):
         return False
         
     finally:
-        # ការសម្អាតឯកសារបណ្តោះអាសន្នជានិច្ច (ទោះជួប Error ក៏ដោយ ដើម្បីកុំឱ្យពេញ RAM)
-        if os.path.exists(orig_audio):
-            try: os.remove(orig_audio)
-            except: pass
+        for f_clean in [orig_audio_wav, orig_audio_mp3]:
+            if os.path.exists(f_clean):
+                try: os.remove(f_clean)
+                except: pass
         if os.path.exists(temp_dir):
             try: shutil.rmtree(temp_dir, ignore_errors=True)
             except: pass
