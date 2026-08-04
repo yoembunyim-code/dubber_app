@@ -4,33 +4,38 @@ import subprocess
 import os
 import asyncio
 import shutil
-from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
 import edge_tts
 
 st.title("Video Dubbing (English -> Khmer)")
 
-TRIAL_DAYS = 3
+# កំណត់ចំនួនវីដេអូសម្រាប់ Free Trial
+MAX_FREE_VIDEOS = 3
+telegram_link = "https://t.me/your_telegram_username" # ប្តូរដាក់តំណ Telegram របស់អ្នក
 
-VALID_KEYS = {
+# ទាញយកកូដសម្ងាត់ពី Streamlit Secrets
+VALID_KEYS = st.secrets.get("VALID_KEYS", {
     "BUNYIM-VIP-001": "សកម្ម",
-    "BUNYIM-VIP-002": "សកម្ម",
-    "TEST-KEY-123": "សកម្ម"
-}
+    "KHMER-VIP-002": "សកម្ម"
+})
 
-telegram_link = "https://t.me/bunyimyoem"  # ប្តូរជា Telegram Username របស់អ្នក
-
+# រៀបចំ Session State សម្រាប់ចងចាំការប្រើប្រាស់
 if "is_authenticated" not in st.session_state:
     st.session_state.is_authenticated = False
 if "user_email" not in st.session_state:
     st.session_state.user_email = ""
+if "is_vip" not in st.session_state:
+    st.session_state.is_vip = False
+if "trial_users" not in st.session_state:
+    st.session_state.trial_users = {} # ផ្ទុកទិន្នន័យឧទាហរណ៍: {'user@gmail.com': 1}
 
 def check_access():
+    # បើធ្លាប់ Login ហើយ
     if st.session_state.is_authenticated:
         return True
 
     st.markdown("### 🔐 បញ្ចូលគណនី ឬកូដសម្ងាត់")
-    st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {TRIAL_DAYS} ថ្ងៃ។")
+    st.info(f"សាកល្បងប្រើប្រាស់ដោយឥតគិតថ្លៃចំនួន {MAX_FREE_VIDEOS} វីដេអូ។")
     
     tab1, tab2 = st.tabs(["📧 Free Trial", "🔑 Access Key"])
 
@@ -38,35 +43,35 @@ def check_access():
         st.markdown("#### ចុះឈ្មោះដោយប្រើ Email")
         email_input = st.text_input("អុីមែលរបស់អ្នក:", key="trial_email_input")
         
-        if "trial_users" not in st.session_state:
-            st.session_state.trial_users = {}
-
-        if st.button("ចាប់ផ្តើម"):
+        if st.button("ចាប់ផ្តើមសាកល្បង"):
             if email_input and "@" in email_input:
-                now = datetime.now()
-                if email_input not in st.session_state.trial_users:
-                    st.session_state.trial_users[email_input] = now
+                # ឆែកមើលថាតើអុីមែលនេះធ្លាប់ប្រើអស់ឬនៅ
+                used_count = st.session_state.trial_users.get(email_input, 0)
                 
-                start_date = st.session_state.trial_users[email_input]
-                expiry_date = start_date + timedelta(days=TRIAL_DAYS)
-
-                if now < expiry_date:
+                if used_count < MAX_FREE_VIDEOS:
                     st.session_state.is_authenticated = True
                     st.session_state.user_email = email_input
-                    st.success(f"ជោគជ័យ! ប្រើបានដល់ថ្ងៃ៖ {expiry_date.strftime('%Y-%m-%d %H:%M')}")
+                    st.session_state.is_vip = False
+                    
+                    if email_input not in st.session_state.trial_users:
+                        st.session_state.trial_users[email_input] = 0
+                        
+                    st.success(f"ជោគជ័យ! អ្នកអាចប្រើប្រាស់បាន {MAX_FREE_VIDEOS - used_count} វីដេអូទៀត។")
                     st.rerun()
                 else:
-                    st.error("រយៈពេលសាកល្បងបានផុតកំណត់ហើយ! សូមទិញកូដ។")
+                    st.error("អុីមែលនេះបានប្រើប្រាស់អស់ចំនួន ៣ វីដេអូហើយ! សូមទិញកូដ VIP។")
             else:
                 st.warning("សូមបញ្ចូលអុីមែលឱ្យបានត្រឹមត្រូវ។")
 
     with tab2:
-        st.markdown("#### វាយបញ្ចូលកូដ")
+        st.markdown("#### វាយបញ្ចូលកូដ VIP")
         key_input = st.text_input("កូដសម្ងាត់:", type="password", key="access_key_input")
         if st.button("ផ្ទៀងផ្ទាត់"):
             if key_input in VALID_KEYS:
                 st.session_state.is_authenticated = True
-                st.success("កូដត្រឹមត្រូវ!")
+                st.session_state.user_email = f"VIP Key: {key_input}"
+                st.session_state.is_vip = True
+                st.success("កូដត្រឹមត្រូវ! អ្នកអាចប្រើបានដោយគ្មានដែនកំណត់។")
                 st.rerun()
             else:
                 st.error("កូដមិនត្រឹមត្រូវ។")
@@ -74,10 +79,21 @@ def check_access():
     st.markdown(f"ទិញកូដ Telegram: [ចុចទីនេះ]({telegram_link})")
     return False
 
+# ឆែកសិទ្ធិមុននឹងបង្ហាញកម្មវិធី
 if not check_access():
     st.stop()
 
-st.success(f"គណនី៖ {st.session_state.get('user_email', 'Access Key VIP')}")
+# បង្ហាញព័ត៌មានគណនី និងប៊ូតុង Logout
+col1, col2 = st.columns([4, 1])
+with col1:
+    account_type = "👑 VIP" if st.session_state.is_vip else "🆓 Free Trial"
+    st.success(f"គណនី ({account_type})៖ {st.session_state.user_email}")
+with col2:
+    if st.button("ចាកចេញ (Logout)"):
+        st.session_state.is_authenticated = False
+        st.session_state.user_email = ""
+        st.session_state.is_vip = False
+        st.rerun()
 
 voice_option = st.selectbox(
     "ជ្រើសរើសសំឡេង:",
@@ -107,7 +123,8 @@ async def process_video(vid_in, vid_out, voice_name):
 
     subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', 'temp.mp3', '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    model = whisper.load_model("tiny")
+    # ផ្លាស់ប្តូរពី "tiny" ទៅ "base" ដើម្បីឱ្យវាស្តាប់អង់គ្លេសបានត្រឹមត្រូវ និងច្បាស់ជាងមុន
+    model = whisper.load_model("base")
     segments = model.transcribe("temp.mp3")["segments"]
 
     translator = GoogleTranslator(source='auto', target='km')
@@ -129,7 +146,8 @@ async def process_video(vid_in, vid_out, voice_name):
         kh_text_ready = add_breathing_pauses(kh_text)
         audio_path = f"{temp_dir}/s_{count}.mp3"
         
-        await edge_tts.Communicate(kh_text_ready, voice_name, rate="-10%", pitch="-2Hz").save(audio_path)
+        # កែសម្រួលសំឡេងឱ្យធម្មជាតិ (ដក rate និង pitch ចេញដើម្បីកុំឱ្យវាស្តាប់ទៅដូចរ៉ូបូត)
+        await edge_tts.Communicate(kh_text_ready, voice_name).save(audio_path)
         
         delay_ms = int(seg["start"] * 1000)
         inputs.extend(["-i", audio_path])
@@ -173,13 +191,27 @@ if uploaded_file is not None:
         
     st.video(input_filename)
     
-    if st.button("ចាប់ផ្តើមបកប្រែសំឡេង"):
-        with st.spinner("កំពុងដំណើរការ..."):
+    # ត្រួតពិនិត្យការកំណត់ ៣ វីដេអូសម្រាប់ Free Trial មុននឹងឱ្យប៊ូតុង "ចាប់ផ្តើម" បង្ហាញ
+    can_generate = True
+    if not st.session_state.is_vip:
+        used = st.session_state.trial_users.get(st.session_state.user_email, 0)
+        if used >= MAX_FREE_VIDEOS:
+            st.error("🔒 គណនី Free របស់អ្នកបានប្រើប្រាស់អស់ ៣ វីដេអូហើយ! សូមទិញកូដ VIP ដើម្បីបន្តប្រើប្រាស់។")
+            can_generate = False
+        else:
+            st.info(f"អ្នកនៅសល់សិទ្ធិប្រើប្រាស់ចំនួន {MAX_FREE_VIDEOS - used} វីដេអូទៀត។")
+
+    if can_generate and st.button("ចាប់ផ្តើមបកប្រែសំឡេង"):
+        with st.spinner("កំពុងដំណើរការ... អាចចំណាយពេលបន្តិច..."):
             success = asyncio.run(process_video(input_filename, output_filename, selected_voice))
             
             if success and os.path.exists(output_filename):
                 st.success("ជោគជ័យ!")
                 st.video(output_filename)
+                
+                # បូកបញ្ជូលចំនួនប្រើប្រាស់សម្រាប់ Free Trial បន្ទាប់ពីជោគជ័យ
+                if not st.session_state.is_vip:
+                    st.session_state.trial_users[st.session_state.user_email] += 1
                 
                 with open(output_filename, "rb") as file:
                     st.download_button(
@@ -189,4 +221,4 @@ if uploaded_file is not None:
                         mime="video/mp4"
                     )
             else:
-                st.warning("មានបញ្ហាក្នុងការដំណើរការ!")
+                st.warning("មានបញ្ហាក្នុងការដំណើរការ! សូមសាកល្បងម្ដងទៀត។")
