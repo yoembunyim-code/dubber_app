@@ -64,7 +64,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🎬 AI Video Dubbing Khmer Pro</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែនិងพាក្យសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិកកម្រិតខ្ពស់</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែនិងកែសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិកកម្រិតខ្ពស់</div>', unsafe_allow_html=True)
 
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
