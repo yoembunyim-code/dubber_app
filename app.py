@@ -112,7 +112,7 @@ col_lang1, col_lang2 = st.columns(2)
 with col_lang1:
     source_lang_option = st.selectbox(
         "🌐 ជ្រើសរើសភាសាដើមរបស់វីដេអូ៖",
-        ("ថៃ (Thai)", "អង់គ្លេស (English)", "ចិន (Chinese)", "វៀតណាម (Vietnamese)")
+        ("អង់គ្លេស (English)", "ចិន (Chinese)", "វៀតណាម (Vietnamese)")
     )
     lang_code_map = {"ថៃ (Thai)": "th", "អង់គ្លេស (English)": "en", "ចិន (Chinese)": "zh-CN", "វៀតណាម (Vietnamese)": "vi"}
     selected_source_lang = lang_code_map[source_lang_option]
