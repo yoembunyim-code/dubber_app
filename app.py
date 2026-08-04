@@ -8,6 +8,19 @@ import edge_tts
 import speech_recognition as sr
 from pydub import AudioSegment
 
+# ----------------- ដំឡើង FFmpeg ដោយស្វ័យប្រវត្តិក្នុង Streamlit Cloud -----------------
+@st.cache_resource
+def install_ffmpeg():
+    try:
+        # စစ်មើលសិនថាមាន ffmpeg ហើយឬยัง
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # បើអត់ទាន់មាន ធ្វើការ Download និង Install ចូល Linux system ស្វ័យប្រវត្តិ
+        subprocess.run(["apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["apt-get", "install", "-y", "ffmpeg"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+install_ffmpeg()
+
 # ----------------- ការកំណត់ទំព័រ (Page Configuration) -----------------
 st.set_page_config(
     page_title="AI Video Dubbing Khmer Pro",
@@ -101,7 +114,7 @@ voice_option = st.selectbox(
 )
 selected_voice = "km-KH-PisethNeural" if "ប្រុស" in voice_option else "km-KH-SreymomNeural"
 
-# ----------------- មុខងារដំណើរការវីដេអូដោយប្រើប្រាស់ប្រព័ន្ធស្រាល (Lightweight Speech Recognition) -----------------
+# ----------------- មុខងារដំណើរការវីដេអូ -----------------
 async def process_video(vid_in, vid_out, voice_name):
     temp_dir = "temp_segments"
     orig_audio_wav = "temp_orig.wav"
@@ -113,7 +126,6 @@ async def process_video(vid_in, vid_out, voice_name):
             
         os.makedirs(temp_dir, exist_ok=True)
 
-        # 1. យក Duration វីដេអូ
         video_duration = 30.0
         try:
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', vid_in]
@@ -123,15 +135,13 @@ async def process_video(vid_in, vid_out, voice_name):
         except Exception:
             pass
 
-        # 2. បំប្លែងសំឡេងវីដេអូជា WAV សម្រាប់ Speech Recognition
         subprocess.run(['ffmpeg', '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', orig_audio_wav, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', orig_audio_mp3, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # 3. ញែកសំឡេងជាបំណែកៗ (Chunks) នីមួយៗរៀងរាល់ ៥ វិនាទី ដើម្បីងាយស្រួលបកប្រែ និងដាក់ចូលវិញ
         audio_segments = []
         if os.path.exists(orig_audio_wav):
             song = AudioSegment.from_wav(orig_audio_wav)
-            chunk_length_ms = 5000 # 5 វិនាទីក្នុងមួយបំណែក
+            chunk_length_ms = 5000 
             chunks = [song[i:i + chunk_length_ms] for i in range(0, len(song), chunk_length_ms)]
             
             recognizer = sr.Recognizer()
@@ -149,11 +159,9 @@ async def process_video(vid_in, vid_out, voice_name):
                 try:
                     with sr.AudioFile(chunk_path) as source:
                         audio_data = recognizer.record(source)
-                        # ប្តូរជាភាសាអង់គ្លេស ឬចិន (អាស្រ័យលើសំឡេងដើម ប៉ុន្តែ Google Speech គាំទ្រ auto-detect តាមរយៈ lang='zh-CN' ឬ 'en-US')
                         text = recognizer.recognize_google(audio_data, language='zh-CN')
                 except Exception:
                     try:
-                        # បើចិនមិនចេញ សាកល្បងអង់គ្លេស
                         with sr.AudioFile(chunk_path) as source:
                             audio_data = recognizer.record(source)
                             text = recognizer.recognize_google(audio_data, language='en-US')
@@ -181,7 +189,6 @@ async def process_video(vid_in, vid_out, voice_name):
                     progress_bar.progress(int(((idx + 1) / total_chunks) * 60))
                 status_text.text(f"កំពុងបកប្រែសំឡេង AI៖ {idx+1}/{total_chunks}")
 
-        # 4. បញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូវិញ
         if len(audio_segments) > 0:
             status_text.text("កំពុងបញ្ចូលសំឡេង AI ចូលក្នុងវីដេអូដោយសុវត្ថិភាព...")
             
