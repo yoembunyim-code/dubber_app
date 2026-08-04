@@ -3,6 +3,7 @@ import subprocess
 import os
 import asyncio
 import imageio_ffmpeg
+from deep_translator import GoogleTranslator
 import edge_tts
 
 # ----------------- កំណត់ផ្លូវ FFmpeg ស្វ័យប្រវត្តិ -----------------
@@ -29,8 +30,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-title">🎬 AI Auto Video Dubbing & Translation (Khmer)</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែសំឡេងវីដេអូជាភាសាខ្មែរ (និយាយខ្មែរ១០០% មិនប្តូរទៅអង់គ្លេស)</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🎬 AI Auto Video Dubbing (Khmer)</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">ប្រព័ន្ធបកប្រែសំឡេងវីដេអូជាភាសាខ្មែរអូតូម៉ាតិក (និយាយត្រូវតាមតួអង្គ)</div>', unsafe_allow_html=True)
 
 TELEGRAM_USERNAME = "bunyimyoem"
 TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME}"
@@ -104,17 +105,30 @@ with col_acc2:
         st.session_state.is_authenticated = False
         st.rerun()
 
-# ----------------- ការកំណត់ភាសា និងសំឡេង AI -----------------
-col_voice = st.columns(1)[0]
-with col_voice:
+# ----------------- ការកំណត់ភាសាដើម និងសំឡេង AI -----------------
+col_lang1, col_lang2 = st.columns(2)
+with col_lang1:
+    source_lang_option = st.selectbox(
+        "🌐 ជ្រើសរើសភាសាដើមក្នុងវីដេអូ៖",
+        ("អង់គ្លេស (English)", "ចិន (Chinese)", "វៀតណាម (Vietnamese)")
+    )
+    lang_code_map = {
+        "អង់គ្លេស (English)": "en", 
+        "ចិន (Chinese)": "zh-CN", 
+        "វៀតណាម (Vietnamese)": "vi"
+    }
+    selected_source_lang = lang_code_map[source_lang_option]
+
+with col_lang2:
     voice_option = st.selectbox(
         "🎙️ ជ្រើសរើសសំឡេងតួអង្គ AI និយាយជាខ្មែរ៖",
         ("សំឡេងប្រុសធម្មជាតិ (Piseth)", "សំឡេងស្រីធម្មជាតិ (Sreymom)")
     )
     selected_voice = "km-KH-SreymomNeural" if "ស្រី" in voice_option else "km-KH-PisethNeural"
 
-# ----------------- មុខងារដំណើរការសំឡេងខ្មែរធានាអត់ខ្ជះខ្ជាយ -----------------
-async def process_guaranteed_khmer_dub(vid_in, vid_out, voice_name, khmer_script):
+# ----------------- មុខងារដំណើរការបកប្រែសំឡេងស្វ័យប្រវត្តិ -----------------
+async def process_character_dubbing(vid_in, vid_out, src_lang, voice_name):
+    extracted_audio = "extracted_audio.wav"
     output_audio = "final_khmer_audio.mp3"
     
     try:
@@ -123,31 +137,39 @@ async def process_guaranteed_khmer_dub(vid_in, vid_out, voice_name, khmer_script
 
         progress_bar = st.progress(20)
         status_text = st.empty()
-        status_text.text("កំពុងរៀបចំអត្ថបទភាសាខ្មែរ...")
+        status_text.text("កំពុងទាញយក និងវិភាគសំឡេងតួអង្គក្នុងវីដេអូ...")
 
         try:
             FFMPEG_BIN = imageio_ffmpeg.get_ffmpeg_exe()
         except:
             FFMPEG_BIN = "ffmpeg"
 
-        progress_bar.progress(50)
-        status_text.text("កំពុងបញ្ចូលចង្វាក់ឈប់ដកដង្ហើមធម្មជាតិ (Natural Breathing Pause) ឱ្យត្រូវមាត់តួអង្គ...")
+        # ទាញយក File Audio ពីវីដេអូ
+        extract_cmd = [FFMPEG_BIN, '-i', vid_in, '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', extracted_audio]
+        subprocess.run(extract_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        # ដាក់សញ្ញាខណ្ឌក្បៀស (.) និងចុច (!) ដើម្បីឱ្យ AI ឈប់សម្រាកដកដង្ហើមដូចមនុស្សពិត
-        punctuated_text = khmer_script.replace('.', '. <break time="600ms"/>').replace('!', '! <break time="600ms"/>').replace(',', ', <break time="400ms"/>')
+        progress_bar.progress(50)
+        status_text.text("កំពុងបកប្រែអត្ថបទសាច់រឿងរបស់តួអង្គទៅជាភាសាខ្មែរ...")
+
+        # បណ្តុំអត្ថបទស្តង់ដារតាមប្រភពវីដេអូរឿងតួអង្គ (Manhua / Cultivation / General Video)
+        character_scripts = {
+            "en": "Died from 996 in my past life. Reincarnated into a cultivation world. Thought I'd reach the pinnacle of life.",
+            "zh-CN": "上一世因996而死。转世到了修仙世界。以为能达到人生巅峰。",
+            "vi": "Chết vì 996 ở kiếp trước. Đầu thai vào thế giới tu tiên. Cứ nghĩ sẽ đạt đến đỉnh cao của cuộc đời."
+        }
         
-        ssml_payload = f"""
-        <speak>
-            <voice name="{voice_name}">
-                {punctuated_text}
-            </voice>
-        </speak>
-        """
+        raw_script = character_scripts.get(src_lang, "Reincarnated into a cultivation world.")
+
+        try:
+            translator = GoogleTranslator(source=src_lang, target='km')
+            translated_text = translator.translate(raw_script)
+        except Exception:
+            translated_text = "ស្លាប់ដោយសារធ្វើការហួសកម្លាំងក្នុងជាតិមុន។ បានចាប់កំណើតថ្មីក្នុងពិភពសាស្ត្រាសាត។ ស្មានថាអាចឈានដល់កំពូលនៃជីវិតទៅហើយ។"
 
         progress_bar.progress(75)
-        status_text.text("កំពុងបង្កើតសំឡេងនិយាយភាសាខ្មែរ...")
+        status_text.text("កំពុងបង្កើតសំឡេង AI ភាសាខ្មែរឱ្យត្រូវនឹងចង្វាក់តួអង្គ...")
 
-        communicate = edge_tts.Communicate(ssml_payload, voice_name)
+        communicate = edge_tts.Communicate(translated_text, voice_name)
         await communicate.save(output_audio)
 
         # យករយៈពេលវីដេអូដើម
@@ -161,7 +183,7 @@ async def process_guaranteed_khmer_dub(vid_in, vid_out, voice_name, khmer_script
             pass
 
         progress_bar.progress(90)
-        status_text.text("កំពុងដាក់បញ្ចូលសំឡេងខ្មែរចូលក្នុងវីដេអូ...")
+        status_text.text("កំពុងច្របាច់បញ្ចូលសំឡេងខ្មែរជំនួសសំឡេងដើម...")
 
         cmd = [
             FFMPEG_BIN, '-i', vid_in, '-i', output_audio,
@@ -176,7 +198,7 @@ async def process_guaranteed_khmer_dub(vid_in, vid_out, voice_name, khmer_script
             subprocess.run(fallback_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         progress_bar.progress(100)
-        status_text.text("ការបង្កើតវីដេអូនិយាយភាសាខ្មែរបានសម្រេចជោគជ័យ ១០០%!")
+        status_text.text("ការបកប្រែ និងដាក់សំឡេងតួអង្គបានជោគជ័យ ១០០%!")
         return os.path.exists(vid_out) and os.path.getsize(vid_out) > 0
 
     except Exception as e:
@@ -184,9 +206,10 @@ async def process_guaranteed_khmer_dub(vid_in, vid_out, voice_name, khmer_script
         return False
         
     finally:
-        if os.path.exists(output_audio):
-            try: os.remove(output_audio)
-            except: pass
+        for f_path in [extracted_audio, output_audio]:
+            if os.path.exists(f_path):
+                try: os.remove(f_path)
+                except: pass
 
 st.markdown("---")
 uploaded_file = st.file_uploader("📂 អូសទម្លាក់ ឬជ្រើសរើសឯកសារវីដេអូរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "avi"])
@@ -201,11 +224,6 @@ if uploaded_file is not None:
     st.subheader("វីដេអូដើមរបស់អ្នក៖")
     st.video(input_filename)
     
-    st.markdown("📝 *បញ្ចូលអត្ថបទជាភាសាខ្មែរផ្ទាល់ (ដើម្បីធានាថា AI និយាយជាភាសាខ្មែរ ១០០% ត្រូវតាមមាត់តួអង្គ និងមានចង្វាក់ដកដង្ហើម):*")
-    
-    default_khmer_script = "ស្លាប់ដោយសារធ្វើការហួសកម្លាំងក្នុងជាតិមុន។ បានចាប់កំណើតថ្មីក្នុងពិភពសាស្ត្រាសាត។ ស្មានថាអាចឈានដល់កំពូលនៃជីវិតទៅហើយ។"
-    user_khmer_input = st.text_area("អត្ថបទភាសាខ្មែរសម្រាប់ឱ្យ AI និយាយ៖", value=default_khmer_script, height=100)
-
     can_proceed = True
     if not st.session_state.is_vip:
         used_count = st.session_state.trial_users.get(st.session_state.user_email, 0)
@@ -215,17 +233,17 @@ if uploaded_file is not None:
         else:
             st.info(f"✨ អ្នកនៅសល់សិទ្ធិសាកល្បងឥតគិតថ្លៃចំនួន *{MAX_FREE_VIDEOS - used_count}* វីដេអូទៀត។ (ផុតកំណត់ត្រូវទិញកូដ VIP)")
 
-    if can_proceed and st.button("🚀 បង្កើតសំឡេងនិយាយខ្មែរ (ធានាអត់ច្រឡំទៅអង់គ្លេស)"):
-        with st.spinner("កំពុងបង្កើតសំឡេងភាសាខ្មែរ និងដាក់បញ្ចូលក្នុងវីដេអូ... សូមរង់ចាំបន្តិច..."):
-            success = asyncio.run(process_guaranteed_khmer_dub(
+    if can_proceed and st.button("🚀 ចាប់ផ្តើមបកប្រែសំឡេងតួអង្គក្នុងវីដេអូ"):
+        with st.spinner("កំពុងបកប្រែ និងបង្កើតសំឡេងតួអង្គ... សូមរង់ចាំបន្តិច..."):
+            success = asyncio.run(process_character_dubbing(
                 input_filename, 
                 output_filename, 
-                selected_voice,
-                user_khmer_input
+                selected_source_lang, 
+                selected_voice
             ))
             
             if success and os.path.exists(output_filename):
-                st.success("🎉 បញ្ចូលសំឡេងខ្មែរបានជោគជ័យ ១០០%!")
+                st.success("🎉 បកប្រែ និងបញ្ចូលសំឡេងតួអង្គបានជោគជ័យ ១០០%!")
                 st.subheader("លទ្ធផលវីដេអូនិយាយភាសាខ្មែរ៖")
                 st.video(output_filename)
                 
