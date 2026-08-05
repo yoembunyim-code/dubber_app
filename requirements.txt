@@ -3,5 +3,4 @@ edge-tts
 moviepy==1.0.3
 deep-translator
 openai-whisper
-pydub
 numpy<2.0.0
