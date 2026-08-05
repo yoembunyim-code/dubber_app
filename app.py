@@ -2,17 +2,12 @@ import streamlit as st
 import os
 import asyncio
 import tempfile
+import subprocess
 from datetime import datetime
+from deep_translator import GoogleTranslator
+import edge_tts
 
-# Import External Packages ជាមួយ Safety Check
-try:
-    from deep_translator import GoogleTranslator
-    import edge_tts
-    from moviepy.editor import VideoFileClip, AudioFileClip
-except Exception as e:
-    st.error(f"⚠️ Error Importing Libraries: {e}")
-
-# Config Page
+# Configuration Page
 st.set_page_config(page_title="AI Dubbing System", layout="wide", page_icon="🎬")
 
 OWNER_TELEGRAM = "@YOUR_TELEGRAM"
@@ -38,6 +33,21 @@ def generate_voice(text, voice_name, output_path):
     loop.run_until_complete(generate_voice_async(text, voice_name, output_path))
     loop.close()
 
+# Function សម្រាប់បញ្ជូល Audio ចូល Video ដោយប្រើ FFmpeg ផ្ទាល់ (សុវត្ថិភាព 100%)
+def merge_video_audio(video_path, audio_path, output_path):
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-i", audio_path,
+        "-c:v", "copy",        # រក្សាគុណភាពវីដេអូដើម (ដើរលឿនខ្លាំង)
+        "-c:a", "aac",         # Convert សំឡេងទៅ AAC
+        "-map", "0:v:0",       # យក វីដេអូ ពី file ទី១
+        "-map", "1:a:0",       # យក សំឡេង ពី file ទី២
+        "-shortest",           # កាត់សំឡេង/វីដេអូ ឱ្យសមប្រវែងគ្នា
+        output_path
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
 # ----------------- UI -----------------
 st.title("🎬 ប្រព័ន្ធឌឹប និងបកប្រែវីដេអូ AI")
 st.caption("ប្រព័ន្ធបកប្រែ និងបញ្បញ្ចូលសំឡេងខ្មែរស្វ័យប្រវត្តិ")
@@ -50,7 +60,7 @@ with st.sidebar:
     if st.session_state.is_activated:
         st.info(f"Code: {st.session_state.current_key}")
 
-# Content
+# Content Input
 uploaded_video = st.file_uploader("១. ផ្ទុកវីដេអូ (MP4)", type=['mp4', 'mov'])
 script_text = st.text_area("២. បញ្ចូលអត្ថបទដើម ឬអត្ថបទបកប្រែ:", height=100, placeholder="ឧទាហរណ៍: Hello, welcome to my channel.")
 voice_gender = st.selectbox("៣. ជ្រើសរើសសំឡេងខ្មែរ", ["ស្រី (Sreymom)", "ប្រុស (Piseth)"])
@@ -65,9 +75,8 @@ if st.button("🚀 ចាប់ផ្ដើមឌឹបវីដេអូ", type
     elif not script_text.strip():
         st.warning("⚠️ សូមបញ្ចូលអត្ថបទសម្រាប់និយាយ!")
     else:
-        with st.spinner("🤖 កំពុងដំណើរការ... សូមរង់ចាំ (អាចចំណាយពេល ១-២ នាទី)"):
+        with st.spinner("🤖 កំពុងដំណើរការ... សូមរង់ចាំបន្តិច"):
             try:
-                # បង្កើត Temp Folder
                 with tempfile.TemporaryDirectory() as temp_dir:
                     in_video_path = os.path.join(temp_dir, "input.mp4")
                     out_audio_path = os.path.join(temp_dir, "speech.mp3")
@@ -87,26 +96,9 @@ if st.button("🚀 ចាប់ផ្ដើមឌឹបវីដេអូ", type
                     selected_voice = "km-KH-SreymomNeural" if "ស្រី" in voice_gender else "km-KH-PisethNeural"
                     generate_voice(translated_text, selected_voice, out_audio_path)
 
-                    # ៤. Merge Audio ចូល Video
+                    # ៤. Merge Audio ចូល Video ដោយប្រើ FFmpeg
                     st.write("📌 កំពុងបញ្ចូលសំឡេងទៅក្នុងវីដេអូ...")
-                    video_clip = VideoFileClip(in_video_path)
-                    audio_clip = AudioFileClip(out_audio_path)
-
-                    if audio_clip.duration > video_clip.duration:
-                        audio_clip = audio_clip.subclip(0, video_clip.duration)
-
-                    final_clip = video_clip.set_audio(audio_clip)
-                    final_clip.write_videofile(
-                        out_video_path,
-                        codec="libx264",
-                        audio_codec="aac",
-                        temp_audiofile=os.path.join(temp_dir, "temp-audio.m4a"),
-                        remove_temp=True,
-                        logger=None
-                    )
-
-                    video_clip.close()
-                    audio_clip.close()
+                    merge_video_audio(in_video_path, out_audio_path, out_video_path)
 
                     # ៥. បង្ហាញលទ្ធផល
                     st.balloons()
