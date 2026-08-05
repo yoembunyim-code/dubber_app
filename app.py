@@ -81,7 +81,7 @@ st.markdown("---")
 # 4.1 ប្រអប់បញ្ចូល Activation Code និងប៊ូតុង Activate
 col_input, col_btn = st.columns([4, 1])
 with col_input:
-    act_code = st.text_input("បញ្ចូល Activation Code នៅទីនេះ", placeholder="ឧទាហរណ៍: XXXX-XXXX-XXXX", label_visibility="collapsed")
+    act_code = st.text_input("BUNYIM-VIP-001", placeholder="ឧទាហរណ៍: XXXX-XXXX-XXXX", label_visibility="collapsed")
 with col_btn:
     if st.button("✅ Activate VIP", type="primary", use_container_width=True):
         if not act_code or act_code.strip() == "N/A":
