@@ -11,7 +11,7 @@ from moviepy.editor import VideoFileClip, AudioFileClip
 # =======================================================
 # 1. ផ្នែក Config
 # =======================================================
-OWNER_TELEGRAM = "@YOUR_TELEGRAM" 
+OWNER_TELEGRAM = "@YOUR_TELEGRM" 
 
 LICENSE_DATABASE = {
     "VIP-2026-ABCD": {"uses": 100, "expiry": "2026-12-31"}, 
