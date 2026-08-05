@@ -5,5 +5,3 @@ imageio-ffmpeg
 openai-whisper
 flask
 pydub
-gtts
-streamlit
