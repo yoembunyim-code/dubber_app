@@ -1,7 +1,6 @@
 import json
 import os
 import time
-import math
 import asyncio
 import tempfile
 from datetime import datetime, timedelta
@@ -15,12 +14,12 @@ except Exception:
 
 import edge_tts
 from deep_translator import GoogleTranslator
-import speech_recognition as sr
+import whisper
 
 # ==============================================================================
-# ⚙️ កន្លែងកំណត់ TELEGRAM & VIP CODES (អ្នកអាចផ្លាស់ប្តូរនៅទីនេះ)
+# ⚙️ TELEGRAM & VIP CONFIGURATION
 # ==============================================================================
-TELEGRAM_USERNAME = "YOUR_TELEGRAM_NAME"  # ✍️ ដាក់ Username Telegram របស់អ្នក (ឧទាហរណ៍: bunyim)
+TELEGRAM_USERNAME = "YOUR_TELEGRAM_NAME"  # ✍️ ផ្លាស់ប្តូរទៅជា Username Telegram របស់អ្នក (ឧទាហរណ៍: bunyim)
 VALID_VIP_CODES = [
     "VIP-SECRET-2026",
     "VIP-PASS-8888",
@@ -36,65 +35,63 @@ TELEGRAM_LINK = f"https://t.me/{clean_telegram}"
 
 
 # ==============================================================================
-# 🎙️ ADVANCED SPEECH RECOGNITION (CHUNKED AUDIO ENGINE)
+# 🎙️ WHISPER AI SPEECH-TO-TEXT & TRANSLATION ENGINE
 # ==============================================================================
-def extract_and_translate_speech(video_path, source_lang_code):
-    """ស្តាប់សំឡេងតាមភាសាដើមនៃវីដេអូ ដោយបំបែកជាកង់ៗ (Chunks) រួចបកប្រែទៅជាភាសាខ្មែរ"""
+@st.cache_resource
+def load_whisper_model():
+    """Load lightweight Whisper AI model"""
+    return whisper.load_model("tiny")
+
+
+def transcribe_and_translate(video_path):
+    """ស្តាប់សំឡេងតួអង្គក្នុងវីដេអូដោយប្រើ Whisper AI រួចបកប្រែជាខ្មែរ"""
     audio_wav_path = video_path.replace(".mp4", "_extracted.wav")
-    
     try:
         video = VideoFileClip(video_path)
         if video.audio is None:
             video.close()
             return None, "⚠️ វីដេអូនេះគ្មានសំឡេងដើមទេ!"
 
-        total_duration = int(video.duration)
-        if total_duration < 1: total_duration = 1
-
-        # Extract audio ជា WAV Mono 16kHz
+        # Extract audio ជា WAV 16kHz Mono
         video.audio.write_audiofile(
-            audio_wav_path, 
-            codec='pcm_s16le', 
-            fps=16000, 
-            ffmpeg_params=["-ac", "1"], 
+            audio_wav_path,
+            codec='pcm_s16le',
+            fps=16000,
+            ffmpeg_params=["-ac", "1"],
             logger=None
         )
         video.close()
 
-        recognizer = sr.Recognizer()
-        full_text_list = []
-        chunk_seconds = 12  # បំបែកស្តាប់ម្តង ១២ វិនាទី ដើម្បីកុំឱ្យ Google API Error
-        
-        with sr.AudioFile(audio_wav_path) as source:
-            total_chunks = math.ceil(total_duration / chunk_seconds)
-            for _ in range(total_chunks):
-                try:
-                    audio_data = recognizer.record(source, duration=chunk_seconds)
-                    chunk_text = recognizer.recognize_google(audio_data, language=source_lang_code)
-                    if chunk_text and chunk_text.strip():
-                        full_text_list.append(chunk_text.strip())
-                except sr.UnknownValueError:
-                    continue  # កាត់រំលងផ្នែកដែលគ្មានសំឡេងនិយាយ ឬភ្លេងខ្លាំង
-                except Exception:
-                    continue
+        # ប្រើ Whisper AI ដើម្បីស្តាប់សំឡេង (ស្គាល់ភាសាចិន/អង់គ្លេស/ថៃ អូតូម៉ាតិច)
+        model = load_whisper_model()
+        result = model.transcribe(audio_wav_path)
+        original_text = result.get("text", "").strip()
 
         if os.path.exists(audio_wav_path):
             os.remove(audio_wav_path)
 
-        original_text = " ".join(full_text_list)
+        if not original_text:
+            return None, "⚠️ មិនអាចស្តាប់យល់សំឡេងនិយាយក្នុងវីដេអូបានទេ!"
 
-        if original_text and original_text.strip():
+        # បកប្រែជាភាសាខ្មែរ
+        try:
             khmer_translation = GoogleTranslator(source='auto', target='km').translate(original_text)
-            return khmer_translation, None
-        else:
-            return None, "⚠️ មិនអាចស្តាប់យល់ពាក្យនិយាយបានទេ! សូមពិនិត្យមើលថាភាសាដើមត្រូវ ឬវីដេអូមានភ្លេងរំខានខ្លាំងពេក។"
+        except Exception as e:
+            return None, f"⚠️ មានបញ្ហាក្នុងការបកប្រែជាខ្មែរ៖ {e}"
+
+        # 🛡️ Safety Filter: ការពារដាច់ខាតមិនឱ្យយក Error ទៅធ្វើជាសំឡេង
+        if "Error 500" in khmer_translation or "Server Error" in khmer_translation or not khmer_translation.strip():
+            return None, "⚠️ Google Translator មានបញ្ហារំខាន (Server Error)។ សូមចុចព្យាយាមម្តងទៀត!"
+
+        return khmer_translation, None
 
     except Exception as e:
-        if os.path.exists(audio_wav_path): os.remove(audio_wav_path)
+        if os.path.exists(audio_wav_path):
+            os.remove(audio_wav_path)
         return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកសំឡេង៖ {e}"
 
 
-def dub_video_process(video_bytes, voice_code, voice_speed, mode, source_lang_code, custom_text=""):
+def dub_video_process(video_bytes, voice_code, voice_speed, mode, custom_text=""):
     """ដំណើរការកាត់ត និងបញ្ចូលសំឡេង AI ខ្មែរ"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
@@ -107,7 +104,7 @@ def dub_video_process(video_bytes, voice_code, voice_speed, mode, source_lang_co
         khmer_script = ""
 
         if mode == "auto":
-            translated, err = extract_and_translate_speech(in_vdo_path, source_lang_code)
+            translated, err = transcribe_and_translate(in_vdo_path)
             if err:
                 st.error(err)
                 for p in [in_vdo_path, audio_path, out_vdo_path]:
@@ -198,7 +195,7 @@ rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 
 st.title("🎙️ KHMER VIDEO DUBBER STUDIO")
 
-# 📲 Telegram Contact Bar (ប៊ូតុងទាក់ទង Telegram)
+# 📲 Telegram Button Top
 st.link_button("💬 ទាក់ទង Admin តាម Telegram (ទិញ VIP Code)", TELEGRAM_LINK, use_container_width=True)
 
 # 🔑 VIP Activation
@@ -224,37 +221,20 @@ st.markdown("---")
 # 1. Upload Video
 uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov", "mkv", "avi"])
 
-# 2. Dubbing Mode & Original Language
+# 2. Dubbing Mode
 st.markdown("**២. ជ្រើសរើសវិធីសាស្ត្របកប្រែ៖**")
 dub_mode = st.radio(
     "Mode Selection",
     options=[
-        ("auto", "🤖 បកប្រែពីសំឡេងដើមក្នុងវីដេអូស្វ័យប្រវត្តិ (Auto Translate Video)"),
+        ("auto", "🤖 បកប្រែពីសំឡេងនិយាយក្នុងវីដេអូស្វ័យប្រវត្តិ (Whisper Auto Detect)"),
         ("custom", "✍️ វាយអត្ថបទខ្មែរដោយផ្ទាល់ (Custom Text)")
     ],
     format_func=lambda x: x[1],
     label_visibility="collapsed"
 )
 
-source_lang_code = "zh-CN"
 custom_script = ""
-
-if dub_mode[0] == "auto":
-    selected_lang = st.selectbox(
-        "🌐 ជ្រើសរើសភាសាដើមដែលនិយាយក្នុងវីដេអូ (Original Video Language)៖",
-        options=[
-            ("zh-CN", "🇨🇳 ភាសាចិន (Chinese)"),
-            ("en-US", "🇺🇸 ភាសាអង់គ្លេស (English)"),
-            ("th-TH", "🇹🇭 ភាសាថៃ (Thai)"),
-            ("ko-KR", "🇰🇷 ភាសាកូរ៉េ (Korean)"),
-            ("vi-VN", "🇻🇳 ភាសាវៀតណាម (Vietnamese)"),
-            ("ja-JP", "🇯🇵 ភាសាជប៉ុន (Japanese)"),
-            ("km-KH", "🇰🇭 ភាសាខ្មែរ (Khmer)")
-        ],
-        format_func=lambda x: x[1]
-    )
-    source_lang_code = selected_lang[0]
-else:
+if dub_mode[0] == "custom":
     custom_script = st.text_area("បញ្ចូលអត្ថបទដែលត្រូវឱ្យ AI និយាយជាខ្មែរ៖", placeholder="វាយអត្ថបទនៅទីនេះ...")
 
 st.markdown("---")
@@ -282,13 +262,12 @@ if st.button("▶ ចាប់ផ្តើមបកប្រែ និងបញ�
     if not uploaded_vdo:
         st.warning("សូម Upload វីដេអូជាមុនសិន!")
     else:
-        with st.spinner("🤖 កំពុងស្តាប់សំឡេងដើម បកប្រែជាខ្មែរ និងកាត់បញ្ចូលសំឡេង AI..."):
+        with st.spinner("🤖 Whisper AI កំពុងស្តាប់សំឡេងដើម បកប្រែជាខ្មែរ និងកាត់បញ្ចូលសំឡេង AI..."):
             res, txt = dub_video_process(
                 video_bytes=uploaded_vdo.getvalue(),
                 voice_code=selected_voice[0],
                 voice_speed=voice_speed,
                 mode=dub_mode[0],
-                source_lang_code=source_lang_code,
                 custom_text=custom_script
             )
             if res:
