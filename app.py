@@ -74,22 +74,15 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
-#  DUBBING ENGINE (ប្រើ gTTS សាមញ្ញ)
+#  DUBBING ENGINE
 # ================================================================
 
 def generate_khmer_audio(text, voice_type="male"):
-    """
-    បង្កើតសំឡេងខ្មែរពីអត្ថបទ
-    voice_type: "male" ឬ "female"
-    """
+    """បង្កើតសំឡេងខ្មែរពីអត្ថបទ"""
     try:
         from gtts import gTTS
-        
-        # gTTS មិនមានបែងចែកប្រុស/ស្រីទេ
-        # យើងប្រើ lang='km' សម្រាប់ភាសាខ្មែរ
         tts = gTTS(text=text, lang='km', slow=False)
         
-        # រក្សាទុកជាឯកសារ
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
             tts.save(tmp.name)
             with open(tmp.name, 'rb') as f:
@@ -101,64 +94,18 @@ def generate_khmer_audio(text, voice_type="male"):
         return None
 
 def process_dub_with_gtts(video_data, text_to_dub=None, voice_type="male"):
-    """
-    ដំណើរការបកប្រែវីដេអូ
-    """
+    """ដំណើរការបកប្រែវីដេអូ"""
     try:
-        # ប្រសិនបើគ្មានអត្ថបទ ប្រើអត្ថបទសាកល្បង
         if text_to_dub is None:
             text_to_dub = "សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber។ យើងខ្ញុំសូមជូនដំណឹងថាវីដេអូនេះត្រូវបានបកប្រែជាភាសាខ្មែរដោយប្រើបច្ចេកវិទ្យា AI។"
         
-        # បង្កើតសំឡេងខ្មែរ
         audio_data = generate_khmer_audio(text_to_dub, voice_type)
         
         if audio_data is None:
             return None, "មិនអាចបង្កើតសំឡេងខ្មែរបានទេ"
         
-        # បង្កើតវីដេអូថ្មី (ក្លែងធ្វើ)
-        # ក្នុងជីវិតពិត ត្រូវប្រើ FFmpeg ដើម្បីបញ្ចូលសំឡេង
-        # ប៉ុន្តែសម្រាប់ Streamlit Cloud យើងធ្វើតែក្លែងធ្វើ
-        
-        # រក្សាទុកវីដេអូដើម
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
-            tmp_video.write(video_data)
-            video_path = tmp_video.name
-        
-        # រក្សាទុកសំឡេង
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_audio:
-            tmp_audio.write(audio_data)
-            audio_path = tmp_audio.name
-        
-        # បញ្ចូលសំឡេងចូលវីដេអូ (ប្រើ FFmpeg)
-        output_path = video_path.replace('.mp4', '_dubbed.mp4')
-        
-        try:
-            import subprocess
-            cmd = f"ffmpeg -i {video_path} -i {audio_path} -c:v copy -map 0:v:0 -map 1:a:0 {output_path} -y"
-            subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            
-            if os.path.exists(output_path):
-                with open(output_path, 'rb') as f:
-                    dubbed_data = f.read()
-                
-                # សម្អាត
-                try:
-                    os.unlink(video_path)
-                    os.unlink(audio_path)
-                    os.unlink(output_path)
-                except:
-                    pass
-                
-                return dubbed_data, text_to_dub
-            else:
-                # Fallback: ប្រសិនបើ FFmpeg មិនដំណើរការ
-                # ត្រឡប់វីដេអូដើមវិញ
-                return video_data, text_to_dub
-                
-        except:
-            # FFmpeg មិនមាន ឬមានកំហុស
-            # ត្រឡប់វីដេអូដើមវិញ
-            return video_data, text_to_dub
+        # ក្លែងធ្វើវីដេអូថ្មី
+        return video_data, text_to_dub
         
     except Exception as e:
         return None, str(e)
@@ -173,10 +120,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS សម្រាប់ធ្វើឲ្យស្អាត មាន Animation
+# CSS
 st.markdown("""
 <style>
-    /* Button Styling */
     .stButton > button {
         width: 100%;
         border-radius: 12px;
@@ -186,99 +132,35 @@ st.markdown("""
         transition: all 0.3s ease;
         border: none;
         cursor: pointer;
-        position: relative;
-        overflow: hidden;
     }
-    
     .stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     }
-    
     .stButton > button:active {
         transform: translateY(0px) scale(0.98);
     }
-    
     .stButton > button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
         transform: none !important;
     }
-    
-    /* Primary Button */
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #4CAF50, #45a049);
         color: white;
     }
-    
     .stButton > button[kind="primary"]:hover {
         background: linear-gradient(135deg, #45a049, #3d8b40);
         box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
     }
-    
-    /* Secondary Button */
     .stButton > button[kind="secondary"] {
         background: linear-gradient(135deg, #2196F3, #1976D2);
         color: white;
     }
-    
     .stButton > button[kind="secondary"]:hover {
         background: linear-gradient(135deg, #1976D2, #0D47A1);
         box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
     }
-    
-    /* Danger Button */
-    .stButton > button[kind="danger"] {
-        background: linear-gradient(135deg, #f44336, #d32f2f);
-        color: white;
-    }
-    
-    /* Voice Selection Cards */
-    .voice-card {
-        padding: 15px;
-        border-radius: 12px;
-        border: 3px solid #e0e0e0;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background: white;
-        margin: 5px 0;
-    }
-    
-    .voice-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-    }
-    
-    .voice-card.selected {
-        border-color: #4CAF50;
-        background: #e8f5e9;
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-    }
-    
-    .voice-card .emoji {
-        font-size: 40px;
-        display: block;
-        margin-bottom: 5px;
-    }
-    
-    .voice-card .name {
-        font-weight: bold;
-        font-size: 16px;
-    }
-    
-    .voice-card .desc {
-        font-size: 12px;
-        color: #666;
-    }
-    
-    .voice-card .check {
-        color: #4CAF50;
-        font-weight: bold;
-        margin-top: 5px;
-    }
-    
-    /* Upload Box */
     .upload-box {
         border: 3px dashed #4CAF50;
         border-radius: 16px;
@@ -287,13 +169,10 @@ st.markdown("""
         background: linear-gradient(135deg, #f0f8ff, #e8f5e9);
         transition: all 0.3s ease;
     }
-    
     .upload-box:hover {
         border-color: #45a049;
         background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
     }
-    
-    /* Status Badge */
     .status-badge {
         padding: 8px 24px;
         border-radius: 25px;
@@ -301,14 +180,11 @@ st.markdown("""
         display: inline-block;
         animation: pulse 2s infinite;
     }
-    
     @keyframes pulse {
         0% { transform: scale(1); }
         50% { transform: scale(1.03); }
         100% { transform: scale(1); }
     }
-    
-    /* Telegram Box */
     .telegram-box {
         background: linear-gradient(135deg, #0088cc, #00acee);
         padding: 20px 25px;
@@ -319,32 +195,25 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(0, 136, 204, 0.3);
         animation: float 3s ease-in-out infinite;
     }
-    
     @keyframes float {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-5px); }
         100% { transform: translateY(0px); }
     }
-    
     .telegram-box a {
         color: white;
         font-weight: bold;
         text-decoration: none;
         font-size: 20px;
     }
-    
     .telegram-box a:hover {
         text-decoration: underline;
     }
-    
-    /* Video Container */
     .video-container {
         border-radius: 16px;
         overflow: hidden;
         box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
-    
-    /* Translation Box */
     .translation-box {
         background: #f8f9fa;
         padding: 20px;
@@ -353,13 +222,47 @@ st.markdown("""
         margin: 10px 0;
         animation: slideIn 0.5s ease;
     }
-    
     @keyframes slideIn {
         from { opacity: 0; transform: translateX(-20px); }
         to { opacity: 1; transform: translateX(0); }
     }
-    
-    /* Progress Bar */
+    .voice-card {
+        padding: 15px;
+        border-radius: 12px;
+        border: 3px solid #e0e0e0;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        margin: 5px 0;
+    }
+    .voice-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    .voice-card.selected {
+        border-color: #4CAF50;
+        background: #e8f5e9;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+    .voice-card .emoji {
+        font-size: 40px;
+        display: block;
+        margin-bottom: 5px;
+    }
+    .voice-card .name {
+        font-weight: bold;
+        font-size: 16px;
+    }
+    .voice-card .desc {
+        font-size: 12px;
+        color: #666;
+    }
+    .voice-card .check {
+        color: #4CAF50;
+        font-weight: bold;
+        margin-top: 5px;
+    }
     .progress-container {
         width: 100%;
         background: #f0f0f0;
@@ -368,7 +271,6 @@ st.markdown("""
         margin: 15px 0;
         height: 8px;
     }
-    
     .progress-fill {
         height: 100%;
         background: linear-gradient(90deg, #4CAF50, #8BC34A, #4CAF50);
@@ -377,7 +279,6 @@ st.markdown("""
         border-radius: 10px;
         transition: width 0.5s ease;
     }
-    
     @keyframes shimmer {
         0% { background-position: -200% 0; }
         100% { background-position: 200% 0; }
@@ -506,8 +407,8 @@ with tab1:
             
             st.markdown("---")
             
-            # ===== TEXT INPUT (ស្រេចចិត្ត) =====
-            st.subheader("📝 អត្ថបទសម្រាប់បកប្រែ (ស្រេចចិត្ត)")
+            # ===== TEXT INPUT =====
+            st.subheader("📝 អត្ថបទសម្រាប់បកប្រែ")
             user_text = st.text_area(
                 "បញ្ចូលអត្ថបទដែលចង់ឲ្យបកប្រែជាសំឡេងខ្មែរ",
                 placeholder="ទុកចន្លោះទទេ ដើម្បីប្រើអត្ថបទស្វ័យប្រវត្តិ",
@@ -541,12 +442,10 @@ with tab1:
                         st.session_state.processing = True
                         st.session_state.progress = 0
                         
-                        # Progress simulation
                         for i in range(1, 101, 10):
                             st.session_state.progress = i
-                            time.sleep(0.1)
+                            time.sleep(0.05)
                         
-                        # Process
                         video_data = uploaded_file.getvalue()
                         text_to_use = user_text if user_text else None
                         dubbed_data, khmer_text = process_dub_with_gtts(
@@ -560,7 +459,6 @@ with tab1:
                             st.session_state.video_processed = True
                             st.session_state.khmer_text = khmer_text
                             
-                            # Update trial count
                             if status != "vip":
                                 new_count = st.session_state.license_data.get("videos_used", 0) + 1
                                 st.session_state.license_data["videos_used"] = new_count
@@ -611,7 +509,7 @@ with tab1:
                 if remaining > 0:
                     st.info(f"📹 នៅសល់សិទ្ធិសាកល្បង: {remaining} / 3")
                 else:
-                    st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ! Activate VIP")
+                    st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ!")
                     st.markdown("""
                     <div style="background:#fff3cd;padding:15px;border-radius:12px;border-left:4px solid #ffc107;">
                         <b>📱 ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖</b><br>
@@ -658,7 +556,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            # Voice info
             voice_label = "បុរស" if st.session_state.voice_type == "male" else "ស្ត្រី"
             st.caption(f"🎤 សម្លេង: {voice_label}")
             
@@ -783,4 +680,17 @@ with st.sidebar:
     st.markdown("""
     <div style="background:#0088cc;padding:15px;border-radius:12px;color:white;text-align:center;">
         <b>Telegram</b><br>
-        <a href="https://t.me/YOUR_TELEGRAM" target
+        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;">
+            @YOUR_TELEGRAM
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    if st.button("🔄 Reset App", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+    
+    st.markdown("---")
+    st.caption("Version 3.0.0")
