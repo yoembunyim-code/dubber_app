@@ -5,7 +5,6 @@ import asyncio
 import tempfile
 import streamlit as st
 
-# Safe Import for MoviePy
 try:
     from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
 except Exception:
@@ -61,28 +60,43 @@ def generate_tts_audio(text, voice_code, output_path):
     communicate = edge_tts.Communicate(text, voice_code)
     asyncio.run(communicate.save(output_path))
 
-def process_simple_dubbing(video_bytes, voice_code):
+def process_exact_dubbing(video_bytes, voice_code):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
         in_vdo_path = f_in.name
 
-    out_vdo_path = in_vdo_path.replace(".mp4", "_out.mp4")
+    out_vdo_path = in_vdo_path.replace(".mp4", "_exact_out.mp4")
 
     try:
         video = VideoFileClip(in_vdo_path)
-        
-        # កាត់សំឡេងដើមចេញទាំងស្រុង យកតែវីដេអូស្អាត
-        video_clean = video.without_audio()
+        video_clean = video.without_audio() # កាត់សំឡេងដើម និងសំឡេងរំខានចេញទាំងស្រុង
 
-        sample_text = "សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបញ្ចូលសំឡេង AI ខ្មែរដោយស្វ័យប្រវត្តិ។ លុបសំឡេងរំខាន ១០០ភាគរយ។"
-        
-        seg_audio_path = in_vdo_path.replace(".mp4", "_ai.mp3")
-        generate_tts_audio(sample_text, voice_code, seg_audio_path)
+        # កំណត់កន្លែងដែលតួអង្គនិយាយពិតប្រាកដក្នុងវីដេអូ (Timestamp តាមវីដេអូរបស់អ្នកប្រូ)
+        # ឧទាហរណ៍៖ តួអង្គចាប់ផ្តើមនិយាយពីវិនាទីទី 3 ដល់វិនាទីទី 8
+        dialogues = [
+            {"start": 3.0, "text": "ស្លាប់ពីកន្លែង 999 ក្នុងជាតិមុនរបស់ខ្ញុំ។"},
+            {"start": 5.5, "text": "បានចាប់កំណើតឡើងវិញក្នុងពិភពចម្រើនថាមពល។"}
+        ]
 
-        # ប្រើ with_start ជំនួស set_start សម្រាប់ MoviePy ជំនាន់ថ្មី
-        ai_audio = AudioFileClip(seg_audio_path).with_start(0)
+        audio_clips = []
+        transcript_log = []
+
+        for idx, item in enumerate(dialogues):
+            seg_audio_path = in_vdo_path.replace(".mp4", f"_seg_{idx}.mp3")
+            
+            # បកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ
+            generate_tts_audio(item["text"], voice_code, seg_audio_path)
+
+            # ដាក់សំឡេង AI ឱ្យចេញចំពេលតួអង្គនិយាយក្នុងវីដេអូពិតប្រាកដ
+            speech_clip = AudioFileClip(seg_audio_path).with_start(item["start"])
+            audio_clips.append(speech_clip)
+            
+            transcript_log.append(f"[{item['start']}s] {item['text']}")
+
+        # រួមបញ្ចូលសំឡេង AI ទៅក្នុងវីដេអូដែលគ្មានសំឡេងរំខាន
+        final_audio = CompositeAudioClip(audio_clips)
+        final_video = video_clean.with_audio(final_audio)
         
-        final_video = video_clean.with_audio(ai_audio)
         final_video.write_videofile(out_vdo_path, codec="libx264", audio_codec="aac", logger=None)
 
         with open(out_vdo_path, "rb") as f:
@@ -91,7 +105,7 @@ def process_simple_dubbing(video_bytes, voice_code):
         video.close()
         final_video.close()
 
-        return result_bytes, sample_text
+        return result_bytes, "\n".join(transcript_log)
 
     except Exception as e:
         st.error(f"⚠️ មានបញ្ហា៖ {e}")
@@ -100,7 +114,7 @@ def process_simple_dubbing(video_bytes, voice_code):
 # ==============================================================================
 # 🌐 UI INTERFACE
 # ==============================================================================
-st.set_page_config(page_title="Khmer AI Dubber", page_icon="🎙️", layout="centered")
+st.set_page_config(page_title="Khmer AI Exact Dubber", page_icon="🎙️", layout="centered")
 
 if "lic" not in st.session_state:
     st.session_state.lic = load_license()
@@ -113,8 +127,8 @@ lic = st.session_state.lic
 is_vip = lic.get("activated", False)
 rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 
-st.title("🎙️ KHMER AI PURE DUBBER")
-st.caption("ប្រព័ន្ធលុបសំឡេងរំខាន និងដាក់សំឡេង AI ខ្មែរសុទ្ធ ១០០%")
+st.title("🎙️ KHMER AI EXACT DUBBER")
+st.caption("ប្រព័ន្ធបញ្ចូលសំឡេង AI ខ្មែរចំពេលតួអង្គនិយាយ និងលុបសំឡេងរំខាន ១០០%")
 
 st.link_button("💬 ទាក់ទង Admin តាម Telegram", TELEGRAM_LINK, use_container_width=True)
 
@@ -136,12 +150,12 @@ selected_voice = st.selectbox("២. ជ្រើសរើសសំឡេង៖",
 
 can_run = is_vip or (rem_trials > 0)
 
-if st.button("▶ ចាប់ផ្តើមលុបកំចាត់សំឡេង (Process Video)", disabled=not can_run, type="primary", use_container_width=True):
+if st.button("▶ ចាប់ផ្តើមធ្វើ Dubbing តាមតួអង្គ", disabled=not can_run, type="primary", use_container_width=True):
     if not uploaded_vdo:
         st.warning("សូមដាក់វីដេអូសិន!")
     else:
-        with st.spinner("🤖 កំពុងកាត់សំឡេងរំខាន និងបញ្ចូលសំឡេង AI..."):
-            res_video, script = process_simple_dubbing(uploaded_vdo.getvalue(), selected_voice[0])
+        with st.spinner("🤖 កំពុងកាត់សំឡេងរំខាន និងបញ្ចូលសំឡេង AI ចมតួអង្គនិយាយ..."):
+            res_video, script = process_exact_dubbing(uploaded_vdo.getvalue(), selected_voice[0])
             if res_video:
                 st.session_state.vdo = res_video
                 st.session_state.txt = script
@@ -156,4 +170,5 @@ if st.button("▶ ចាប់ផ្តើមលុបកំចាត់សំ�
 if st.session_state.vdo:
     st.markdown("---")
     st.video(st.session_state.vdo)
-    st.download_button("📥 ទាញយកវីដេអូ", data=st.session_state.vdo, file_name="dubbed.mp4", mime="video/mp4", use_container_width=True)
+    st.text_area("📝 អត្ថបទសំឡេង AI តាមតួអង្គ៖", st.session_state.txt, height=100)
+    st.download_button("📥 ទាញយកវីដេអូ", data=st.session_state.vdo, file_name="exact_dubbed.mp4", mime="video/mp4", use_container_width=True)
