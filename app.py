@@ -7,10 +7,9 @@ import re
 import streamlit as st
 
 try:
-    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, AudioArrayClip
+    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 except Exception:
-    from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, AudioArrayClip
-
+    from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
 import edge_tts
 from deep_translator import GoogleTranslator
 import whisper
