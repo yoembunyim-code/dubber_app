@@ -3,56 +3,45 @@ import os
 import time
 import asyncio
 import tempfile
-from datetime import datetime, timedelta
+import re
 import streamlit as st
 
-# 🛡️ Safe MoviePy Import
 try:
-    from moviepy.editor import VideoFileClip, AudioFileClip
+    from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_audioclips, CompositeAudioClip
 except Exception:
-    from moviepy import VideoFileClip, AudioFileClip
+    from moviepy import VideoFileClip, AudioFileClip, concatenate_audioclips, CompositeAudioClip
 
 import edge_tts
 from deep_translator import GoogleTranslator
 import whisper
 
 # ==============================================================================
-# ⚙️ TELEGRAM & VIP CONFIGURATION
+# ⚙️ CONFIGURATION
 # ==============================================================================
-TELEGRAM_USERNAME = "YOUR_TELEGRAM_NAME"  # ✍️ ផ្លាស់ប្តូរទៅជា Username Telegram របស់អ្នក (ឧទាហរណ៍: bunyim)
-VALID_VIP_CODES = [
-    "VIP-SECRET-2026",
-    "VIP-PASS-8888",
-    "VIP-PRO-9999",
-    "CAM-VIP-1234"
-]
-
+TELEGRAM_USERNAME = "t.me/bunyimyoem"  # ✍️ ដូរទៅជា Telegram Username របស់អ្នក
+VALID_VIP_CODES = ["VIP-SECRET-2026", "VIP-PASS-8888", "VIP-PRO-9999"]
 TRIAL_LIMIT = 3
 LICENSE_FILE = "license.json"
-
-clean_telegram = TELEGRAM_USERNAME.replace("@", "").strip()
-TELEGRAM_LINK = f"https://t.me/{clean_telegram}"
+TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME.replace('@', '')}"
 
 
 # ==============================================================================
-# 🎙️ WHISPER AI SPEECH-TO-TEXT & TRANSLATION ENGINE
+# 🎙️ WHISPER AI WITH TIMESTAMPS & NATURAL PAUSES
 # ==============================================================================
 @st.cache_resource
 def load_whisper_model():
-    """Load lightweight Whisper AI model"""
     return whisper.load_model("tiny")
 
 
-def transcribe_and_translate(video_path):
-    """ស្តាប់សំឡេងតួអង្គក្នុងវីដេអូដោយប្រើ Whisper AI រួចបកប្រែជាខ្មែរ"""
-    audio_wav_path = video_path.replace(".mp4", "_extracted.wav")
+def transcribe_with_timestamps(video_path):
+    """ស្តាប់សំឡេងដើម + ទាញយក Timecode ដើម ដើម្បីធ្វើ Lip-Sync"""
+    audio_wav_path = video_path.replace(".mp4", "_temp.wav")
     try:
         video = VideoFileClip(video_path)
         if video.audio is None:
             video.close()
             return None, "⚠️ វីដេអូនេះគ្មានសំឡេងដើមទេ!"
 
-        # Extract audio ជា WAV 16kHz Mono
         video.audio.write_audiofile(
             audio_wav_path,
             codec='pcm_s16le',
@@ -62,241 +51,132 @@ def transcribe_and_translate(video_path):
         )
         video.close()
 
-        # ប្រើ Whisper AI ដើម្បីស្តាប់សំឡេង (ស្គាល់ភាសាចិន/អង់គ្លេស/ថៃ អូតូម៉ាតិច)
         model = load_whisper_model()
-        result = model.transcribe(audio_wav_path)
-        original_text = result.get("text", "").strip()
+        # transcribe ជាមួយ word_timestamps ដើម្បីដឹងថាពេលណាត្រូវឈប់ដកដង្ហើម
+        result = model.transcribe(audio_wav_path, verbose=False)
+        segments = result.get("segments", [])
 
         if os.path.exists(audio_wav_path):
             os.remove(audio_wav_path)
 
-        if not original_text:
-            return None, "⚠️ មិនអាចស្តាប់យល់សំឡេងនិយាយក្នុងវីដេអូបានទេ!"
+        if not segments:
+            return None, "⚠️ មិនអាចទាញយកចង្វាក់និយាយពីវីដេអូបានទេ!"
 
-        # បកប្រែជាភាសាខ្មែរ
-        try:
-            khmer_translation = GoogleTranslator(source='auto', target='km').translate(original_text)
-        except Exception as e:
-            return None, f"⚠️ មានបញ្ហាក្នុងការបកប្រែជាខ្មែរ៖ {e}"
+        synced_segments = []
+        for seg in segments:
+            text = seg["text"].strip()
+            start_time = seg["start"]
+            end_time = seg["end"]
+            
+            if text:
+                try:
+                    khmer_text = GoogleTranslator(source='auto', target='km').translate(text)
+                except Exception:
+                    khmer_text = text
 
-        # 🛡️ Safety Filter: ការពារដាច់ខាតមិនឱ្យយក Error ទៅធ្វើជាសំឡេង
-        if "Error 500" in khmer_translation or "Server Error" in khmer_translation or not khmer_translation.strip():
-            return None, "⚠️ Google Translator មានបញ្ហារំខាន (Server Error)។ សូមចុចព្យាយាមម្តងទៀត!"
+                # Filter បង្ការ Error 500
+                if "Error 500" not in khmer_text and "Server Error" not in khmer_text:
+                    synced_segments.append({
+                        "start": start_time,
+                        "end": end_time,
+                        "duration": end_time - start_time,
+                        "text": khmer_text
+                    })
 
-        return khmer_translation, None
+        return synced_segments, None
 
     except Exception as e:
         if os.path.exists(audio_wav_path):
             os.remove(audio_wav_path)
-        return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកសំឡេង៖ {e}"
+        return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកចង្វាក់មាត់៖ {e}"
 
 
-def dub_video_process(video_bytes, voice_code, voice_speed, mode, custom_text=""):
-    """ដំណើរការកាត់ត និងបញ្ចូលសំឡេង AI ខ្មែរ"""
+def generate_ssml_audio_with_pauses(text, voice_code, output_path, pause_ms=400):
+    """បន្ថែម SSML Break/Pause ដើម្បីឱ្យ AI និយាយមានចន្លោះដកដង្ហើមធម្មជាតិ"""
+    # ជំនួសសញ្ញា (?, ., !, ,, ៕) ដោយការបន្ថែមចន្លោះដកដង្ហើម (Pause)
+    formatted_text = re.sub(r'([.!?\n៕])', rf'\1 <break time="{pause_ms}ms"/> ', text)
+    
+    ssml_content = f"""<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='km-KH'>
+    <voice name='{voice_code}'>
+        <prosody rate='0%'>
+            {formatted_text}
+        </prosody>
+    </voice>
+</speak>"""
+
+    communicate = edge_tts.Communicate(ssml_content, voice_code)
+    asyncio.run(communicate.save(output_path))
+
+
+def process_lipsync_dubbing(video_bytes, voice_code, pause_ms):
+    """ដំណើរការ Lip-Sync & Natural Breathing Dubbing"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
         in_vdo_path = f_in.name
 
-    audio_path = in_vdo_path.replace(".mp4", "_audio.mp3")
-    out_vdo_path = in_vdo_path.replace(".mp4", "_out.mp4")
+    out_vdo_path = in_vdo_path.replace(".mp4", "_sync_out.mp4")
 
     try:
-        khmer_script = ""
+        segments, err = transcribe_with_timestamps(in_vdo_path)
+        if err:
+            st.error(err)
+            return None, ""
 
-        if mode == "auto":
-            translated, err = transcribe_and_translate(in_vdo_path)
-            if err:
-                st.error(err)
-                for p in [in_vdo_path, audio_path, out_vdo_path]:
-                    if os.path.exists(p): os.remove(p)
-                return None, ""
-            khmer_script = translated
-        else:
-            if custom_text and custom_text.strip():
-                try:
-                    khmer_script = GoogleTranslator(source='auto', target='km').translate(custom_text.strip())
-                except Exception:
-                    khmer_script = custom_text.strip()
-            else:
-                st.error("⚠️ សូមបញ្ចូលអត្ថបទខ្មែរជាមុនសិន!")
-                return None, ""
-
-        # បង្កើតសំឡេង AI ខ្មែរ
-        rate_str = f"{int((voice_speed - 1.0) * 100):+d}%"
-        communicate = edge_tts.Communicate(khmer_script, voice_code, rate=rate_str)
-        asyncio.run(communicate.save(audio_path))
-
-        # បញ្ចូលសំឡេងទៅក្នុងវីដេអូ
         video = VideoFileClip(in_vdo_path)
-        audio = AudioFileClip(audio_path)
-        
-        final_video = video.set_audio(audio)
+        audio_clips = []
+        full_transcript = []
+
+        for idx, seg in enumerate(segments):
+            seg_audio_path = in_vdo_path.replace(".mp4", f"_seg_{idx}.mp3")
+            generate_ssml_audio_with_pauses(seg["text"], voice_code, seg_audio_path, pause_ms)
+
+            # បញ្ចូលសំឡេងទៅតាម Timecode ដើម ដើម្បីឱ្យ Lip-Sync
+            speech_clip = AudioFileClip(seg_audio_path).set_start(seg["start"])
+            
+            # បន្ថែមល្បឿន ឬបន្ថយល្បឿនអូតូម៉ាតិច ដើម្បីឱ្យសមស្របតាមចលនាមាត់
+            audio_clips.append(speech_clip)
+            full_transcript.append(f"[{int(seg['start'])}s] {seg['text']}")
+
+        final_audio = CompositeAudioClip(audio_clips)
+        final_video = video.set_audio(final_audio)
         final_video.write_videofile(out_vdo_path, codec="libx264", audio_codec="aac", logger=None)
 
         with open(out_vdo_path, "rb") as f:
             result_bytes = f.read()
 
         video.close()
-        audio.close()
+        final_audio.close()
 
-        for p in [in_vdo_path, audio_path, out_vdo_path]:
-            if os.path.exists(p): os.remove(p)
+        return result_bytes, "\n".join(full_transcript)
 
-        return result_bytes, khmer_script
     except Exception as e:
-        st.error(f"កំហុសក្នុងការបកប្រែ៖ {e}")
-        for p in [in_vdo_path, audio_path, out_vdo_path]:
-            if os.path.exists(p): os.remove(p)
+        st.error(f"⚠️ មានបញ្ហាក្នុងការ Sync សំឡេង៖ {e}")
         return None, ""
 
 
 # ==============================================================================
-# 🛡️ LICENSE SYSTEM
+# 🌐 STREAMLIT UI
 # ==============================================================================
-def load_license():
-    default = {"license_key": "", "activated": False, "expiry_date": "", "trial_used": 0}
-    if not os.path.exists(LICENSE_FILE): return default
-    try:
-        with open(LICENSE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
+st.set_page_config(page_title="Khmer AI Lip-Sync Dubber", page_icon="🎙️", layout="centered")
 
-def save_license(data):
-    try:
-        with open(LICENSE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-    except Exception:
-        pass
+st.title("🎙️ KHMER AI LIP-SYNC & NATURAL DUBBER")
+st.caption("បកប្រែ + បញ្ចូលសំឡេងខ្មែរ ត្រូវតាមចលនាមាត់តួអង្គ និងមានចង្វាក់ដកដង្ហើមធម្មជាតិ")
 
-def activate_vip(code):
-    if code.strip() in VALID_VIP_CODES:
-        data = load_license()
-        data["license_key"] = code
-        data["activated"] = True
-        data["expiry_date"] = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
-        save_license(data)
-        return True, "🎉 Activate VIP ជោគជ័យ!"
-    return False, "Code មិនត្រឹមត្រូវទេ!"
+uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូដែលត្រូវ Lip-Sync", type=["mp4", "mov"])
 
+col1, col2 = st.columns(2)
+with col1:
+    selected_voice = st.selectbox("សំឡេង AI ខ្មែរ៖", [("km-KH-PisethNeural", "🇰🇭 ពិសិដ្ឋ (ប្រុស)"), ("km-KH-SreymomNeural", "🇰🇭 ស្រីមុំ (ស្រី)")], format_func=lambda x: x[1])
+with col2:
+    pause_time = st.slider("រយៈពេលឈប់ដកដង្ហើមរវាងប្រយោគ (ms):", 200, 1000, 450, 50)
 
-# ==============================================================================
-# 🌐 STREAMLIT GUI INTERFACE
-# ==============================================================================
-st.set_page_config(page_title="Khmer Dubber Studio", page_icon="🎙️", layout="centered")
-
-if "lic" not in st.session_state: st.session_state.lic = load_license()
-if "vdo" not in st.session_state: st.session_state.vdo = None
-if "txt" not in st.session_state: st.session_state.txt = ""
-
-lic = st.session_state.lic
-is_vip = lic.get("activated", False)
-rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
-
-st.title("🎙️ KHMER VIDEO DUBBER STUDIO")
-
-# 📲 Telegram Button Top
-st.link_button("💬 ទាក់ទង Admin តាម Telegram (ទិញ VIP Code)", TELEGRAM_LINK, use_container_width=True)
-
-# 🔑 VIP Activation
-with st.expander("🔑 VIP Activation Panel", expanded=not is_vip):
-    col1, col2 = st.columns([3, 1])
-    code_in = col1.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដ VIP...", label_visibility="collapsed")
-    if col2.button("Activate", type="primary", use_container_width=True):
-        ok, msg = activate_vip(code_in)
-        if ok:
-            st.session_state.lic = load_license()
-            st.success(msg)
-            time.sleep(1)
-            st.rerun()
-        else: st.error(msg)
-
-# Status Badge
-if is_vip: st.success("ស្ថានភាព៖ VIP Activated ✅ (ប្រើបានគ្មានដែនកំណត់)")
-elif rem_trials > 0: st.warning(f"ស្ថានភាព៖ Trial Version ⏳ (នៅសល់ {rem_trials}/{TRIAL_LIMIT} វីដេអូ)")
-else: st.error("ស្ថានភាព៖ Trial Expired 🚫 (សូមទាក់ទង Telegram Admin ដើម្បីទិញកូដ)")
-
-st.markdown("---")
-
-# 1. Upload Video
-uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov", "mkv", "avi"])
-
-# 2. Dubbing Mode
-st.markdown("**២. ជ្រើសរើសវិធីសាស្ត្របកប្រែ៖**")
-dub_mode = st.radio(
-    "Mode Selection",
-    options=[
-        ("auto", "🤖 បកប្រែពីសំឡេងនិយាយក្នុងវីដេអូស្វ័យប្រវត្តិ (Whisper Auto Detect)"),
-        ("custom", "✍️ វាយអត្ថបទខ្មែរដោយផ្ទាល់ (Custom Text)")
-    ],
-    format_func=lambda x: x[1],
-    label_visibility="collapsed"
-)
-
-custom_script = ""
-if dub_mode[0] == "custom":
-    custom_script = st.text_area("បញ្ចូលអត្ថបទដែលត្រូវឱ្យ AI និយាយជាខ្មែរ៖", placeholder="វាយអត្ថបទនៅទីនេះ...")
-
-st.markdown("---")
-
-# 3. Voice Settings
-col_a, col_b = st.columns(2)
-with col_a:
-    selected_voice = st.selectbox(
-        "សំឡេង AI ខ្មែរ៖",
-        options=[
-            ("km-KH-PisethNeural", "🇰🇭 សំឡេងប្រុស (ពិសិដ្ឋ)"),
-            ("km-KH-SreymomNeural", "🇰🇭 សំឡេងស្រី (ស្រីមុំ)")
-        ],
-        format_func=lambda x: x[1]
-    )
-
-with col_b:
-    voice_speed = st.slider("ល្បឿននិយាយ:", 0.8, 1.3, 1.0, 0.1)
-
-st.markdown("---")
-
-# 4. Process Action
-can_run = is_vip or (rem_trials > 0)
-if st.button("▶ ចាប់ផ្តើមបកប្រែ និងបញ្ចូលសំឡេង", disabled=not can_run, type="primary", use_container_width=True):
+if st.button("▶ ចាប់ផ្តើមធ្វើ Lip-Sync & Natural Dubbing", type="primary", use_container_width=True):
     if not uploaded_vdo:
         st.warning("សូម Upload វីដេអូជាមុនសិន!")
     else:
-        with st.spinner("🤖 Whisper AI កំពុងស្តាប់សំឡេងដើម បកប្រែជាខ្មែរ និងកាត់បញ្ចូលសំឡេង AI..."):
-            res, txt = dub_video_process(
-                video_bytes=uploaded_vdo.getvalue(),
-                voice_code=selected_voice[0],
-                voice_speed=voice_speed,
-                mode=dub_mode[0],
-                custom_text=custom_script
-            )
-            if res:
-                st.session_state.vdo = res
-                st.session_state.txt = txt
-                if not is_vip:
-                    lic["trial_used"] += 1
-                    save_license(lic)
-                    st.session_state.lic = lic
-                st.success("✅ បកប្រែ និងបញ្ចូលសំឡេងខ្មែរក្នុងវីដេអូរួចរាល់ 100%!")
-                time.sleep(0.5)
-                st.rerun()
-
-# 5. Output Display
-if st.session_state.vdo:
-    st.markdown("---")
-    st.subheader("🎉 លទ្ធផលវីដេអូដែលធ្វើរួច៖")
-    if st.session_state.txt:
-        st.info(f"📝 **អត្ថបទដែលបានបកប្រែជាខ្មែរ៖** {st.session_state.txt}")
-    
-    st.video(st.session_state.vdo)
-    st.download_button(
-        label="📥 ទាញយកវីដេអូទុក (Download Video)",
-        data=st.session_state.vdo,
-        file_name="dubbed_video.mp4",
-        mime="video/mp4",
-        use_container_width=True
-    )
-
-# 📲 Bottom Telegram Contact
-st.markdown("---")
-st.link_button("💬 មានចម្ងល់ ឬចង់ទិញ VIP Code? ទាក់ទងតាម Telegram ទីនេះ", TELEGRAM_LINK, use_container_width=True)
+        with st.spinner("🤖 កំពុង Align Timestamps និងបន្ថែម SSML Breathing Pauses..."):
+            res_video, script = process_lipsync_dubbing(uploaded_vdo.getvalue(), selected_voice[0], pause_time)
+            if res_video:
+                st.success("✅ Lip-Sync ជោគជ័យ!")
+                st.video(res_video)
+                st.text_area("📝 អត្ថបទដែលបានតម្រឹម Timecode:", script, height=150)
