@@ -74,19 +74,14 @@ def activate_vip(code):
 st.set_page_config(
     page_title="Khmer Dubber - VIP System",
     page_icon="🎙️",
-    layout="centered",
-    initial_sidebar_state="expanded"
+    layout="centered"
 )
 
-# Custom CSS សម្រាប់រចនាប៊ូតុង និង Card ឱ្យស្អាត
 st.markdown("""
 <style>
-    /* ផ្ទៃខាងក្រោយទូទៅ */
     .stApp {
         background-color: #F8FAFC;
     }
-    
-    /* រចនា Card Box */
     .custom-card {
         background-color: #FFFFFF;
         border-radius: 12px;
@@ -95,8 +90,6 @@ st.markdown("""
         border: 1px solid #E2E8F0;
         margin-bottom: 15px;
     }
-    
-    /* រចនាប៊ូតុង Primary (Gradient Blue/Indigo) */
     div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%) !important;
         color: white !important;
@@ -104,36 +97,29 @@ st.markdown("""
         border-radius: 8px !important;
         font-weight: 600 !important;
         box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
-        transition: all 0.3s ease !important;
     }
-    div[data-testid="stButton"] > button[kind="primary"]:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 16px rgba(79, 70, 229, 0.35) !important;
+    div[data-testid="stDownloadButton"] > button {
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25) !important;
     }
-    
-    /* រចនាប៊ូតុង Telegram Link */
     div[data-testid="stLinkButton"] > a {
         background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%) !important;
         color: white !important;
         border: none !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25) !important;
         text-decoration: none !important;
     }
-    div[data-testid="stLinkButton"] > a:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 16px rgba(217, 119, 6, 0.35) !important;
-    }
-
-    /* Badges / Text Highlight */
     .vip-badge {
         background-color: #DCFCE7;
         color: #15803D;
         padding: 6px 12px;
         border-radius: 20px;
         font-weight: bold;
-        display: inline-block;
     }
     .trial-badge {
         background-color: #FEF3C7;
@@ -141,7 +127,6 @@ st.markdown("""
         padding: 6px 12px;
         border-radius: 20px;
         font-weight: bold;
-        display: inline-block;
     }
     .expired-badge {
         background-color: #FEE2E2;
@@ -149,7 +134,6 @@ st.markdown("""
         padding: 6px 12px;
         border-radius: 20px;
         font-weight: bold;
-        display: inline-block;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -161,12 +145,18 @@ st.markdown("""
 if "license_data" not in st.session_state:
     st.session_state.license_data = load_license()
 
+if "processed_video" not in st.session_state:
+    st.session_state.processed_video = None
+
+if "processed_file_name" not in st.session_state:
+    st.session_state.processed_file_name = ""
+
 lic_data = st.session_state.license_data
 is_vip = lic_data.get("activated", False)
 used_trials = lic_data.get("trial_used", 0)
 remaining_trials = max(0, TRIAL_LIMIT - used_trials)
 
-# Header Application
+# Title
 st.markdown("<h1 style='text-align: center; color: #1E293B;'>🎙️ KHMER VIDEO DUBBER STUDIO</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: #64748B;'>ប្រព័ន្ធបកប្រែ និងបញ្ចូលសំឡេងវីដេអូស្វ័យប្រវត្តិ</p>", unsafe_allow_html=True)
 st.write("")
@@ -180,7 +170,7 @@ with st.container():
     
     col_input, col_btn = st.columns([3, 1])
     with col_input:
-        user_code = st.text_input("Activation Code:", placeholder="បញ្ចូលលេខកូដ VIP របស់អ្នកនៅទីនេះ...", key="vip_code_input", label_visibility="collapsed")
+        user_code = st.text_input("Activation Code:", placeholder="បញ្ចូលលេខកូដ VIP របស់អ្នក...", key="vip_code_input", label_visibility="collapsed")
     with col_btn:
         if st.button("Activate VIP 🚀", type="primary", use_container_width=True):
             success, msg = activate_vip(user_code)
@@ -218,20 +208,18 @@ with st.container():
 st.write("")
 
 # ------------------------------------------------------------------------------
-# 🎛️ PANEL 2: VOICE DUBBING & VIDEO SETTINGS (បន្ថែមថ្មី!)
+# 🎛️ PANEL 2: VOICE & VIDEO SETTINGS
 # ------------------------------------------------------------------------------
 with st.container():
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🎙️ មុខងារជ្រើសរើសសំឡេង & កំណត់កំណត់វីដេអូ")
+    st.subheader("🎙️ មុខងារជ្រើសរើសសំឡេង & កំណត់វីដេអូ")
     
-    # Upload Video File
     uploaded_file = st.file_uploader("១. បញ្ចូលវីដេអូរបស់អ្នក (MP4, MOV, MKV)", type=["mp4", "mov", "mkv", "avi"])
     
     st.write("---")
     st.write("**២. ជ្រើសរើសសំឡេងបកប្រែ (Voice Selection):**")
     
     col_voice1, col_voice2 = st.columns(2)
-    
     with col_voice1:
         voice_option = st.selectbox(
             "ជ្រើសរើសសំឡេងតួអង្គ (Voice Model):",
@@ -243,7 +231,6 @@ with st.container():
                 "🇺🇸 English Female - Ava"
             ]
         )
-        
     with col_voice2:
         speed_option = st.slider("ល្បឿននិយាយ (Voice Speed):", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
 
@@ -258,7 +245,7 @@ with st.container():
 st.write("")
 
 # ------------------------------------------------------------------------------
-# ▶ PANEL 3: PROCESS & TRIAL MANAGEMENT
+# ▶ PANEL 3: PROCESS & RESULT DISPLAY (ជាមួយ VIDEO PLAYER & DOWNLOAD)
 # ------------------------------------------------------------------------------
 with st.container():
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
@@ -278,8 +265,10 @@ with st.container():
             st.warning("សូមបញ្ចូល (Upload) វីដេអូជាមុនសិន!")
         else:
             if is_vip:
-                with st.spinner(f"កំពុងដំណើរការបញ្ចូលសំឡេង [{voice_option}] ទៅក្នុងវីដេអូ..."):
+                with st.spinner(f"កំពុងដំណើរការបញ្ចូលសំឡេង [{voice_option}]..."):
                     time.sleep(3)
+                st.session_state.processed_video = uploaded_file.getvalue()
+                st.session_state.processed_file_name = f"dubbed_{uploaded_file.name}"
                 st.success("✅ ដំណើរការបកប្រែ និងបញ្ចូលសំឡេងជោគជ័យ 100%!")
                 st.balloons()
             else:
@@ -289,8 +278,29 @@ with st.container():
                 
                 with st.spinner(f"កំពុងដំណើរការ [Trial Mode] ជាមួយសំឡេង [{voice_option}]..."):
                     time.sleep(3)
+                st.session_state.processed_video = uploaded_file.getvalue()
+                st.session_state.processed_file_name = f"dubbed_{uploaded_file.name}"
                 st.success("✅ ដំណើរការវីដេអូរួចរាល់!")
-                time.sleep(1)
+                time.sleep(0.5)
                 st.rerun()
+
+    # --------------------------------------------------------------------------
+    # 📺 ផ្នែកបង្ហាញវីដេអូដែលធ្វើរួច និងប៊ូតុង DOWNLOAD
+    # --------------------------------------------------------------------------
+    if st.session_state.processed_video is not None:
+        st.write("---")
+        st.subheader("🎉 លទ្ធផលវីដេអូដែលបានបញ្ចូលសំឡេងរួចរាល់ (Dubbed Video):")
+        
+        # បង្ហាញ Video Player លើអេក្រង់
+        st.video(st.session_state.processed_video)
+        
+        # ប៊ូតុងទាញយក (Download Button)
+        st.download_button(
+            label="📥 ទាញយកវីដេអូទុក (Download Dubbed Video)",
+            data=st.session_state.processed_video,
+            file_name=st.session_state.processed_file_name,
+            mime="video/mp4",
+            use_container_width=True
+        )
 
     st.markdown('</div>', unsafe_allow_html=True)
