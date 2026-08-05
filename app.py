@@ -3,13 +3,13 @@ import os
 import time
 import asyncio
 import tempfile
-import re
 import streamlit as st
 
 try:
     from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 except Exception:
     from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
+
 import edge_tts
 from deep_translator import GoogleTranslator
 import whisper
@@ -63,46 +63,32 @@ def activate_vip(code):
 
 
 # ==============================================================================
-# 🎙️ AUDIO CLEANING & AUTO PAUSE MATCHING PIPELINE
+# 🎙️ WHISPER AI TRANSCRIPTION & TRANSLATION
 # ==============================================================================
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("tiny")
 
 
-def extract_and_clean_audio(video_path):
-    """បំបែកសំឡេង និងកាត់សំឡេងរំខាន (Noise Reduction/Voice Clean)"""
-    audio_wav_path = video_path.replace(".mp4", "_clean.wav")
+def transcribe_video_segments(video_path):
+    """ស្តាប់សំឡេងតួអង្គ និងទាញយក Timecode យ៉ាងជាក់លាក់"""
+    audio_wav_path = video_path.replace(".mp4", "_temp.wav")
     try:
         video = VideoFileClip(video_path)
         if video.audio is None:
             video.close()
             return None, "⚠️ វីដេអូនេះគ្មានសំឡេងដើមទេ!"
 
-        # បញ្ជូនទៅ FFmpeg Filter ដើម្បីកាត់សំឡេងរំខាន Low Frequency & High Frequency
+        # ទាញយកសំឡេងជា WAV ធម្មតា بۆ Whisper စစ်ဆေး
         video.audio.write_audiofile(
             audio_wav_path,
             codec='pcm_s16le',
             fps=16000,
-            ffmpeg_params=[
-                "-ac", "1",
-                "-af", "highpass=f=200,lowpass=f=3000,afftdn=nr=12" # noise reduction & vocal isolation
-            ],
+            ffmpeg_params=["-ac", "1"],
             logger=None
         )
         video.close()
-        return audio_wav_path, None
-    except Exception as e:
-        return None, f"⚠️ បរាជ័យកាត់សំឡេងរំខាន៖ {e}"
 
-
-def transcribe_auto_pauses(video_path):
-    """ស្តាប់សំឡេងតួអង្គ + គណនាចង្វាក់ផ្អាកដកដង្ហើម និង Timecode អូតូម៉ាតិច"""
-    audio_wav_path, err = extract_and_clean_audio(video_path)
-    if err:
-        return None, err
-
-    try:
         model = load_whisper_model()
         result = model.transcribe(audio_wav_path, verbose=False)
         segments = result.get("segments", [])
@@ -111,21 +97,14 @@ def transcribe_auto_pauses(video_path):
             os.remove(audio_wav_path)
 
         if not segments:
-            return None, "⚠️ មិនអាចទាញយកចង្វាក់និយាយពីវីដេអូបានទេ!"
+            return None, "⚠️ មិនអាចចាប់យល់សំឡេងនិយាយក្នុងវីដេអូបានទេ!"
 
         synced_segments = []
-        for i, seg in enumerate(segments):
+        for seg in segments:
             text = seg["text"].strip()
             start_time = seg["start"]
             end_time = seg["end"]
-            duration = end_time - start_time
             
-            # គណនាពេលវេលាដែលតួអង្គស្ងាត់/ឈប់ដកដង្ហើម រហូតដល់ប្រយោគបន្ទាប់
-            pause_after = 0.0
-            if i < len(segments) - 1:
-                next_start = segments[i+1]["start"]
-                pause_after = max(0.0, next_start - end_time)
-
             if text:
                 try:
                     khmer_text = GoogleTranslator(source='auto', target='km').translate(text)
@@ -136,8 +115,6 @@ def transcribe_auto_pauses(video_path):
                     synced_segments.append({
                         "start": start_time,
                         "end": end_time,
-                        "duration": duration,
-                        "pause_after": pause_after,
                         "text": khmer_text
                     })
 
@@ -146,67 +123,50 @@ def transcribe_auto_pauses(video_path):
     except Exception as e:
         if os.path.exists(audio_wav_path):
             os.remove(audio_wav_path)
-        return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកចង្វាក់មាត់៖ {e}"
+        return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកសំឡេង៖ {e}"
 
 
-def generate_auto_synced_tts(text, voice_code, output_path, target_duration):
-    """បង្កើតសំឡេងនិយាយ និងតម្រឹមល្បឿនអូតូម៉ាតិចឱ្យស្មើរយៈពេលនិយាយរបស់តួអង្គ"""
-    # បង្កើត Audio ដើមដំបូង
-    ssml_content = f"""<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='km-KH'>
-    <voice name='{voice_code}'>
-        <prosody rate='0%'>
-            {text}
-        </prosody>
-    </voice>
-</speak>"""
-
-    communicate = edge_tts.Communicate(ssml_content, voice_code)
+def generate_tts_audio(text, voice_code, output_path):
+    """បង្កើតសំឡេង AI ខ្មែរស្អាតគ្មានសំឡេងរំខាន"""
+    communicate = edge_tts.Communicate(text, voice_code)
     asyncio.run(communicate.save(output_path))
 
 
-def process_lipsync_dubbing(video_bytes, voice_code):
-    """ដំណើរការ Auto Lip-Sync + Voice Clean + Natural Breathing"""
+def process_clean_dubbing(video_bytes, voice_code):
+    """កាត់សំឡេងដើម និងសំឡេងរំខានចេញទាំងស្រុង ដាក់បញ្ចូលតែសំឡេង AI សុទ្ធ"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
         in_vdo_path = f_in.name
 
-    out_vdo_path = in_vdo_path.replace(".mp4", "_sync_out.mp4")
+    out_vdo_path = in_vdo_path.replace(".mp4", "_clean_out.mp4")
 
     try:
-        segments, err = transcribe_auto_pauses(in_vdo_path)
+        segments, err = transcribe_video_segments(in_vdo_path)
         if err:
             st.error(err)
             return None, ""
 
-        video = VideoFileClip(in_vdo_path)
+        # បើកវីដេអូដើម ប៉ុន្តែដកសំឡេងដើមចេញទាំងស្រុង (remove_audio())
+        video = VideoFileClip(in_vdo_path).remove_audio()
         audio_clips = []
         full_transcript = []
 
         for idx, seg in enumerate(segments):
             seg_audio_path = in_vdo_path.replace(".mp4", f"_seg_{idx}.mp3")
             
-            # បង្កើតសំឡេង
-            generate_auto_synced_tts(seg["text"], voice_code, seg_audio_path, seg["duration"])
+            # បង្កើតសំឡេង AI សម្រាប់ប្រយោគនីមួយៗ
+            generate_tts_audio(seg["text"], voice_code, seg_audio_path)
 
-            # ដាក់សំឡេង AI ចូលចំចំណុចដែលតួអង្គចាប់ផ្តើមនិយាយ
+            # កំណត់ទីតាំងសំឡេង AI ឱ្យចេញចំពេលតួអង្គនិយាយ
             speech_clip = AudioFileClip(seg_audio_path).set_start(seg["start"])
-            
-            # Auto Speed Correction ករណី AI និយាយវែងជាង ឬខ្លីជាង Duration ពិត
-            current_dur = speech_clip.duration
-            if current_dur > 0 and seg["duration"] > 0:
-                speed_factor = current_dur / seg["duration"]
-                # តម្រឹមល្បឿន Clip ឱ្យស្មើនឹងតួអង្គនិយាយ
-                if 0.5 <= speed_factor <= 2.0:
-                    speech_clip = speech_clip.fl_time(lambda t: speed_factor * t, apply_to=['audio']).set_duration(seg["duration"])
-
             audio_clips.append(speech_clip)
             
-            pause_str = f" [ផ្អាកដកដង្ហើម {round(seg['pause_after'], 2)}s]" if seg['pause_after'] > 0 else ""
-            full_transcript.append(f"[{int(seg['start'])}s - {int(seg['end'])}s] {seg['text']}{pause_str}")
+            full_transcript.append(f"[{int(seg['start'])}s] {seg['text']}")
 
-        # រួមបញ្ចូលសំឡេងទាំងអស់ចូលក្នុង Video ដើម
+        # ដាក់បញ្ចូលតែសំឡេង AI សុទ្ធចូលទៅក្នុងវីដេអូ
         final_audio = CompositeAudioClip(audio_clips)
         final_video = video.set_audio(final_audio)
+        
         final_video.write_videofile(out_vdo_path, codec="libx264", audio_codec="aac", logger=None)
 
         with open(out_vdo_path, "rb") as f:
@@ -218,14 +178,14 @@ def process_lipsync_dubbing(video_bytes, voice_code):
         return result_bytes, "\n".join(full_transcript)
 
     except Exception as e:
-        st.error(f"⚠️ មានបញ្ហាក្នុងការ Sync សំឡេង៖ {e}")
+        st.error(f"⚠️ មានបញ្ហាក្នុងការបង្កើតវីដេអូ៖ {e}")
         return None, ""
 
 
 # ==============================================================================
 # 🌐 STREAMLIT UI INTERFACE
 # ==============================================================================
-st.set_page_config(page_title="Khmer AI Auto Lip-Sync", page_icon="🎙️", layout="centered")
+st.set_page_config(page_title="Khmer AI Pure Dubber", page_icon="🎙️", layout="centered")
 
 if "lic" not in st.session_state:
     st.session_state.lic = load_license()
@@ -238,8 +198,8 @@ lic = st.session_state.lic
 is_vip = lic.get("activated", False)
 rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 
-st.title("🎙️ KHMER AI AUTO LIP-SYNC & DUBBER")
-st.caption("ប្រព័ន្ធបកប្រែ + បញ្ចូលសំឡេងស្វ័យប្រវត្តិ ចាប់តាមចង្វាក់ដកដង្ហើមតួអង្គ 100% និងលុបសំឡេងរំខាន")
+st.title("🎙️ KHMER AI PURE DUBBER (NO NOISE)")
+st.caption("កាត់សំឡេងដើម និងសំឡេងរំខានចេញទាំងស្រុង យកតែសំឡេង AI ខ្មែរនិយាយតាមតួអង្គសុទ្ធៗ")
 
 # 📲 Telegram Contact
 st.link_button("💬 ទាក់ទង Admin តាម Telegram (ដើម្បីទិញ VIP Code)", TELEGRAM_LINK, use_container_width=True)
@@ -270,7 +230,7 @@ else:
 st.markdown("---")
 
 # 1. Video Upload
-uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូដែលត្រូវ Dubbing & Lip-Sync", type=["mp4", "mov"])
+uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov"])
 
 # 2. Voice Selection
 selected_voice = st.selectbox(
@@ -284,15 +244,15 @@ selected_voice = st.selectbox(
 
 st.markdown("---")
 
-# 3. Action
+# 3. Action Button
 can_run = is_vip or (rem_trials > 0)
 
-if st.button("▶ ចាប់ផ្តើមធ្វើ Auto Lip-Sync (Noise Removal + Natural Breathing)", disabled=not can_run, type="primary", use_container_width=True):
+if st.button("▶ ចាប់ផ្តើមបកប្រែ (កាត់សំឡេងរំខានចេញ យកតែសំឡេង AI សុទ្ធ)", disabled=not can_run, type="primary", use_container_width=True):
     if not uploaded_vdo:
         st.warning("សូម Upload វីដេអូជាមុនសិន!")
     else:
-        with st.spinner("🤖 កំពុងលុបសំឡេងរំខាន (Noise Clean) និងតម្រឹមចង្វាក់និយាយតាមតួអង្គ..."):
-            res_video, script = process_lipsync_dubbing(uploaded_vdo.getvalue(), selected_voice[0])
+        with st.spinner("🤖 កំពុងកាត់សំឡេងដើមនិងសំឡេងរំខានចេញ រួចបញ្ចូលសំឡេង AI ខ្មែរសុទ្ធ..."):
+            res_video, script = process_clean_dubbing(uploaded_vdo.getvalue(), selected_voice[0])
             
             if res_video:
                 st.session_state.vdo = res_video
@@ -303,7 +263,7 @@ if st.button("▶ ចាប់ផ្តើមធ្វើ Auto Lip-Sync (Noise R
                     save_license(lic)
                     st.session_state.lic = lic
                 
-                st.success("✅ បញ្ចូលសំឡេងខ្មែរ និង Lip-Sync តាមតួអង្គជោគជ័យ!")
+                st.success("✅ បកប្រែរួចរាល់ លុបសំឡេងរំខាន ១០០%!")
                 time.sleep(0.5)
                 st.rerun()
 
@@ -312,11 +272,11 @@ if st.session_state.vdo:
     st.markdown("---")
     st.subheader("🎉 លទ្ធផលវីដេអូដែលធ្វើរួច៖")
     st.video(st.session_state.vdo)
-    st.text_area("📝 អត្ថបទ + ចង្វាក់ផ្អាកដកដង្ហើមដែលចាប់បាន៖", st.session_state.txt, height=180)
+    st.text_area("📝 អត្ថបទដែលបានបកប្រែជាខ្មែរ៖", st.session_state.txt, height=150)
     st.download_button(
         label="📥 ទាញយកវីដេអូទុក (Download Video)",
         data=st.session_state.vdo,
-        file_name="lipsync_auto_dubbed.mp4",
+        file_name="pure_dubbed_video.mp4",
         mime="video/mp4",
         use_container_width=True
     )
