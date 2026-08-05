@@ -137,27 +137,27 @@ if st.button("🚀 START", use_container_width=True):
     elif uploaded_video is None:
         st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        # ពីទីនេះទៅ គឺជាចំណុចដែលអ្នកត្រូវសរសេរកូដ AI Dubbing របស់អ្នក
-        # ឧទាហរណ៍៖ output_video_path = process_ai_dubbing(uploaded_video)
-        
-        # យើងក្លែងធ្វើជាកន្លែងរក្សាទុកវីដេអូលទ្ធផល
-        result_video_path = "output_video.mp4" # ជាឈ្មោះឯកសារលទ្ធផលក្រោយ AI ដំណើរការរួច
-        
-        st.success("✅ ដំណើរការ Dubbing ចប់ហើយ! អ្នកអាចឆែកមើល ឬទាញយកវីដេអូបាននៅខាងក្រោម៖")
-        
-        # បង្ហាញវីដេអូដោយផ្ទាល់ក្នុង App ដើម្បីឆែកមើល
-        # ចំណាំ៖ ប្រសិនបើអ្នកចង់បង្ហាញវីដេអូដែលទើបតែដំណើរការចប់ ត្រូវប្រាកដថាផ្លូវ (Path) ឯកសារត្រឹមត្រូវ។
-        with open(result_video_path, "rb") as f:
-            video_bytes = f.read()
-            st.video(video_bytes) # បង្ហាញក្នុង App
+        st.success("✅ ចុច START ជោគជ័យ! (នៅចំណុចនេះ អ្នកត្រូវបញ្ចូលកូដ AI Dubbing ពិតរបស់អ្នក ឲ្យវាបង្កើតឯកសារ output_video.mp4 ចេញមក)")
 
-        # ផ្តល់ប៊ូតុង Download ឱ្យអ្នកប្រើប្រាស់អាចយកទៅ Save នៅលើម៉ាស៊ីនរបស់ខ្លួន
-        st.download_button(
-            label="📥 ទាញយកវីដេអូដែលបាន Dubbing (Download)",
-            data=video_bytes,
-            file_name="dubbed_result_video.mp4",
-            mime="video/mp4"
-        )
+        # ឧទាហរណ៍ឈ្មោះឯកសារលទ្ធផល (ប្តូរទៅតាមឈ្មោះឯកសារដែល AI របស់អ្នកបង្កើត)
+        result_video_path = "output_video.mp4"
 
+        # ពិនិត្យមើលថា ឯកសារនេះមានក្នុង Server ឬអត់ ទើបបង្ហាញ
+        if os.path.exists(result_video_path):
+            st.markdown("### 🎬 ឆែកមើលវីដេអូដែលបាន Dubbing")
+            with open(result_video_path, "rb") as f:
+                video_bytes = f.read()
+                st.video(video_bytes) # បង្ហាញក្នុង App
+                
+                # ប៊ូតុង Download
+                st.download_button(
+                    label="📥 ទាញយកវីដេអូ (Download)",
+                    data=video_bytes,
+                    file_name="dubbed_result.mp4",
+                    mime="video/mp4"
+                )
+        else:
+            # ប្រសិនបើ AI មិនទាន់បង្កើតឯកសារ
+            st.info("⏳ រង់ចាំឲ្យ AI ដំណើរការបង្កើតវីដេអូរួចសិន ទើបវាបង្ហាញនៅទីនេះ (ព្រោះបច្ចុប្បន្ន ឯកសារលទ្ធផលមិនទាន់មាន)។")
 st.markdown('</div>', unsafe_allow_html=True)
 st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
