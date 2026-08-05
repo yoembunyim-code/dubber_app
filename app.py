@@ -5,7 +5,6 @@ import subprocess
 import shutil
 from deep_translator import GoogleTranslator
 from gtts import gTTS
-import whisper # នាំចូល Whisper
 
 # ==================== កំណត់ទំព័រ ====================
 st.set_page_config(page_title="AI Dubbing Khmer PRO", page_icon="🎬", layout="centered")
@@ -41,49 +40,6 @@ if "trial_count" not in st.session_state: st.session_state.trial_count = 0
 if "selected_voice" not in st.session_state: st.session_state.selected_voice = "auto"
 if "processing_complete" not in st.session_state: st.session_state.processing_complete = False
 if "last_video_result" not in st.session_state: st.session_state.last_video_result = None
-
-# ==================== Load Whisper Model (Cached) ====================
-@st.cache_resource
-def load_whisper_model():
-    # ទាញយកម៉ូដែល Whisper ទំហំតូច (base) ដើម្បីកុំឲ្យអស់ Memory
-    return whisper.load_model("base")
-
-# ==================== មុខងារស្រង់សំឡេង (Speech-to-Text) ====================
-def extract_audio_to_srt(video_path, language='km'):
-    """យកសំឡេងពីវីដេអូ ហើយបង្កើតឯកសារ SRT"""
-    try:
-        model = load_whisper_model()
-        # ទោះបីជា ភាសាខ្មែរ ក៏សាកល្បង transcribe ដែរ
-        result = model.transcribe(video_path, language=language, task="transcribe")
-        
-        # បង្កើតជាឯកសារ SRT តាមទម្រង់
-        srt_lines = []
-        for i, segment in enumerate(result['segments']):
-            start_time = segment['start']
-            end_time = segment['end']
-            text = segment['text']
-            
-            # បម្លែងពេលវេលាទៅជា SRT format
-            def format_time(seconds):
-                h = int(seconds // 3600)
-                m = int((seconds % 3600) // 60)
-                s = int(seconds % 60)
-                ms = int((seconds % 1) * 1000)
-                return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-            
-            srt_lines.append(f"{i+1}")
-            srt_lines.append(f"{format_time(start_time)} --> {format_time(end_time)}")
-            srt_lines.append(text.strip())
-            srt_lines.append("")
-        
-        srt_content = "\n".join(srt_lines)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".srt", mode='w', encoding='utf-8') as f:
-            f.write(srt_content)
-            return f.name
-    except Exception as e:
-        st.error(f"កំហុសក្នុងការបំប្លែងសំឡេង (Speech-to-Text): {e}")
-        return None
 
 # ==================== FFmpeg Helper ====================
 def get_ffmpeg_paths():
@@ -156,24 +112,14 @@ with st.expander("🔑 បញ្ចូលកូដ VIP", expanded=(not st.sessio
 
 if st.session_state.is_vip or st.session_state.trial_count < 3:
     tab1, tab2, tab3 = st.tabs(["📁 បង្ហោះឯកសារ", "🎤 ជ្រើសសំឡេង", "🚀 ចាប់ផ្ដើម"])
-    uploaded_video = None
-    uploaded_srt = None
     
     with tab1:
         st.subheader("📂 ជ្រើសរើសឯកសារ")
-        uploaded_video = st.file_uploader("BROWSE VIDEO", type=["mp4", "mov", "avi", "mkv"])
+        uploaded_video = st.file_uploader("BROWSE VIDEO (MP4, MOV, AVI)", type=["mp4", "mov", "avi", "mkv"])
+        uploaded_srt = st.file_uploader("BROWSE SRT (ឯកសារអក្សររត់)", type=["srt"])
         
-        st.markdown("ឬ")
-        
-        # ប្តូរជម្រើស SRT ជាជម្រើស (Optional)
-        uploaded_srt = st.file_uploader("BROWSE SRT (ជម្រើស - បើគ្មាន កម្មវិធីនឹងបង្កើតឲ្យដោយស្វ័យប្រវត្តិ)", type=["srt"])
-        
-        if uploaded_video:
-            st.success("✅ បានបង្ហោះវីដេអូ!")
-            if uploaded_srt:
-                st.info("ℹ️ កម្មវិធីនឹងប្រើប្រាស់ឯកសារ SRT ដែលអ្នកបានបង្ហោះ។")
-            else:
-                st.info("🤖 បានរកឃើញគ្មាន SRT កម្មវិធីនឹងប្រើប្រាស់ AI Whisper ដើម្បីស្រង់សំឡេងដោយស្វ័យប្រវត្តិ។")
+        if uploaded_video: st.success("✅ បានបង្ហោះវីដេអូ!")
+        if uploaded_srt: st.success("✅ បានបង្ហោះ SRT!")
 
     with tab2:
         st.subheader("🎤 ជ្រើសរើសគំរូសំឡេង")
@@ -193,32 +139,25 @@ if st.session_state.is_vip or st.session_state.trial_count < 3:
             if st.button("🚀 START បង្កើតវីដេអូ", key="start_btn", use_container_width=True):
                 if uploaded_video is None:
                     st.warning("⚠️ សូមត្រឡប់ទៅផ្ទាំង 'Upload' ហើយបង្ហោះវីដេអូជាមុនសិន!")
+                elif uploaded_srt is None:
+                    st.warning("⚠️ សូមត្រឡប់ទៅផ្ទាំង 'Upload' ហើយបង្ហោះឯកសារ SRT ជាមុនសិន!")
                 else:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as v_tmp:
                         v_tmp.write(uploaded_video.getvalue())
                         video_path = v_tmp.name
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".srt") as s_tmp:
+                        s_tmp.write(uploaded_srt.getvalue())
+                        srt_path = s_tmp.name
                     
-                    srt_path = None
-                    if uploaded_srt:
-                        # ករណី១: អ្នកប្រើមាន SRT
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".srt") as s_tmp:
-                            s_tmp.write(uploaded_srt.getvalue())
-                            srt_path = s_tmp.name
-                    else:
-                        # ករណី២: ប្រើ AI ស្រង់សំឡេងពីវីដេអូទៅជា SRT
-                        with st.spinner("🎤 កំពុងស្រង់សំឡេងពីវីដេអូដោយ AI... (ចំណាយពេលបន្តិច)"):
-                            srt_path = extract_audio_to_srt(video_path, language='km') # ឬ 'en' បើវីដេអូអង់គ្លេស
-                            
-                    if srt_path:
-                        with st.spinner("⏳ កំពុងបង្កើតសំឡេងខ្មែរ និងផ្សំវីដេអូ..."):
-                            result = process_video_dubbing(video_path, srt_path, st.session_state.selected_voice)
-                        if result:
-                            if not st.session_state.is_vip: st.session_state.trial_count += 1
-                            st.session_state.last_video_result = result
-                            st.session_state.processing_complete = True
-                            st.success("🎉 បង្កើតវីដេអូជោគជ័យ!"); st.rerun()
-                        else: st.error("❌ មានបញ្ហាពេលកែច្នៃ")
-                    else: st.error("❌ បរាជ័យក្នុងការស្រង់សំឡេង។")
+                    with st.spinner("⏳ កំពុងបង្កើតសំឡេងខ្មែរ និងផ្សំជាមួយវីដេអូ..."):
+                        result = process_video_dubbing(video_path, srt_path, st.session_state.selected_voice)
+                    
+                    if result:
+                        if not st.session_state.is_vip: st.session_state.trial_count += 1
+                        st.session_state.last_video_result = result
+                        st.session_state.processing_complete = True
+                        st.success("🎉 បង្កើតវីដេអូជោគជ័យ!"); st.rerun()
+                    else: st.error("❌ មានបញ្ហាពេលកែច្នៃវីដេអូ")
             st.markdown('</div>', unsafe_allow_html=True)
             
         with col_folder:
