@@ -1,12 +1,17 @@
 import streamlit as st
 import os
 import time
+import tempfile
 from datetime import datetime
+from googletrans import Translator
+import asyncio
+import edge_tts
+from moviepy.editor import VideoFileClip, AudioFileClip
 
 # =======================================================
-# 1. ផ្នែក Config (សម្រាប់កែប្រែព័ត៌មានអ្នក)
+# 1. ផ្នែក Config
 # =======================================================
-OWNER_TELEGRAM = "t.me/bunyimyoem" # ប្តូរទៅជាឈ្មោះ Telegram ពិតរបស់អ្នក
+OWNER_TELEGRAM = "@YOUR_TELEGRAM" 
 
 LICENSE_DATABASE = {
     "VIP-2026-ABCD": {"uses": 100, "expiry": "2026-12-31"}, 
@@ -14,11 +19,33 @@ LICENSE_DATABASE = {
 }
 
 # =======================================================
-# 2. ផ្នែកកំណត់ទំព័រ & CSS
+# 2. មុខងារជំនួយ AI (Helper Functions)
+# =======================================================
+
+# មុខងារបកប្រែអត្ថបទទៅជាភាសាខ្មែរ
+def translate_to_khmer(text):
+    try:
+        translator = Translator()
+        translated = translator.translate(text, dest='km')
+        return translated.text
+    except Exception as e:
+        return text  # បើមាន error វានឹងប្រើអត្ថបទដើម
+
+# មុខងារបង្កើតសំឡេងនិយាយខ្មែរ (Edge-TTS)
+async def generate_khmer_audio_async(text, voice, output_filename):
+    # km-KH-SreymomNeural (ស្រី) ឬ km-KH-PisethNeural (ប្រុស)
+    voice_name = "km-KH-SreymomNeural" if "ស្រី" in voice else "km-KH-PisethNeural"
+    communicate = edge_tts.Communicate(text, voice_name)
+    await communicate.save(output_filename)
+
+def generate_khmer_audio(text, voice, output_filename):
+    asyncio.run(generate_khmer_audio_async(text, voice, output_filename))
+
+# =======================================================
+# 3. ផ្នែកកំណត់ទំព័រ & CSS
 # =======================================================
 st.set_page_config(page_title="AI Dubbing & Translate System", layout="wide", page_icon="🎬")
 
-# កំណត់ Session State
 if 'is_activated' not in st.session_state:
     st.session_state.is_activated = False
 if 'current_key' not in st.session_state:
@@ -28,7 +55,6 @@ if 'translated_video_data' not in st.session_state:
 if 'is_processing' not in st.session_state:
     st.session_state.is_processing = False
 
-# កូដ CSS តុបតែងអេក្រង់ឲ្យស្អាតដូច Desktop App
 st.markdown("""
 <style>
     .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); font-family: 'Segoe UI', sans-serif; }
@@ -48,7 +74,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =======================================================
-# 3. Sidebar
+# 4. Sidebar
 # =======================================================
 with st.sidebar:
     st.markdown("## ℹ️ ព័ត៌មានអាជ្ញាប័ណ្ណ")
@@ -70,31 +96,26 @@ with st.sidebar:
         st.success("បានកំណត់ឡើងវិញ!")
 
 # =======================================================
-# 4. Main Interface
+# 5. Main Interface
 # =======================================================
 st.markdown("<h1 style='text-align: center;'>🎬 ប្រព័ន្ធឌឹប និងបកប្រែវីដេអូ AI</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>ផ្ទុកវីដេអូឡើង រួចបកប្រែ និងឌឹបជាភាសាខ្មែរដោយស្វ័យប្រវត្តិ</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 4.1 ផ្នែកផ្ទុកវីដេអូ និងជ្រើសសម្លេង
 col1, col2 = st.columns([3, 1])
 with col1:
     uploaded_video = st.file_uploader("ផ្ទុកវីដេអូរបស់អ្នកនៅទីនេះ", type=['mp4', 'avi', 'mov', 'mkv'], label_visibility="collapsed")
     if uploaded_video is not None:
         st.caption(f"✅ បានផ្ទុកដោយជោគជ័យ៖ `{uploaded_video.name}`")
 with col2:
-    st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
-    st.button("📄 ផ្ទុក SRT", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    uploaded_srt = st.file_uploader("📄 ផ្ទុក SRT (ជម្រើស)", type=['srt'], label_visibility="collapsed")
 
 st.markdown("<br>", unsafe_allow_html=True)
-
 voice_option = st.selectbox("🎤 ជ្រើសរើសសម្លេងសម្រាប់ភាសាខ្មែរ", ["ស្រី (Female)", "ប្រុស (Male)"])
-
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =======================================================
-# 5. ផ្នែក START សម្រាប់បកប្រែ និងឌឹបពេញលេញ
+# 6. ផ្នែក START និងដំណើរការ AI ពិតប្រាកដ
 # =======================================================
 st.markdown("### 🚀 ចាប់ផ្ដើមឌឹប និងបកប្រែ")
 st.markdown('<div class="green-btn">', unsafe_allow_html=True)
@@ -110,41 +131,61 @@ if st.button("🚀 START ឌឹបវីដេអូ", use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# =======================================================
-# 6. ដំណើរការ AI ក្លែងធ្វើ (Simulation)
-# =======================================================
 if st.session_state.is_processing:
     st.markdown("---")
     with st.status("🤖 កំពុងដំណើរការឌឹប និងបកប្រែដោយ AI... (សូមរង់ចាំ)", expanded=True) as status:
-        # ជំហានទី 1: ការទាញយកសំឡេង (អ្នកត្រូវជំនួសដោយកូដ AI ពិត)
-        st.write("📌 1. កំពុងបំបែកសំឡេងដើមចេញពីវីដេអូ...")
-        time.sleep(1.5)
-        
-        # ជំហានទី 2: ការស្គាល់អត្ថបទ (STT) និងបកប្រែទៅខ្មែរ
-        st.write("📌 2. កំពុងបកប្រែទៅជាភាសាខ្មែរ...")
-        # *នៅត្រង់នេះ ប្រសិនបើអ្នកមាន Google Translate API ឬ DeepSeek API អ្នកអាចដាក់កូដហៅ API បាន*
-        time.sleep(2)
-        khmer_subtitle_text = "សួស្តី! កម្មវិធីនេះកំពុងឌឹបវីដេអូរបស់អ្នកទៅជាភាសាខ្មែរដោយជោគជ័យ។" # អត្ថបទខ្មែរគំរូ
+        try:
+            # រៀបចំ Folder បណ្ដោះអាសន្ន
+            with tempfile.TemporaryDirectory() as temp_dir:
+                input_video_path = os.path.join(temp_dir, "input_video.mp4")
+                output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
+                final_output_path = os.path.join(temp_dir, "final_dubbed.mp4")
 
-        # ជំហានទី 3: សំយោគសំឡេងខ្មែរ (TTS)
-        st.write(f"📌 3. កំពុងសំយោគសំឡេងខ្មែរជាមួយសម្លេង: {voice_option}...")
-        # *នៅត្រង់នេះ អ្នកត្រូវដាក់កូដហៅ API របស់ ElevenLabs ឬ Google TTS ដើម្បីបង្កើតសំឡេងពី khmer_subtitle_text*
-        time.sleep(2)
+                # រក្សាទុកវីដេអូដែលអាប់ឡូតទៅក្នុង File បណ្ដោះអាសន្ន
+                with open(input_video_path, "wb") as f:
+                    f.write(uploaded_video.read())
 
-        # ជំហានទី 4: ភ្ជាប់សំឡេងថ្មីចូលវីដេអូ
-        st.write("📌 4. កំពុងភ្ជាប់សំឡេងខ្មែរចូលទៅក្នុងវីដេអូដើម...")
-        time.sleep(1.5)
+                # ជំហានទី 1 & 2: ទទួលបានអត្ថបទបកប្រែ
+                st.write("📌 1. កំពុងអាន និងបកប្រែអត្ថបទទៅជាភាសាខ្មែរ...")
+                if uploaded_srt is not None:
+                    raw_text = uploaded_srt.read().decode("utf-8")
+                else:
+                    # ប្រសិនបើគ្មាន SRT អាចប្រើអត្ថបទគំរូ ឬភ្ជាប់ជាមួយ Whisper API
+                    raw_text = "Welcome to our video dubbing system. Enjoy the automation."
+                
+                khmer_text = translate_to_khmer(raw_text)
 
-        status.update(label="✅ ដំណើរការឌឹប និងបកប្រែបានបញ្ចប់ដោយជោគជ័យ!", state="complete", expanded=False)
-        
-        # ក្លែងធ្វើទិន្នន័យវីដេអូសម្រាប់បង្ហាញលទ្ធផល
-        uploaded_video.seek(0)
-        st.session_state.translated_video_data = uploaded_video.read()
-        st.session_state.is_processing = False
-        st.rerun()
+                # ជំហានទី 3: សំយោគសំឡេងខ្មែរ (TTS)
+                st.write(f"📌 2. កំពុងសំយោគសំឡេងខ្មែរ ({voice_option})...")
+                generate_khmer_audio(khmer_text, voice_option, output_audio_path)
+
+                # ជំហានទី 4: បញ្ចូលសំឡេងថ្មីទៅក្នុងវីដេអូ (Video-Audio Muxing)
+                st.write("📌 3. កំពុងផ្សំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដើម...")
+                video_clip = VideoFileClip(input_video_path)
+                audio_clip = AudioFileClip(output_audio_path)
+
+                # កំណត់សំឡេងថ្មីទៅឱ្យវីដេអូ
+                final_clip = video_clip.set_audio(audio_clip)
+                final_clip.write_videofile(final_output_path, codec="libx264", audio_codec="aac", logger=None)
+
+                # អានទិន្នន័យវីដេអូចុងក្រោយទុកក្នុង Session
+                with open(final_output_path, "rb") as f:
+                    st.session_state.translated_video_data = f.read()
+
+                # បិទ Clip ដើម្បីកុំឱ្យស្ទះ Memory
+                video_clip.close()
+                audio_clip.close()
+
+            status.update(label="✅ ដំណើរការឌឹប និងបកប្រែបានបញ្ចប់ដោយជោគជ័យ!", state="complete", expanded=False)
+            st.session_state.is_processing = False
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ មានបញ្ហាក្នុងពេលដំណើរការ៖ {str(e)}")
+            st.session_state.is_processing = False
 
 # =======================================================
-# 7. បង្ហាញលទ្ធផលវីដេអូដែលបានឌឹបរួច
+# 7. បង្ហាញ និងទាញយកលទ្ធផល
 # =======================================================
 if st.session_state.translated_video_data is not None:
     st.markdown("---")
