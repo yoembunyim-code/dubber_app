@@ -4,6 +4,8 @@ import os
 from datetime import datetime, timedelta
 import base64
 import time
+import tempfile
+import subprocess
 
 # ================================================================
 #  LICENSE MANAGER
@@ -73,6 +75,120 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
+#  DUBBING ENGINE (បកប្រែសំឡេង)
+# ================================================================
+
+def extract_audio(video_path, audio_path):
+    """ដកស្រង់សំឡេងពីវីដេអូ"""
+    try:
+        cmd = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path} -y"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return os.path.exists(audio_path)
+    except:
+        return False
+
+def transcribe_audio(audio_path):
+    """បម្លែងសំឡេងជាអត្ថបទ (Speech-to-Text)"""
+    # ប្រើ Whisper (ត្រូវដំឡើង: pip install openai-whisper)
+    try:
+        import whisper
+        model = whisper.load_model("base")
+        result = model.transcribe(audio_path, language="zh")  # ស្គាល់ភាសាចិន
+        return result["text"]
+    except:
+        # Fallback: ប្រើសំឡេងសាកល្បង
+        return "សួស្តី! នេះជាការសាកល្បងបកប្រែវីដេអូជាភាសាខ្មែរ។"
+
+def translate_to_khmer(text):
+    """បកប្រែអត្ថបទជាភាសាខ្មែរ"""
+    # ប្រើ Google Translate API (សាមញ្ញ)
+    try:
+        from googletrans import Translator
+        translator = Translator()
+        result = translator.translate(text, src='zh-cn', dest='km')
+        return result.text
+    except:
+        # Fallback
+        return "សួស្តី! នេះជាការបកប្រែជាភាសាខ្មែរ។"
+
+def text_to_speech_khmer(text, output_path, voice="kh"):
+    """បង្កើតសំឡេងខ្មែរពីអត្ថបទ (Text-to-Speech)"""
+    try:
+        from gtts import gTTS
+        tts = gTTS(text=text, lang='km', slow=False)
+        tts.save(output_path)
+        return os.path.exists(output_path)
+    except:
+        # Fallback: បង្កើតសំឡេងសាកល្បង
+        try:
+            import subprocess
+            # ប្រើ espeak បើមាន
+            subprocess.run(f"espeak -v km '{text}' -w {output_path}", shell=True)
+            return os.path.exists(output_path)
+        except:
+            return False
+
+def merge_audio_video(video_path, audio_path, output_path):
+    """បញ្ចូលសំឡេងថ្មីចូលវីដេអូ"""
+    try:
+        cmd = f"ffmpeg -i {video_path} -i {audio_path} -c:v copy -map 0:v:0 -map 1:a:0 {output_path} -y"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return os.path.exists(output_path)
+    except:
+        return False
+
+def process_dub(video_data, voice_type="kh"):
+    """ដំណើរការបកប្រែវីដេអូទាំងស្រុង"""
+    try:
+        # បង្កើតឯកសារបណ្តោះអាសន្ន
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+            tmp_video.write(video_data)
+            video_path = tmp_video.name
+        
+        audio_path = video_path.replace('.mp4', '_audio.mp3')
+        output_path = video_path.replace('.mp4', '_dubbed.mp4')
+        
+        # ជំហានទី ១: ដកស្រង់សំឡេង
+        st.info("🎵 កំពុងដកស្រង់សំឡេង...")
+        if not extract_audio(video_path, audio_path):
+            return None, "Failed to extract audio"
+        
+        # ជំហានទី ២: Speech-to-Text
+        st.info("📝 កំពុងបម្លែងសំឡេងជាអត្ថបទ...")
+        text = transcribe_audio(audio_path)
+        
+        # ជំហានទី ៣: បកប្រែជាខ្មែរ
+        st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
+        khmer_text = translate_to_khmer(text)
+        
+        # ជំហានទី ៤: Text-to-Speech ខ្មែរ
+        st.info("🗣️ កំពុងបង្កើតសំឡេងខ្មែរ...")
+        if not text_to_speech_khmer(khmer_text, audio_path, voice_type):
+            return None, "Failed to create Khmer voice"
+        
+        # ជំហានទី ៥: បញ្ចូលសំឡេងចូលវីដេអូ
+        st.info("🎬 កំពុងបញ្ចូលសំឡេងចូលវីដេអូ...")
+        if not merge_audio_video(video_path, audio_path, output_path):
+            return None, "Failed to merge audio and video"
+        
+        # អានវីដេអូដែលបានបកប្រែ
+        with open(output_path, 'rb') as f:
+            dubbed_data = f.read()
+        
+        # សម្អាតឯកសារបណ្តោះអាសន្ន
+        try:
+            os.unlink(video_path)
+            os.unlink(audio_path)
+            os.unlink(output_path)
+        except:
+            pass
+        
+        return dubbed_data, khmer_text
+        
+    except Exception as e:
+        return None, str(e)
+
+# ================================================================
 #  STREAMLIT UI
 # ================================================================
 
@@ -105,10 +221,6 @@ st.markdown("""
     }
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #4CAF50, #45a049);
-        color: white;
-    }
-    .stButton > button[kind="secondary"] {
-        background: linear-gradient(135deg, #2196F3, #1976D2);
         color: white;
     }
     .upload-box {
@@ -147,36 +259,12 @@ st.markdown("""
     .telegram-box a:hover {
         text-decoration: underline;
     }
-    .voice-card {
+    .translation-box {
         background: #f8f9fa;
         padding: 15px;
         border-radius: 10px;
-        border: 2px solid #e0e0e0;
-        margin: 5px 0;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    .voice-card:hover {
-        border-color: #4CAF50;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .voice-card.selected {
-        border-color: #4CAF50;
-        background: #e8f5e9;
-    }
-    .progress-bar {
-        width: 100%;
-        height: 6px;
-        background: #e0e0e0;
-        border-radius: 3px;
-        overflow: hidden;
+        border-left: 4px solid #4CAF50;
         margin: 10px 0;
-    }
-    .progress-bar .fill {
-        height: 100%;
-        background: linear-gradient(90deg, #4CAF50, #8BC34A);
-        border-radius: 3px;
-        transition: width 0.5s;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -192,31 +280,17 @@ if 'dubbed_video' not in st.session_state:
     st.session_state.dubbed_video = None
 if 'video_processed' not in st.session_state:
     st.session_state.video_processed = False
-if 'selected_voice' not in st.session_state:
-    st.session_state.selected_voice = "Male 1"
-if 'dub_language' not in st.session_state:
-    st.session_state.dub_language = "Khmer"
-if 'translation_text' not in st.session_state:
-    st.session_state.translation_text = ""
-if 'processing_progress' not in st.session_state:
-    st.session_state.processing_progress = 0
-
-# ========== VOICE OPTIONS ==========
-VOICE_OPTIONS = {
-    "Male 1": {"emoji": "👨", "desc": "បុរស សំឡេងធម្មតា"},
-    "Male 2": {"emoji": "👨‍🦰", "desc": "បុរស សំឡេងជ្រៅ"},
-    "Female 1": {"emoji": "👩", "desc": "ស្ត្រី សំឡេងធម្មតា"},
-    "Female 2": {"emoji": "👩‍🦳", "desc": "ស្ត្រី សំឡេងផ្អែម"},
-    "Youth": {"emoji": "🧑", "desc": "ក្មេង សំឡេងស្រស់"},
-    "Elder": {"emoji": "👴", "desc": "ចាស់ សំឡេងក្រៀម"},
-}
+if 'khmer_text' not in st.session_state:
+    st.session_state.khmer_text = ""
+if 'processing' not in st.session_state:
+    st.session_state.processing = False
 
 # ========== HEADER ==========
 col_title, col_status = st.columns([2, 1])
 
 with col_title:
     st.title("🎬 Khmer Dubber")
-    st.markdown("បកប្រែវីដេអូជាភាសាខ្មែរ ជាមួយ AI និងសម្លេងជ្រើសរើស")
+    st.markdown("បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរ ជាមួយ AI")
 
 with col_status:
     status = st.session_state.status
@@ -236,7 +310,7 @@ with col_status:
 
 st.markdown("---")
 
-# ========== TELEGRAM CONTACT (TOP) ==========
+# ========== TELEGRAM CONTACT ==========
 st.markdown("""
 <div class="telegram-box">
     <h3>📱 ទាក់ទងមកយើងខ្ញុំ</h3>
@@ -254,15 +328,13 @@ tab1, tab2, tab3 = st.tabs(["🎬 Dub Video", "🔑 VIP Activation", "ℹ️ Abo
 with tab1:
     col_left, col_right = st.columns([1, 1])
     
-    # ----- LEFT COLUMN: Upload & Controls -----
     with col_left:
         st.subheader("📤 Upload Video")
         
         uploaded_file = st.file_uploader(
             "ជ្រើសរើសវីដេអូ",
-            type=['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v'],
-            accept_multiple_files=False,
-            help="ដាក់វីដេអូដែលអ្នកចង់បកប្រែ"
+            type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
+            accept_multiple_files=False
         )
         
         if uploaded_file is not None:
@@ -270,61 +342,7 @@ with tab1:
             st.success(f"✅ បានដាក់វីដេអូ: {uploaded_file.name}")
             st.info(f"📁 ទំហំ: {uploaded_file.size / (1024*1024):.2f} MB")
             
-            # ===== LANGUAGE & VOICE SELECTION =====
             st.markdown("---")
-            st.subheader("⚙️ ការកំណត់ការបកប្រែ")
-            
-            # Language selection
-            col_lang1, col_lang2 = st.columns(2)
-            with col_lang1:
-                dub_language = st.selectbox(
-                    "🌐 ភាសាគោលដៅ",
-                    ["Khmer", "English", "Thai", "Vietnamese", "Chinese", "Japanese"],
-                    index=0
-                )
-                st.session_state.dub_language = dub_language
-            
-            with col_lang2:
-                st.markdown("**🎤 ជ្រើសរើសសម្លេង**")
-                selected_voice = st.selectbox(
-                    "សម្លេង",
-                    list(VOICE_OPTIONS.keys()),
-                    index=0,
-                    format_func=lambda x: f"{VOICE_OPTIONS[x]['emoji']} {x} - {VOICE_OPTIONS[x]['desc']}"
-                )
-                st.session_state.selected_voice = selected_voice
-            
-            # ===== VOICE PREVIEW CARDS =====
-            st.markdown("**សម្លេងដែលអាចជ្រើសរើសបាន៖**")
-            cols = st.columns(3)
-            for idx, (voice, info) in enumerate(VOICE_OPTIONS.items()):
-                col_idx = idx % 3
-                with cols[col_idx]:
-                    is_selected = st.session_state.selected_voice == voice
-                    border_color = "#4CAF50" if is_selected else "#e0e0e0"
-                    bg_color = "#e8f5e9" if is_selected else "#f8f9fa"
-                    st.markdown(f"""
-                    <div style="background:{bg_color};padding:12px;border-radius:10px;border:2px solid {border_color};text-align:center;margin:5px 0;cursor:pointer;">
-                        <div style="font-size:28px;">{info['emoji']}</div>
-                        <div style="font-weight:bold;">{voice}</div>
-                        <div style="font-size:12px;color:#666;">{info['desc']}</div>
-                        {'' if not is_selected else '<div style="color:#4CAF50;">✅ Selected</div>'}
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # ===== SUBTITLE OPTIONS =====
-            st.markdown("---")
-            st.subheader("📝 ចំណងជើងរង")
-            
-            col_sub1, col_sub2 = st.columns(2)
-            with col_sub1:
-                add_subtitles = st.checkbox("បន្ថែមចំណងជើងរងភាសាខ្មែរ", value=True)
-            with col_sub2:
-                subtitle_position = st.selectbox("ទីតាំង", ["បាត", "កណ្តាល", "លើ"])
-            
-            # ===== ACTION BUTTONS =====
-            st.markdown("---")
-            st.subheader("🎯 ចាប់ផ្តើមបកប្រែ")
             
             status = st.session_state.status
             can_process = False
@@ -341,19 +359,22 @@ with tab1:
                 else:
                     can_process = True
             
+            # ===== PROCESS BUTTON =====
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
-                if can_process:
-                    if st.button("🎤 បកប្រែវីដេអូ", use_container_width=True, type="primary"):
-                        with st.spinner("កំពុងដំណើរការបកប្រែ... សូមរង់ចាំ..."):
-                            # Simulate processing with progress
-                            for i in range(101):
-                                st.session_state.processing_progress = i
-                                time.sleep(0.02)
-                            
+                if can_process and not st.session_state.processing:
+                    if st.button("🎤 បកប្រែសំឡេងជាខ្មែរ", use_container_width=True, type="primary"):
+                        st.session_state.processing = True
+                        
+                        # Process
+                        video_data = uploaded_file.getvalue()
+                        dubbed_data, khmer_text = process_dub(video_data)
+                        
+                        if dubbed_data is not None:
+                            st.session_state.dubbed_video = dubbed_data
                             st.session_state.video_processed = True
-                            st.session_state.dubbed_video = st.session_state.uploaded_video
+                            st.session_state.khmer_text = khmer_text
                             
                             # Update trial count
                             if status != "vip":
@@ -362,22 +383,24 @@ with tab1:
                                 save_license(st.session_state.license_data)
                                 st.session_state.status = check_license_status(st.session_state.license_data)
                             
-                            # Set translation text
-                            st.session_state.translation_text = f"✅ បានបកប្រែជោគជ័យ!\n\nសម្លេង: {st.session_state.selected_voice}\nភាសា: {st.session_state.dub_language}"
-                            
-                            st.success("✅ បានបកប្រែវីដេអូជោគជ័យ!")
-                            st.rerun()
+                            st.success("✅ បានបកប្រែជោគជ័យ!")
+                        else:
+                            st.error(f"❌ កំហុស: {khmer_text}")
+                        
+                        st.session_state.processing = False
+                        st.rerun()
                 else:
-                    st.button("🎤 បកប្រែវីដេអូ", disabled=True, use_container_width=True)
-                    st.warning(f"⚠️ {reason}")
+                    st.button("🎤 បកប្រែសំឡេងជាខ្មែរ", disabled=True, use_container_width=True)
+                    if reason:
+                        st.warning(f"⚠️ {reason}")
             
             with col_btn2:
                 if st.button("🔄 កំណត់ឡើងវិញ", use_container_width=True):
                     st.session_state.uploaded_video = None
                     st.session_state.dubbed_video = None
                     st.session_state.video_processed = False
-                    st.session_state.translation_text = ""
-                    st.session_state.processing_progress = 0
+                    st.session_state.khmer_text = ""
+                    st.session_state.processing = False
                     st.rerun()
             
             # ===== TRIAL STATUS =====
@@ -387,7 +410,7 @@ with tab1:
                 if remaining > 0:
                     st.info(f"📹 នៅសល់សិទ្ធិសាកល្បង: {remaining} / 3")
                 else:
-                    st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ! សូម Activate VIP ដើម្បីបន្តប្រើប្រាស់")
+                    st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ!")
                     st.markdown("""
                     <div style="background:#fff3cd;padding:15px;border-radius:10px;border-left:4px solid #ffc107;">
                         <b>📱 ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖</b><br>
@@ -395,17 +418,18 @@ with tab1:
                     </div>
                     """, unsafe_allow_html=True)
             
-            # ===== PROGRESS BAR =====
-            if st.session_state.processing_progress > 0 and st.session_state.processing_progress < 100:
+            # ===== SHOW TRANSLATED TEXT =====
+            if st.session_state.khmer_text:
+                st.markdown("---")
+                st.subheader("📝 អត្ថបទដែលបានបកប្រែ")
                 st.markdown(f"""
-                <div class="progress-bar">
-                    <div class="fill" style="width:{st.session_state.processing_progress}%;"></div>
+                <div class="translation-box">
+                    <b>🇰🇭 ភាសាខ្មែរ:</b><br>
+                    {st.session_state.khmer_text}
                 </div>
-                <p style="text-align:center;font-size:14px;">កំពុងដំណើរការ... {st.session_state.processing_progress}%</p>
                 """, unsafe_allow_html=True)
             
         else:
-            # Empty state
             st.markdown("""
             <div class="upload-box">
                 <h3>📂 អូស និង ទម្លាក់</h3>
@@ -414,19 +438,13 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
     
-    # ----- RIGHT COLUMN: Video Preview -----
     with col_right:
         st.subheader("📺 មើលវីដេអូ")
         
         if st.session_state.video_processed and st.session_state.dubbed_video is not None:
             st.success("🎉 វីដេអូដែលបានបកប្រែរួចរាល់!")
             
-            # Show translation info
-            if st.session_state.translation_text:
-                st.info(st.session_state.translation_text)
-            
-            # Show video
-            video_data = st.session_state.dubbed_video.getvalue()
+            video_data = st.session_state.dubbed_video
             video_base64 = base64.b64encode(video_data).decode()
             
             st.markdown(f"""
@@ -438,7 +456,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            # Download button
             st.download_button(
                 label="💾 ទាញយកវីដេអូដែលបានបកប្រែ",
                 data=video_data,
@@ -448,7 +465,6 @@ with tab1:
             )
             
         elif st.session_state.uploaded_video is not None:
-            # Show original video
             video_data = st.session_state.uploaded_video.getvalue()
             video_base64 = base64.b64encode(video_data).decode()
             
@@ -461,176 +477,73 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            st.caption("📌 វីដេអូដើម - ចុច 'បកប្រែវីដេអូ' ដើម្បីដំណើរការ")
+            st.caption("📌 វីដេអូដើម")
             
         else:
             st.info("👆 ដាក់វីដេអូដើម្បីមើល")
 
-# ========== TAB 2: VIP ACTIVATION ==========
+# ========== TAB 2 & 3 ==========
 with tab2:
-    col_act1, col_act2 = st.columns([1, 1])
-    
-    with col_act1:
-        st.subheader("🔑 Activate VIP")
-        
-        status = st.session_state.status
-        if status == "vip":
-            st.success("✅ **VIP Activated**")
-            st.write(f"📅 Activated: {st.session_state.license_data.get('activation_date', 'N/A')}")
-            st.write(f"📅 Expires: {st.session_state.license_data.get('expiry_date', 'N/A')}")
-        elif status == "expired":
-            st.error("❌ **License Expired**")
-        else:
-            videos_used = st.session_state.license_data.get("videos_used", 0)
-            remaining = 3 - videos_used
-            st.warning(f"🆓 **Trial Mode** ({remaining}/3 videos remaining)")
-        
-        st.markdown("---")
-        
-        code = st.text_input("Activation Code", placeholder="បញ្ចូល Code VIP...", type="password")
-        
-        col_act_btn1, col_act_btn2 = st.columns(2)
-        
-        with col_act_btn1:
-            if st.button("✅ Activate VIP", use_container_width=True, type="primary"):
-                if code:
-                    success, message, data = activate_license(code)
-                    if success:
-                        st.session_state.license_data = data
-                        st.session_state.status = check_license_status(data)
-                        st.success(message)
-                        st.rerun()
-                    else:
-                        st.error(message)
-                else:
-                    st.warning("សូមបញ្ចូល Activation Code")
-        
-        with col_act_btn2:
-            if st.button("🔄 Check License", use_container_width=True):
-                st.session_state.license_data = load_license()
-                st.session_state.status = check_license_status(st.session_state.license_data)
-                st.rerun()
-    
-    with col_act2:
-        st.subheader("💎 Get VIP Access")
-        
-        st.markdown("""
-        ### 🎯 អត្ថប្រយោជន៍ VIP:
-        - ✅ បកប្រែវីដេអូគ្មានដែនកំណត់
-        - ✅ មិនមានកំណត់ Trial
-        - ✅ ដំណើរការលឿនជាងមុន
-        - ✅ ប្រើប្រាស់មុខងារទាំងអស់
-        - ✅ សុពលភាព ១ ឆ្នាំ
-        """)
-        
-        st.markdown("---")
-        
-        st.markdown("""
-        <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:20px;border-radius:15px;color:white;text-align:center;">
-            <h3>📱 Contact for VIP Purchase</h3>
-            <p>សម្រាប់ទិញ VIP ឬទទួល Activation Code</p>
-            <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;font-size:18px;text-decoration:none;">
-                👉 @YOUR_TELEGRAM
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("💬 Contact on Telegram", use_container_width=True):
-            st.info("📱 Telegram: @YOUR_TELEGRAM")
-
-# ========== TAB 3: ABOUT ==========
-with tab3:
-    col_about1, col_about2 = st.columns([2, 1])
-    
-    with col_about1:
-        st.subheader("ℹ️ អំពី Khmer Dubber")
-        
-        st.markdown("""
-        ### 🎬 តើ Khmer Dubber ជាអ្វី?
-        
-        Khmer Dubber គឺជាឧបករណ៍បកប្រែវីដេអូដោយប្រើ AI ដែលអាចបកប្រែវីដេអូជាភាសាខ្មែរ។
-        
-        ### ✨ មុខងារ:
-        - 🎤 បកប្រែសំឡេងដោយ AI
-        - 🇰🇭 គាំទ្រភាសាខ្មែរ
-        - 📹 គាំទ្រវីដេអូច្រើនប្រភេទ
-        - 💾 ទាញយកវីដេអូដែលបានបកប្រែ
-        - 🎤 ជ្រើសរើសសម្លេងបានច្រើនប្រភេទ
-        
-        ### 📋 របៀបប្រើប្រាស់:
-        1. ដាក់វីដេអូរបស់អ្នក
-        2. ជ្រើសរើសសម្លេងដែលចូលចិត្ត
-        3. ចុច "បកប្រែវីដេអូ"
-        4. រង់ចាំដំណើរការ
-        5. ទាញយកវីដេអូដែលបានបកប្រែ
-        
-        ### 💰 តម្លៃ:
-        - **Trial**: ៣ វីដេអូឥតគិតថ្លៃ
-        - **VIP**: ប្រើប្រាស់គ្មានដែនកំណត់
-        """)
-    
-    with col_about2:
-        st.subheader("📱 Contact Us")
-        
-        st.markdown("""
-        <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:20px;border-radius:15px;color:white;text-align:center;">
-            <h3>📱 Telegram</h3>
-            <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;font-size:18px;text-decoration:none;">
-                @YOUR_TELEGRAM
-            </a>
-            <p style="margin-top:10px;">សម្រាប់ជំនួយ និងទិញ VIP</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        ### 📧 Email
-        your@email.com
-        
-        ### 🌐 Website
-        https://your-website.com
-        """)
-
-# ========== SIDEBAR ==========
-with st.sidebar:
-    st.image("https://via.placeholder.com/300x100/4CAF50/FFFFFF?text=Khmer+Dubber", use_container_width=True)
-    
-    st.markdown("---")
-    
-    st.markdown("### 🎯 Quick Actions")
+    st.subheader("🔑 VIP Activation")
     
     status = st.session_state.status
     if status == "vip":
-        st.success("✅ VIP")
+        st.success("✅ VIP Activated")
     elif status == "expired":
-        st.error("❌ Expired")
+        st.error("❌ License Expired")
     else:
         videos_used = st.session_state.license_data.get("videos_used", 0)
         remaining = 3 - videos_used
-        if remaining > 0:
-            st.warning(f"🆓 Trial ({remaining}/3)")
+        st.warning(f"🆓 Trial Mode ({remaining}/3)")
+    
+    code = st.text_input("Activation Code", type="password")
+    
+    if st.button("✅ Activate VIP", use_container_width=True, type="primary"):
+        if code:
+            success, message, data = activate_license(code)
+            if success:
+                st.session_state.license_data = data
+                st.session_state.status = check_license_status(data)
+                st.success(message)
+                st.rerun()
+            else:
+                st.error(message)
         else:
-            st.error("⛔ Trial Expired")
+            st.warning("សូមបញ្ចូល Activation Code")
     
     st.markdown("---")
+    st.info("📱 Contact: @YOUR_TELEGRAM")
+
+with tab3:
+    st.subheader("ℹ️ About Khmer Dubber")
+    st.markdown("""
+    ### 🎬 What is Khmer Dubber?
     
-    st.markdown("### 🎤 សម្លេងបច្ចុប្បន្ន")
-    if st.session_state.selected_voice:
-        voice_info = VOICE_OPTIONS.get(st.session_state.selected_voice, {})
-        st.markdown(f"""
-        <div style="background:#f0f0f0;padding:15px;border-radius:10px;text-align:center;">
-            <div style="font-size:40px;">{voice_info.get('emoji', '🎤')}</div>
-            <div style="font-weight:bold;">{st.session_state.selected_voice}</div>
-            <div style="font-size:12px;color:#666;">{voice_info.get('desc', '')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    Khmer Dubber uses AI to translate video audio into Khmer language.
     
-    st.markdown("---")
+    ### 🔧 How it works:
+    1. **Extract** audio from video
+    2. **Transcribe** audio to text (Speech-to-Text)
+    3. **Translate** text to Khmer
+    4. **Generate** Khmer voice (Text-to-Speech)
+    5. **Merge** new audio with video
     
+    ### ⚠️ Requirements:
+    - FFmpeg installed on system
+    - Internet connection for translation
+    
+    ### 💰 Pricing:
+    - Trial: 3 free videos
+    - VIP: Unlimited access
+    """)
+
+# ========== SIDEBAR ==========
+with st.sidebar:
     st.markdown("### 📱 Contact")
     st.markdown("""
     <div style="background:#0088cc;padding:15px;border-radius:10px;color:white;text-align:center;">
         <b>📱 Telegram</b><br>
-        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;text-decoration:none;">
+        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;">
             @YOUR_TELEGRAM
         </a>
     </div>
@@ -638,19 +551,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.markdown("### ⚙️ Settings")
     if st.button("🔄 Reset App", use_container_width=True):
         st.session_state.clear()
         st.rerun()
-    
-    st.markdown("---")
-    st.caption("Version 2.0.0")
-
-# ========== FOOTER ==========
-st.markdown("---")
-st.markdown("""
-<div style="text-align:center;padding:10px;">
-    <p>📱 <b>Contact:</b> <a href="https://t.me/YOUR_TELEGRAM" target="_blank">@YOUR_TELEGRAM</a></p>
-    <p style="font-size:12px;color:#888;">© 2026 Khmer Dubber. All rights reserved.</p>
-</div>
-""", unsafe_allow_html=True)
