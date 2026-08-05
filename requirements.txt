@@ -2,3 +2,4 @@ streamlit>=1.35.0
 edge-tts
 moviepy==1.0.3
 deep-translator
+SpeechRecognition
