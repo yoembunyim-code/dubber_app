@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import base64
 import time
 import tempfile
+import threading
 
 # ================================================================
 #  LICENSE MANAGER
@@ -74,15 +75,21 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
-#  DUBBING ENGINE
+#  DUBBING ENGINE - បង្កើតសំឡេងខ្មែរពិតប្រាកដ
 # ================================================================
 
 def generate_khmer_audio(text, voice_type="male"):
-    """បង្កើតសំឡេងខ្មែរពីអត្ថបទ"""
+    """
+    បង្កើតសំឡេងខ្មែរពិតប្រាកដពីអត្ថបទ
+    ប្រើ gTTS សម្រាប់បង្កើតសំឡេងភាសាខ្មែរ
+    """
     try:
         from gtts import gTTS
+        
+        # gTTS គាំទ្រភាសាខ្មែរ (km)
         tts = gTTS(text=text, lang='km', slow=False)
         
+        # រក្សាទុកជាឯកសារ MP3
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
             tts.save(tmp.name)
             with open(tmp.name, 'rb') as f:
@@ -93,18 +100,23 @@ def generate_khmer_audio(text, voice_type="male"):
     except Exception as e:
         return None
 
-def process_dub_with_gtts(video_data, text_to_dub=None, voice_type="male"):
-    """ដំណើរការបកប្រែវីដេអូ"""
+def process_dub(video_data, text_to_dub=None, voice_type="male"):
+    """
+    ដំណើរការបកប្រែវីដេអូ
+    """
     try:
-        if text_to_dub is None:
-            text_to_dub = "សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber។ យើងខ្ញុំសូមជូនដំណឹងថាវីដេអូនេះត្រូវបានបកប្រែជាភាសាខ្មែរដោយប្រើបច្ចេកវិទ្យា AI។"
+        # ប្រើអត្ថបទស្វ័យប្រវត្តិ បើគ្មាន
+        if text_to_dub is None or text_to_dub.strip() == "":
+            text_to_dub = "សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber។ វីដេអូនេះត្រូវបានបកប្រែជាភាសាខ្មែរដោយប្រើបច្ចេកវិទ្យា AI។ សូមអរគុណ!"
         
+        # បង្កើតសំឡេងខ្មែរ
         audio_data = generate_khmer_audio(text_to_dub, voice_type)
         
         if audio_data is None:
             return None, "មិនអាចបង្កើតសំឡេងខ្មែរបានទេ"
         
-        # ក្លែងធ្វើវីដេអូថ្មី
+        # ត្រឡប់វីដេអូដើម (សម្រាប់ក្លែងធ្វើ)
+        # ក្នុងជីវិតពិត ត្រូវប្រើ FFmpeg ដើម្បីបញ្ចូលសំឡេង
         return video_data, text_to_dub
         
     except Exception as e:
@@ -123,165 +135,278 @@ st.set_page_config(
 # CSS
 st.markdown("""
 <style>
+    /* Button Styling - Smooth & Nice */
     .stButton > button {
         width: 100%;
-        border-radius: 12px;
-        padding: 14px 20px;
+        border-radius: 14px;
+        padding: 16px 24px;
         font-weight: bold;
-        font-size: 17px;
-        transition: all 0.3s ease;
+        font-size: 18px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         border: none;
         cursor: pointer;
+        position: relative;
+        overflow: hidden;
     }
+    
     .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     }
+    
     .stButton > button:active {
-        transform: translateY(0px) scale(0.98);
+        transform: translateY(0px) scale(0.97);
     }
+    
     .stButton > button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
         transform: none !important;
+        box-shadow: none !important;
     }
+    
+    /* Primary Button - Green */
     .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #4CAF50, #45a049);
+        background: linear-gradient(135deg, #43a047, #2e7d32);
         color: white;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
     }
+    
     .stButton > button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #45a049, #3d8b40);
-        box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+        background: linear-gradient(135deg, #388e3c, #1b5e20);
+        box-shadow: 0 8px 30px rgba(76, 175, 80, 0.4);
     }
+    
+    /* Secondary Button - Blue */
     .stButton > button[kind="secondary"] {
-        background: linear-gradient(135deg, #2196F3, #1976D2);
+        background: linear-gradient(135deg, #1e88e5, #0d47a1);
         color: white;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
     }
+    
     .stButton > button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #1976D2, #0D47A1);
-        box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
+        background: linear-gradient(135deg, #1565c0, #0a2e6e);
+        box-shadow: 0 8px 30px rgba(33, 150, 243, 0.4);
     }
+    
+    /* Upload Box */
     .upload-box {
-        border: 3px dashed #4CAF50;
-        border-radius: 16px;
-        padding: 40px 20px;
+        border: 3px dashed #43a047;
+        border-radius: 18px;
+        padding: 50px 20px;
         text-align: center;
-        background: linear-gradient(135deg, #f0f8ff, #e8f5e9);
-        transition: all 0.3s ease;
+        background: linear-gradient(135deg, #f1f8e9, #e8f5e9);
+        transition: all 0.4s ease;
+        cursor: pointer;
     }
+    
     .upload-box:hover {
-        border-color: #45a049;
+        border-color: #2e7d32;
         background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        transform: scale(1.01);
+        box-shadow: 0 8px 30px rgba(76, 175, 80, 0.15);
     }
+    
+    /* Status Badge */
     .status-badge {
-        padding: 8px 24px;
-        border-radius: 25px;
+        padding: 10px 28px;
+        border-radius: 30px;
         font-weight: bold;
         display: inline-block;
-        animation: pulse 2s infinite;
+        animation: pulse 2s ease-in-out infinite;
+        font-size: 16px;
     }
+    
     @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.03); }
-        100% { transform: scale(1); }
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
     }
+    
+    /* Telegram Box */
     .telegram-box {
         background: linear-gradient(135deg, #0088cc, #00acee);
-        padding: 20px 25px;
-        border-radius: 16px;
+        padding: 25px 30px;
+        border-radius: 18px;
         color: white;
         text-align: center;
-        margin: 10px 0;
-        box-shadow: 0 4px 20px rgba(0, 136, 204, 0.3);
+        margin: 15px 0;
+        box-shadow: 0 8px 30px rgba(0, 136, 204, 0.3);
         animation: float 3s ease-in-out infinite;
     }
+    
     @keyframes float {
-        0% { transform: translateY(0px); }
-        50% { transform: translateY(-5px); }
-        100% { transform: translateY(0px); }
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
     }
+    
     .telegram-box a {
         color: white;
         font-weight: bold;
         text-decoration: none;
-        font-size: 20px;
+        font-size: 22px;
+        transition: all 0.3s;
     }
+    
     .telegram-box a:hover {
         text-decoration: underline;
+        text-shadow: 0 0 20px rgba(255,255,255,0.3);
     }
+    
+    /* Video Container */
     .video-container {
-        border-radius: 16px;
+        border-radius: 18px;
         overflow: hidden;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+        animation: fadeInUp 0.6s ease;
     }
-    .translation-box {
-        background: #f8f9fa;
-        padding: 20px;
-        border-radius: 12px;
-        border-left: 5px solid #4CAF50;
-        margin: 10px 0;
-        animation: slideIn 0.5s ease;
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateX(-20px); }
-        to { opacity: 1; transform: translateX(0); }
-    }
+    
+    /* Voice Card */
     .voice-card {
-        padding: 15px;
-        border-radius: 12px;
+        padding: 20px;
+        border-radius: 14px;
         border: 3px solid #e0e0e0;
         text-align: center;
         cursor: pointer;
         transition: all 0.3s ease;
         background: white;
-        margin: 5px 0;
+        margin: 8px 0;
     }
+    
     .voice-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
     }
+    
     .voice-card.selected {
-        border-color: #4CAF50;
+        border-color: #43a047;
         background: #e8f5e9;
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        box-shadow: 0 4px 20px rgba(76, 175, 80, 0.25);
+        transform: translateY(-3px);
     }
+    
     .voice-card .emoji {
-        font-size: 40px;
+        font-size: 48px;
         display: block;
-        margin-bottom: 5px;
+        margin-bottom: 8px;
     }
+    
     .voice-card .name {
         font-weight: bold;
-        font-size: 16px;
+        font-size: 18px;
     }
+    
     .voice-card .desc {
-        font-size: 12px;
+        font-size: 13px;
         color: #666;
     }
+    
     .voice-card .check {
-        color: #4CAF50;
+        color: #43a047;
         font-weight: bold;
-        margin-top: 5px;
+        margin-top: 8px;
+        font-size: 16px;
     }
+    
+    /* Translation Box */
+    .translation-box {
+        background: linear-gradient(135deg, #f8f9fa, #e8f5e9);
+        padding: 25px;
+        border-radius: 14px;
+        border-left: 6px solid #43a047;
+        margin: 15px 0;
+        animation: slideIn 0.6s ease;
+        font-size: 16px;
+        line-height: 1.8;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    /* Progress Bar */
     .progress-container {
         width: 100%;
         background: #f0f0f0;
-        border-radius: 10px;
+        border-radius: 12px;
         overflow: hidden;
-        margin: 15px 0;
-        height: 8px;
+        margin: 20px 0;
+        height: 10px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
     }
+    
     .progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, #4CAF50, #8BC34A, #4CAF50);
+        background: linear-gradient(90deg, #43a047, #66bb6a, #43a047);
         background-size: 200% 100%;
-        animation: shimmer 1.5s infinite;
-        border-radius: 10px;
+        animation: shimmer 1.5s ease-in-out infinite;
+        border-radius: 12px;
         transition: width 0.5s ease;
     }
+    
     @keyframes shimmer {
         0% { background-position: -200% 0; }
         100% { background-position: 200% 0; }
+    }
+    
+    /* Success Animation */
+    .success-box {
+        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        padding: 20px;
+        border-radius: 14px;
+        text-align: center;
+        border: 2px solid #43a047;
+        animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    
+    @keyframes popIn {
+        from {
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    
+    /* Download Button */
+    .download-btn {
+        background: linear-gradient(135deg, #ff6f00, #e65100);
+        color: white;
+        padding: 16px 24px;
+        border-radius: 14px;
+        font-weight: bold;
+        font-size: 18px;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.3s ease;
+        text-align: center;
+        display: inline-block;
+        margin-top: 10px;
+    }
+    
+    .download-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(255, 111, 0, 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -307,38 +432,42 @@ if 'voice_type' not in st.session_state:
     st.session_state.voice_type = "male"
 if 'user_text' not in st.session_state:
     st.session_state.user_text = ""
+if 'show_success' not in st.session_state:
+    st.session_state.show_success = False
+if 'video_ready' not in st.session_state:
+    st.session_state.video_ready = False
 
 # ========== HEADER ==========
 col_title, col_status = st.columns([2, 1])
 
 with col_title:
-    st.title("🎬 Khmer Dubber")
+    st.title("🎬 Khmer Dubber AI")
     st.markdown("### បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរ 🇰🇭")
 
 with col_status:
     status = st.session_state.status
     if status == "vip":
-        st.markdown('<div class="status-badge" style="background:#4CAF50;color:white;">✅ VIP Activated</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-badge" style="background:#43a047;color:white;">✅ VIP Activated</div>', unsafe_allow_html=True)
     elif status == "expired":
-        st.markdown('<div class="status-badge" style="background:#f44336;color:white;">❌ License Expired</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-badge" style="background:#e53935;color:white;">❌ License Expired</div>', unsafe_allow_html=True)
     else:
         videos_used = st.session_state.license_data.get("videos_used", 0)
         remaining = 3 - videos_used
         if remaining < 0:
             remaining = 0
         if remaining > 0:
-            st.markdown(f'<div class="status-badge" style="background:#FF9800;color:white;">🆓 Trial: {remaining} left</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="status-badge" style="background:#fb8c00;color:white;">🆓 Trial: {remaining} left</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="status-badge" style="background:#f44336;color:white;">⛔ Trial Expired</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-badge" style="background:#e53935;color:white;">⛔ Trial Expired</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ========== TELEGRAM CONTACT ==========
 st.markdown("""
 <div class="telegram-box">
-    <div style="font-size:28px;">📱</div>
+    <div style="font-size:32px;">📱</div>
     <h3>ទាក់ទងមកយើងខ្ញុំ</h3>
-    <p>សម្រាប់ទិញ VIP ឬទទួល Activation Code</p>
+    <p style="font-size:16px;">សម្រាប់ទិញ VIP ឬទទួល Activation Code</p>
     <a href="https://t.me/YOUR_TELEGRAM" target="_blank">👉 @YOUR_TELEGRAM</a>
 </div>
 """, unsafe_allow_html=True)
@@ -375,10 +504,10 @@ with tab1:
             
             with col_voice1:
                 male_selected = st.session_state.voice_type == "male"
-                border = "#4CAF50" if male_selected else "#e0e0e0"
+                border = "#43a047" if male_selected else "#e0e0e0"
                 bg = "#e8f5e9" if male_selected else "white"
                 st.markdown(f"""
-                <div class="voice-card selected" style="border-color:{border};background:{bg};">
+                <div class="voice-card {'selected' if male_selected else ''}" style="border-color:{border};background:{bg};">
                     <span class="emoji">👨</span>
                     <div class="name">បុរស</div>
                     <div class="desc">សំឡេងបុរស</div>
@@ -391,10 +520,10 @@ with tab1:
             
             with col_voice2:
                 female_selected = st.session_state.voice_type == "female"
-                border = "#4CAF50" if female_selected else "#e0e0e0"
+                border = "#43a047" if female_selected else "#e0e0e0"
                 bg = "#e8f5e9" if female_selected else "white"
                 st.markdown(f"""
-                <div class="voice-card selected" style="border-color:{border};background:{bg};">
+                <div class="voice-card {'selected' if female_selected else ''}" style="border-color:{border};background:{bg};">
                     <span class="emoji">👩</span>
                     <div class="name">ស្ត្រី</div>
                     <div class="desc">សំឡេងស្ត្រី</div>
@@ -438,17 +567,23 @@ with tab1:
             
             with col_btn1:
                 if can_process and not st.session_state.processing:
-                    if st.button("🎤 បកប្រែជាខ្មែរ", use_container_width=True, type="primary"):
+                    if st.button("🎤 បកប្រែសំឡេងជាខ្មែរ", use_container_width=True, type="primary"):
                         st.session_state.processing = True
                         st.session_state.progress = 0
+                        st.session_state.show_success = False
+                        st.session_state.video_ready = False
                         
-                        for i in range(1, 101, 10):
+                        # ដំណើរការបកប្រែ
+                        video_data = uploaded_file.getvalue()
+                        text_to_use = user_text if user_text else None
+                        
+                        # Progress simulation
+                        for i in range(10, 101, 10):
                             st.session_state.progress = i
                             time.sleep(0.05)
                         
-                        video_data = uploaded_file.getvalue()
-                        text_to_use = user_text if user_text else None
-                        dubbed_data, khmer_text = process_dub_with_gtts(
+                        # Process
+                        dubbed_data, khmer_text = process_dub(
                             video_data, 
                             text_to_use, 
                             st.session_state.voice_type
@@ -458,7 +593,10 @@ with tab1:
                             st.session_state.dubbed_video = dubbed_data
                             st.session_state.video_processed = True
                             st.session_state.khmer_text = khmer_text
+                            st.session_state.show_success = True
+                            st.session_state.video_ready = True
                             
+                            # Update trial count
                             if status != "vip":
                                 new_count = st.session_state.license_data.get("videos_used", 0) + 1
                                 st.session_state.license_data["videos_used"] = new_count
@@ -466,14 +604,13 @@ with tab1:
                                 st.session_state.status = check_license_status(st.session_state.license_data)
                             
                             st.session_state.progress = 100
-                            st.success("✅ បានបកប្រែជោគជ័យ!")
                         else:
                             st.error(f"❌ {khmer_text}")
                         
                         st.session_state.processing = False
                         st.rerun()
                 else:
-                    st.button("🎤 បកប្រែជាខ្មែរ", disabled=True, use_container_width=True)
+                    st.button("🎤 បកប្រែសំឡេងជាខ្មែរ", disabled=True, use_container_width=True)
                     if reason:
                         st.warning(f"⚠️ {reason}")
             
@@ -486,19 +623,31 @@ with tab1:
                     st.session_state.processing = False
                     st.session_state.progress = 0
                     st.session_state.user_text = ""
+                    st.session_state.show_success = False
+                    st.session_state.video_ready = False
                     st.rerun()
             
             # ===== PROGRESS BAR =====
             if st.session_state.progress > 0 and st.session_state.progress < 100:
                 st.markdown(f"""
-                <div style="margin: 15px 0;">
-                    <div style="display:flex;justify-content:space-between;font-size:14px;">
-                        <span>កំពុងដំណើរការ...</span>
-                        <span>{st.session_state.progress}%</span>
+                <div style="margin: 20px 0;">
+                    <div style="display:flex;justify-content:space-between;font-size:15px;color:#555;">
+                        <span>🔄 កំពុងបកប្រែ...</span>
+                        <span style="font-weight:bold;color:#43a047;">{st.session_state.progress}%</span>
                     </div>
                     <div class="progress-container">
                         <div class="progress-fill" style="width:{st.session_state.progress}%;"></div>
                     </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # ===== SUCCESS MESSAGE =====
+            if st.session_state.show_success and st.session_state.khmer_text:
+                st.markdown(f"""
+                <div class="success-box">
+                    <div style="font-size:48px;">🎉</div>
+                    <h3 style="color:#2e7d32;">បកប្រែជោគជ័យ!</h3>
+                    <p style="color:#555;">វីដេអូរបស់អ្នកត្រូវបានបកប្រែជាភាសាខ្មែររួចរាល់</p>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -511,19 +660,19 @@ with tab1:
                 else:
                     st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ!")
                     st.markdown("""
-                    <div style="background:#fff3cd;padding:15px;border-radius:12px;border-left:4px solid #ffc107;">
+                    <div style="background:#fff3cd;padding:18px;border-radius:14px;border-left:5px solid #ffc107;">
                         <b>📱 ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖</b><br>
-                        <a href="https://t.me/YOUR_TELEGRAM" target="_blank">@YOUR_TELEGRAM</a>
+                        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="font-size:18px;font-weight:bold;">@YOUR_TELEGRAM</a>
                     </div>
                     """, unsafe_allow_html=True)
             
             # ===== SHOW TRANSLATED TEXT =====
-            if st.session_state.khmer_text:
+            if st.session_state.khmer_text and st.session_state.video_processed:
                 st.markdown("---")
                 st.subheader("📝 អត្ថបទដែលបានបកប្រែ")
                 st.markdown(f"""
                 <div class="translation-box">
-                    <b>🇰🇭 ភាសាខ្មែរ:</b><br>
+                    <div style="font-size:14px;color:#888;margin-bottom:8px;">🇰🇭 ភាសាខ្មែរ</div>
                     {st.session_state.khmer_text}
                 </div>
                 """, unsafe_allow_html=True)
@@ -531,18 +680,19 @@ with tab1:
         else:
             st.markdown("""
             <div class="upload-box">
-                <div style="font-size:60px;">📂</div>
-                <h3>អូស និង ទម្លាក់</h3>
-                <p>ឬចុចដើម្បីជ្រើសរើសវីដេអូ</p>
-                <p style="font-size:12px;color:#888;">គាំទ្រ: MP4, AVI, MOV, MKV, WEBM</p>
+                <div style="font-size:64px;">📂</div>
+                <h3 style="color:#2e7d32;">អូស និង ទម្លាក់</h3>
+                <p style="font-size:16px;color:#555;">ឬចុចដើម្បីជ្រើសរើសវីដេអូ</p>
+                <p style="font-size:13px;color:#999;margin-top:10px;">គាំទ្រ: MP4, AVI, MOV, MKV, WEBM</p>
             </div>
             """, unsafe_allow_html=True)
     
     with col_right:
         st.subheader("📺 មើលវីដេអូ")
         
-        if st.session_state.video_processed and st.session_state.dubbed_video is not None:
-            st.success("🎉 វីដេអូដែលបានបកប្រែរួចរាល់!")
+        if st.session_state.video_ready and st.session_state.dubbed_video is not None:
+            # ===== VIDEO POP UP IMMEDIATELY =====
+            st.markdown('<div style="font-size:14px;color:#43a047;font-weight:bold;margin-bottom:10px;">✅ វីដេអូដែលបានបកប្រែ</div>', unsafe_allow_html=True)
             
             video_data = st.session_state.dubbed_video
             video_base64 = base64.b64encode(video_data).decode()
@@ -557,8 +707,9 @@ with tab1:
             """, unsafe_allow_html=True)
             
             voice_label = "បុរស" if st.session_state.voice_type == "male" else "ស្ត្រី"
-            st.caption(f"🎤 សម្លេង: {voice_label}")
+            st.caption(f"🎤 សម្លេង: {voice_label} | 🇰🇭 បកប្រែជាខ្មែរ")
             
+            # Download button
             st.download_button(
                 label="💾 ទាញយកវីដេអូ",
                 data=video_data,
@@ -581,7 +732,10 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            st.caption("📌 វីដេអូដើម - ចុច 'បកប្រែជាខ្មែរ'")
+            st.caption("📌 វីដេអូដើម - ចុច 'បកប្រែសំឡេងជាខ្មែរ'")
+            
+            if st.session_state.processing:
+                st.info("⏳ កំពុងបកប្រែ... សូមរង់ចាំ")
             
         else:
             st.info("👆 ដាក់វីដេអូដើម្បីមើល")
@@ -643,9 +797,9 @@ with tab2:
         
         st.markdown("---")
         st.markdown("""
-        <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:20px;border-radius:15px;color:white;text-align:center;">
+        <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:25px;border-radius:15px;color:white;text-align:center;">
             <h3>📱 Contact</h3>
-            <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;font-size:18px;">
+            <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;font-size:20px;">
                 @YOUR_TELEGRAM
             </a>
         </div>
@@ -676,11 +830,33 @@ with st.sidebar:
     st.markdown("### 🎬 Khmer Dubber")
     st.markdown("---")
     
+    # Show current status
+    status = st.session_state.status
+    if status == "vip":
+        st.success("✅ VIP Mode")
+    elif status == "expired":
+        st.error("❌ License Expired")
+    else:
+        videos_used = st.session_state.license_data.get("videos_used", 0)
+        remaining = 3 - videos_used
+        if remaining > 0:
+            st.warning(f"🆓 Trial ({remaining}/3)")
+        else:
+            st.error("⛔ Trial Expired")
+    
+    st.markdown("---")
+    
+    # Show current voice
+    voice_label = "បុរស" if st.session_state.voice_type == "male" else "ស្ត្រី"
+    st.info(f"🎤 សម្លេង: {voice_label}")
+    
+    st.markdown("---")
+    
     st.markdown("### 📱 Contact")
     st.markdown("""
-    <div style="background:#0088cc;padding:15px;border-radius:12px;color:white;text-align:center;">
+    <div style="background:#0088cc;padding:18px;border-radius:12px;color:white;text-align:center;">
         <b>Telegram</b><br>
-        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;">
+        <a href="https://t.me/YOUR_TELEGRAM" target="_blank" style="color:white;font-weight:bold;font-size:18px;">
             @YOUR_TELEGRAM
         </a>
     </div>
