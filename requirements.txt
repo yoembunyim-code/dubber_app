@@ -1,4 +1,5 @@
 streamlit
 deep-translator
-edge-tts
+edge-tts==6.1.9
 moviepy==1.0.3
+proglog
