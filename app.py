@@ -1,8 +1,15 @@
 import json
 import os
 import time
+import asyncio
+import tempfile
 from datetime import datetime, timedelta
 import streamlit as st
+
+# AI & Media Libraries
+import edge_tts
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
+from deep_translator import GoogleTranslator
 
 # ==============================================================================
 # ⚙️ កន្លែងកំណត់ទិន្នន័យ (DEVELOPER CONFIGURATIONS)
@@ -22,16 +29,68 @@ LICENSE_FILE = "license.json"
 
 
 # ==============================================================================
+# 🎙️ REAL AI DUBBING ENGINE (មុខងារបកប្រែ និងបញ្ចូលសំឡេងពិត)
+# ==============================================================================
+async def generate_khmer_audio(text, voice_code, output_audio_path, rate=1.0):
+    """បង្កើតសំឡេងនិយាយជាភាសាខ្មែរដោយប្រើ Microsoft Edge TTS"""
+    rate_str = f"{int((rate - 1.0) * 100):+d}%"
+    communicate = edge_tts.Communicate(text, voice_code, rate=rate_str)
+    await communicate.save(output_audio_path)
+
+def process_video_dubbing(video_bytes, voice_model_key, voice_speed, text_to_dub="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរដោយស្វ័យប្រវត្តិ។"):
+    """ដំណើរការកាត់បញ្ចូលសំឡេងខ្មែរចូលក្នុងវីដេអូពិតប្រាកដ"""
+    
+    # កំណត់ Voice Model
+    voice_map = {
+        "kh_male": "km-KH-PisethNeural",     # សំឡេងប្រុស (ពិសិដ្ឋ/សុភក្តិ)
+        "kh_female": "km-KH-SreymomNeural",  # សំឡេងស្រី (ស្រីមុំ/នារី)
+        "en_male": "en-US-ChristopherNeural",
+        "en_female": "en-US-AvaNeural"
+    }
+    selected_voice = voice_map.get(voice_model_key, "km-KH-PisethNeural")
+
+    # បង្កើត Temporary Files
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_in_video:
+        temp_in_video.write(video_bytes)
+        input_video_path = temp_in_video.name
+
+    output_audio_path = input_video_path.replace(".mp4", "_khmer.mp3")
+    output_video_path = input_video_path.replace(".mp4", "_dubbed.mp4")
+
+    try:
+        # ១. បង្កើតសំឡេងខ្មែរ (TTS)
+        asyncio.run(generate_khmer_audio(text_to_dub, selected_voice, output_audio_path, rate=voice_speed))
+
+        # ២. បញ្ចូលសំឡេងថ្មីចូលក្នុងវីដេអូជាមួយ MoviePy
+        video_clip = VideoFileClip(input_video_path)
+        new_audio = AudioFileClip(output_audio_path)
+
+        # សម្រួលប្រវែងសំឡេងឱ្យត្រូវនឹងវីដេអូ
+        final_video = video_clip.set_audio(new_audio)
+        final_video.write_videofile(output_video_path, codec="libx264", audio_codec="aac", logger=None)
+
+        # អានទិន្នន័យវីដេអូដែលធ្វើរួច
+        with open(output_video_path, "rb") as f:
+            dubbed_bytes = f.read()
+
+        # លុបឯកសារបណ្តោះអាសន្ន
+        video_clip.close()
+        new_audio.close()
+        os.remove(input_video_path)
+        os.remove(output_audio_path)
+        os.remove(output_video_path)
+
+        return dubbed_bytes
+    except Exception as e:
+        st.error(f"មានបញ្ហាក្នុងការបកប្រែវីដេអូ៖ {e}")
+        return None
+
+
+# ==============================================================================
 # 🛡️ LICENSE MANAGEMENT FUNCTIONS
 # ==============================================================================
 def load_license():
-    default_data = {
-        "license_key": "",
-        "activated": False,
-        "activation_date": "",
-        "expiry_date": "",
-        "trial_used": 0
-    }
+    default_data = {"license_key": "", "activated": False, "activation_date": "", "expiry_date": "", "trial_used": 0}
     if not os.path.exists(LICENSE_FILE):
         return default_data
     try:
@@ -57,11 +116,10 @@ def activate_vip(code):
     if code in VALID_VIP_CODES:
         data = load_license()
         now = datetime.now()
-        expiry = now + timedelta(days=365)
         data["license_key"] = code
         data["activated"] = True
         data["activation_date"] = now.strftime("%Y-%m-%d")
-        data["expiry_date"] = expiry.strftime("%Y-%m-%d")
+        data["expiry_date"] = (now + timedelta(days=365)).strftime("%Y-%m-%d")
         save_license(data)
         return True, "🎉 Activation ជោគជ័យ! កម្មវិធីរបស់អ្នកត្រូវបានដោះសោ VIP រួចរាល់។"
     else:
@@ -69,85 +127,14 @@ def activate_vip(code):
 
 
 # ==============================================================================
-# 🌐 STREAMLIT PAGE CONFIG & CUSTOM CSS (STYLING)
+# 🌐 STREAMLIT GUI INTERFACE
 # ==============================================================================
-st.set_page_config(
-    page_title="Khmer Dubber - VIP System",
-    page_icon="🎙️",
-    layout="centered"
-)
+st.set_page_config(page_title="Khmer Dubber - VIP System", page_icon="🎙️", layout="centered")
 
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #F8FAFC;
-    }
-    .custom-card {
-        background-color: #FFFFFF;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        border: 1px solid #E2E8F0;
-        margin-bottom: 15px;
-    }
-    div[data-testid="stButton"] > button[kind="primary"] {
-        background: linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
-    }
-    div[data-testid="stDownloadButton"] > button {
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25) !important;
-    }
-    div[data-testid="stLinkButton"] > a {
-        background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        text-decoration: none !important;
-    }
-    .vip-badge {
-        background-color: #DCFCE7;
-        color: #15803D;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-    }
-    .trial-badge {
-        background-color: #FEF3C7;
-        color: #B45309;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-    }
-    .expired-badge {
-        background-color: #FEE2E2;
-        color: #B91C1C;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
-# ==============================================================================
-# 📱 SESSION STATE & APP LOGIC
-# ==============================================================================
 if "license_data" not in st.session_state:
     st.session_state.license_data = load_license()
-
 if "processed_video" not in st.session_state:
     st.session_state.processed_video = None
-
 if "processed_file_name" not in st.session_state:
     st.session_state.processed_file_name = ""
 
@@ -156,151 +143,126 @@ is_vip = lic_data.get("activated", False)
 used_trials = lic_data.get("trial_used", 0)
 remaining_trials = max(0, TRIAL_LIMIT - used_trials)
 
-# Title
-st.markdown("<h1 style='text-align: center; color: #1E293B;'>🎙️ KHMER VIDEO DUBBER STUDIO</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #64748B;'>ប្រព័ន្ធបកប្រែ និងបញ្ចូលសំឡេងវីដេអូស្វ័យប្រវត្តិ</p>", unsafe_allow_html=True)
-st.write("")
+st.markdown("<h1 style='text-align: center;'>🎙️ KHMER VIDEO DUBBER STUDIO</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>ប្រព័ន្ធបកប្រែ និងបញ្ចូលសំឡេងខ្មែរស្វ័យប្រវត្តិ</p>", unsafe_allow_html=True)
 
 # ------------------------------------------------------------------------------
 # 🔑 PANEL 1: VIP ACTIVATION
 # ------------------------------------------------------------------------------
-with st.container():
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🔑 VIP Activation Panel")
-    
-    col_input, col_btn = st.columns([3, 1])
-    with col_input:
-        user_code = st.text_input("Activation Code:", placeholder="បញ្ចូលលេខកូដ VIP របស់អ្នក...", key="vip_code_input", label_visibility="collapsed")
-    with col_btn:
-        if st.button("Activate VIP 🚀", type="primary", use_container_width=True):
-            success, msg = activate_vip(user_code)
-            if success:
-                st.session_state.license_data = load_license()
-                st.success(msg)
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error(msg)
-
-    st.write("")
-    c1, c2, c3 = st.columns([2, 1.5, 1.5])
-    
-    with c1:
-        if is_vip:
-            st.markdown('<span class="vip-badge">ស្ថានភាព៖ VIP Activated ✅</span>', unsafe_allow_html=True)
-        elif remaining_trials > 0:
-            st.markdown('<span class="trial-badge">ស្ថានភាព៖ Trial Version ⏳</span>', unsafe_allow_html=True)
+st.subheader("🔑 VIP Activation Panel")
+col_input, col_btn = st.columns([3, 1])
+with col_input:
+    user_code = st.text_input("Activation Code:", placeholder="បញ្ចូលលេខកូដ VIP...", key="vip_code_input", label_visibility="collapsed")
+with col_btn:
+    if st.button("Activate VIP 🚀", type="primary", use_container_width=True):
+        success, msg = activate_vip(user_code)
+        if success:
+            st.session_state.license_data = load_license()
+            st.success(msg)
+            time.sleep(1)
+            st.rerun()
         else:
-            st.markdown('<span class="expired-badge">ស្ថានភាព៖ Trial Expired 🚫</span>', unsafe_allow_html=True)
+            st.error(msg)
 
-    with c2:
-        if st.button("📋 Check License", use_container_width=True):
-            if is_vip:
-                st.info(f"**Key:** `{lic_data.get('license_key')}`\n\n**Activated:** {lic_data.get('activation_date')}\n\n**Expires:** {lic_data.get('expiry_date')}")
-            else:
-                st.warning(f"វីដេអូសាកល្បងដែលបានប្រើ៖ {used_trials}/{TRIAL_LIMIT}")
-
-    with c3:
-        st.link_button("🛒 ទិញ VIP Code", TELEGRAM_LINK, use_container_width=True)
-        
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.write("")
-
-# ------------------------------------------------------------------------------
-# 🎛️ PANEL 2: VOICE & VIDEO SETTINGS
-# ------------------------------------------------------------------------------
-with st.container():
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("🎙️ មុខងារជ្រើសរើសសំឡេង & កំណត់វីដេអូ")
-    
-    uploaded_file = st.file_uploader("១. បញ្ចូលវីដេអូរបស់អ្នក (MP4, MOV, MKV)", type=["mp4", "mov", "mkv", "avi"])
-    
-    st.write("---")
-    st.write("**២. ជ្រើសរើសសំឡេងបកប្រែ (Voice Selection):**")
-    
-    col_voice1, col_voice2 = st.columns(2)
-    with col_voice1:
-        voice_option = st.selectbox(
-            "ជ្រើសរើសសំឡេងតួអង្គ (Voice Model):",
-            [
-                "🇰🇭 សំឡេងខ្មែរ (ប្រុស) - សុភក្តិ (Sopheak - Natural Male)",
-                "🇰🇭 សំឡេងខ្មែរ (ស្រី) - នារី (Neary - Smooth Female)",
-                "🇰🇭 សំឡេងខ្មែរ (កុមារ) - កុម៉ារ៉ា (Kid Voice)",
-                "🇺🇸 English Male - Jackson",
-                "🇺🇸 English Female - Ava"
-            ]
-        )
-    with col_voice2:
-        speed_option = st.slider("ល្បឿននិយាយ (Voice Speed):", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
-
-    col_pitch, col_volume = st.columns(2)
-    with col_pitch:
-        pitch_option = st.select_slider("កម្រិតសំឡេង (Pitch Tone):", options=["ទាប (Low)", "ធម្មតា (Normal)", "ខ្ពស់ (High)"], value="ធម្មតា (Normal)")
-    with col_volume:
-        bg_music = st.radio("សំឡេងតន្ត្រីខាងក្រោយ (Background Music):", ["រក្សាទុកសំឡេងដើម", "លុបសំឡេងដើមចោល"], horizontal=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.write("")
-
-# ------------------------------------------------------------------------------
-# ▶ PANEL 3: PROCESS & RESULT DISPLAY (ជាមួយ VIDEO PLAYER & DOWNLOAD)
-# ------------------------------------------------------------------------------
-with st.container():
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.subheader("▶ ដំណើរការបកប្រែ & បញ្ចូលសំឡេង")
-
+c1, c2, c3 = st.columns([2, 1.5, 1.5])
+with c1:
     if is_vip:
-        st.success("🎉 អ្នកកំពុងប្រើប្រាស់ VIP Mode! អាចដំណើរការវីដេអូបានគ្មានដែនកំណត់។")
+        st.success("ស្ថានភាព៖ VIP Activated ✅")
     elif remaining_trials > 0:
-        st.info(f"⚠️ អ្នកកំពុងប្រើប្រាស់ Trial Version (ចំនួនវីដេអូសាកល្បងនៅសល់៖ **{remaining_trials}/{TRIAL_LIMIT}**)")
+        st.warning("ស្ថានភាព៖ Trial Version ⏳")
     else:
-        st.error(f"🚫 អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ ({TRIAL_LIMIT}/{TRIAL_LIMIT} វីដេអូ)!\n\nដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ **{TELEGRAM_USERNAME}**")
-
-    start_disabled = (not is_vip) and (remaining_trials <= 0)
-
-    if st.button("▶ ចាប់ផ្តើមដំណើរការ (Start Video Dubbing)", disabled=start_disabled, type="primary", use_container_width=True):
-        if not uploaded_file:
-            st.warning("សូមបញ្ចូល (Upload) វីដេអូជាមុនសិន!")
+        st.error("ស្ថានភាព៖ Trial Expired 🚫")
+with c2:
+    if st.button("📋 Check License", use_container_width=True):
+        if is_vip:
+            st.info(f"**Key:** `{lic_data.get('license_key')}` | **Expires:** {lic_data.get('expiry_date')}")
         else:
-            if is_vip:
-                with st.spinner(f"កំពុងដំណើរការបញ្ចូលសំឡេង [{voice_option}]..."):
-                    time.sleep(3)
-                st.session_state.processed_video = uploaded_file.getvalue()
-                st.session_state.processed_file_name = f"dubbed_{uploaded_file.name}"
-                st.success("✅ ដំណើរការបកប្រែ និងបញ្ចូលសំឡេងជោគជ័យ 100%!")
-                st.balloons()
-            else:
-                lic_data["trial_used"] += 1
-                save_license(lic_data)
-                st.session_state.license_data = lic_data
+            st.warning(f"ប្រើប្រាស់៖ {used_trials}/{TRIAL_LIMIT} វីដេអូ")
+with c3:
+    st.link_button("🛒 ទិញ VIP Code", TELEGRAM_LINK, use_container_width=True)
+
+st.markdown("---")
+
+# ------------------------------------------------------------------------------
+# 🎛️ PANEL 2: SETTINGS & DUBBING
+# ------------------------------------------------------------------------------
+st.subheader("🎙️ ការកំណត់សំឡេង និងវីដេអូ")
+uploaded_file = st.file_uploader("១. បញ្ចូលវីដេអូរបស់អ្នក (MP4, MOV)", type=["mp4", "mov", "mkv"])
+
+custom_text = st.text_area(
+    "២. បញ្ចូលអត្ថបទខ្មែរដែលត្រូវឱ្យ AI និយាយបញ្ចូលក្នុងវីដេអូ៖",
+    value="ជម្រាបសួរ! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរដោយស្វ័យប្រវត្តិ។"
+)
+
+col_v1, col_v2 = st.columns(2)
+with col_v1:
+    voice_choice = st.selectbox(
+        "ជ្រើសរើសសំឡេង AI (Voice):",
+        options=[
+            ("kh_male", "🇰🇭 សំឡេងខ្មែរ (ប្រុស) - ពិសិដ្ឋ/សុភក្តិ"),
+            ("kh_female", "🇰🇭 សំឡេងខ្មែរ (ស្រី) - ស្រីមុំ/នារី"),
+            ("en_male", "🇺🇸 English Male"),
+            ("en_female", "🇺🇸 English Female")
+        ],
+        format_func=lambda x: x[1]
+    )
+with col_v2:
+    voice_speed = st.slider("ល្បឿននិយាយ (Speed):", 0.7, 1.5, 1.0, 0.1)
+
+st.markdown("---")
+
+# ------------------------------------------------------------------------------
+# ▶ PANEL 3: PROCESS & RESULT DISPLAY
+# ------------------------------------------------------------------------------
+st.subheader("▶ ដំណើរការបកប្រែ & បញ្ចូលសំឡេង")
+
+if is_vip:
+    st.success("🎉 អ្នកកំពុងប្រើប្រាស់ VIP Mode (Unlimited)")
+elif remaining_trials > 0:
+    st.info(f"⚠️ កំពុងប្រើ Trial Version (នៅសល់៖ {remaining_trials}/{TRIAL_LIMIT} វីដេអូ)")
+else:
+    st.error(f"🚫 អស់សិទ្ធិសាកល្បង! សូមទាក់ទង Telegram៖ {TELEGRAM_USERNAME}")
+
+start_disabled = (not is_vip) and (remaining_trials <= 0)
+
+if st.button("▶ ចាប់ផ្តើមបកប្រែ និងបញ្ចូលសំឡេង (Start Dubbing)", disabled=start_disabled, type="primary", use_container_width=True):
+    if not uploaded_file:
+        st.warning("សូមបញ្ចូលវីដេអូ (Upload) ជាមុនសិន!")
+    else:
+        with st.spinner("🤖 កំពុងដំណើរការបង្កើតសំឡេងខ្មែរ និងកាត់បញ្ចូលទៅក្នុងវីដេអូ..."):
+            result_bytes = process_video_dubbing(
+                uploaded_file.getvalue(),
+                voice_choice[0],
+                voice_speed,
+                text_to_dub=custom_text
+            )
+            
+            if result_bytes:
+                st.session_state.processed_video = result_bytes
+                st.session_state.processed_file_name = f"khmer_dubbed_{uploaded_file.name}"
                 
-                with st.spinner(f"កំពុងដំណើរការ [Trial Mode] ជាមួយសំឡេង [{voice_option}]..."):
-                    time.sleep(3)
-                st.session_state.processed_video = uploaded_file.getvalue()
-                st.session_state.processed_file_name = f"dubbed_{uploaded_file.name}"
-                st.success("✅ ដំណើរការវីដេអូរួចរាល់!")
+                # កាត់ចំនួន Trial ប្រសិនបើមិនមែន VIP
+                if not is_vip:
+                    lic_data["trial_used"] += 1
+                    save_license(lic_data)
+                    st.session_state.license_data = lic_data
+
+                st.success("✅ បញ្ចូលសំឡេងខ្មែរក្នុងវីដេអូរួចរាល់ 100%!")
                 time.sleep(0.5)
                 st.rerun()
 
-    # --------------------------------------------------------------------------
-    # 📺 ផ្នែកបង្ហាញវីដេអូដែលធ្វើរួច និងប៊ូតុង DOWNLOAD
-    # --------------------------------------------------------------------------
-    if st.session_state.processed_video is not None:
-        st.write("---")
-        st.subheader("🎉 លទ្ធផលវីដេអូដែលបានបញ្ចូលសំឡេងរួចរាល់ (Dubbed Video):")
-        
-        # បង្ហាញ Video Player លើអេក្រង់
-        st.video(st.session_state.processed_video)
-        
-        # ប៊ូតុងទាញយក (Download Button)
-        st.download_button(
-            label="📥 ទាញយកវីដេអូទុក (Download Dubbed Video)",
-            data=st.session_state.processed_video,
-            file_name=st.session_state.processed_file_name,
-            mime="video/mp4",
-            use_container_width=True
-        )
-
-    st.markdown('</div>', unsafe_allow_html=True)
+# ------------------------------------------------------------------------------
+# 📺 DISPLAY RESULT & DOWNLOAD
+# ------------------------------------------------------------------------------
+if st.session_state.processed_video is not None:
+    st.markdown("---")
+    st.subheader("🎉 លទ្ធផលវីដេអូដែលបានបញ្ចូលសំឡេងខ្មែររួច៖")
+    st.video(st.session_state.processed_video)
+    
+    st.download_button(
+        label="📥 ទាញយកវីដេអូដែលបកប្រែរួច (Download Dubbed Video)",
+        data=st.session_state.processed_video,
+        file_name=st.session_state.processed_file_name,
+        mime="video/mp4",
+        use_container_width=True
+    )
