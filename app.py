@@ -6,7 +6,7 @@ import tempfile
 from datetime import datetime, timedelta
 import streamlit as st
 
-# 🛡️ Safe MoviePy Import
+# 🛡️ Safe MoviePy Import (ការពារ Version Error)
 try:
     from moviepy.editor import VideoFileClip, AudioFileClip
 except Exception:
@@ -33,14 +33,10 @@ LICENSE_FILE = "license.json"
 
 
 # ==============================================================================
-# 🎙️ AI DUBBING FUNCTIONS
+# 🎙️ REAL AI DUBBING FUNCTION
 # ==============================================================================
-async def generate_tts(text, voice, output_path, speed=1.0):
-    rate_str = f"{int((speed - 1.0) * 100):+d}%"
-    communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-    await communicate.save(output_path)
-
 def dub_video(video_bytes, voice_code, voice_speed, input_text):
+    """មុខងារបង្កើតសំឡេង AI និងកាត់បញ្ចូលក្នុងវីដេអូ"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
         in_vdo_path = f_in.name
@@ -49,16 +45,23 @@ def dub_video(video_bytes, voice_code, voice_speed, input_text):
     out_vdo_path = in_vdo_path.replace(".mp4", "_out.mp4")
 
     try:
-        # បកប្រែជាខ្មែរ ប្រសិនបើអត្ថបទជាភាសាអង់គ្លេស
-        try:
-            translated_text = GoogleTranslator(source='auto', target='km').translate(input_text)
-        except Exception:
-            translated_text = input_text
+        # ១. បកប្រែអត្ថបទជាភាសាខ្មែរ
+        translated_text = input_text
+        if input_text and input_text.strip():
+            try:
+                translated_text = GoogleTranslator(source='auto', target='km').translate(input_text.strip())
+            except Exception:
+                translated_text = input_text.strip()
+        
+        if not translated_text:
+            translated_text = "សួស្តី"
 
-        # បង្កើតសំឡេង AI
-        asyncio.run(generate_tts(translated_text, voice_code, audio_path, voice_speed))
+        # ២. បង្កើតសំឡេង AI ខ្មែរ (Edge TTS)
+        rate_str = f"{int((voice_speed - 1.0) * 100):+d}%"
+        communicate = edge_tts.Communicate(translated_text, voice_code, rate=rate_str)
+        asyncio.run(communicate.save(audio_path))
 
-        # បញ្ចូលសំឡេងទៅក្នុងវីដេអូ
+        # ៣. កាត់បញ្ចូលសំឡេងទៅក្នុងវីដេអូ
         video = VideoFileClip(in_vdo_path)
         audio = AudioFileClip(audio_path)
         
@@ -70,13 +73,20 @@ def dub_video(video_bytes, voice_code, voice_speed, input_text):
 
         video.close()
         audio.close()
-        if os.path.exists(in_vdo_path): os.remove(in_vdo_path)
-        if os.path.exists(audio_path): os.remove(audio_path)
-        if os.path.exists(out_vdo_path): os.remove(out_vdo_path)
+        
+        # លុបឯកសារបណ្តោះអាសន្ន
+        for p in [in_vdo_path, audio_path, out_vdo_path]:
+            if os.path.exists(p):
+                try: os.remove(p)
+                except Exception: pass
 
         return result_bytes, translated_text
     except Exception as e:
         st.error(f"កំហុសក្នុងការបកប្រែ៖ {e}")
+        for p in [in_vdo_path, audio_path, out_vdo_path]:
+            if os.path.exists(p):
+                try: os.remove(p)
+                except Exception: pass
         return None, ""
 
 
@@ -111,7 +121,7 @@ def activate_vip(code):
 
 
 # ==============================================================================
-# 🌐 GUI INTERFACE
+# 🌐 STREAMLIT GUI INTERFACE
 # ==============================================================================
 st.set_page_config(page_title="Khmer Dubber Studio", page_icon="🎙️", layout="centered")
 
@@ -125,7 +135,7 @@ rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 
 st.title("🎙️ KHMER VIDEO DUBBER STUDIO")
 
-# 🔑 VIP Panel
+# 🔑 VIP Activation Panel
 with st.expander("🔑 VIP Activation Panel", expanded=not is_vip):
     col1, col2 = st.columns([3, 1])
     code_in = col1.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដ VIP...", label_visibility="collapsed")
@@ -136,31 +146,53 @@ with st.expander("🔑 VIP Activation Panel", expanded=not is_vip):
             st.success(msg)
             time.sleep(1)
             st.rerun()
-        else: st.error(msg)
+        else:
+            st.error(msg)
 
-# Status
-if is_vip: st.success("ស្ថានភាព៖ VIP Activated ✅ (ប្រើបានគ្មានដែនកំណត់)")
-elif rem_trials > 0: st.warning(f"ស្ថានភាព៖ Trial Version ⏳ (នៅសល់ {rem_trials}/{TRIAL_LIMIT} វីដេអូ)")
-else: st.error(f"ស្ថានភាព៖ Trial Expired 🚫 (សូមទាក់ទង {TELEGRAM_USERNAME})")
+# Status Badge
+if is_vip:
+    st.success("ស្ថានភាព៖ VIP Activated ✅ (ប្រើបានគ្មានដែនកំណត់)")
+elif rem_trials > 0:
+    st.warning(f"ស្ថានភាព៖ Trial Version ⏳ (នៅសល់ {rem_trials}/{TRIAL_LIMIT} វីដេអូ)")
+else:
+    st.error(f"ស្ថានភាព៖ Trial Expired 🚫 (សូមទាក់ទង {TELEGRAM_USERNAME})")
 
 st.markdown("---")
 
-# Settings
-uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov"])
-#input_script = st.text_area("២. បញ្ចូលអត្ថបទដែលត្រូវបកប្រែ និងនិយាយជាខ្មែរ៖", value="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរ។")
+# Input Settings
+uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov", "mkv", "avi"])
+input_script = st.text_area("២. បញ្ចូលអត្ថបទដែលត្រូវបកប្រែ និងនិយាយជាខ្មែរ៖", value="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរ។")
 
 col_a, col_b = st.columns(2)
-v_type = col_a.selectbox("សំឡេង AI:", [("km-KH-PisethNeural", "🇰🇭 សំឡេងប្រុស (ពិសិដ្ឋ)"), ("km-KH-SreymomNeural", "🇰🇭 សំឡេងស្រី (ស្រីមុំ)")], format_func=lambda x: x[1])
-v_speed = col_b.slider("ល្បឿននិយាយ:", 0.8, 1.3, 1.0, 0.1)
+with col_a:
+    selected_voice_tuple = st.selectbox(
+        "សំឡេង AI:",
+        options=[
+            ("km-KH-PisethNeural", "🇰🇭 សំឡេងប្រុស (ពិសិដ្ឋ)"),
+            ("km-KH-SreymomNeural", "🇰🇭 សំឡេងស្រី (ស្រីមុំ)")
+        ],
+        format_func=lambda x: x[1]
+    )
+    voice_code = selected_voice_tuple[0]
 
-# Action
+with col_b:
+    voice_speed = st.slider("ល្បឿននិយាយ:", 0.8, 1.3, 1.0, 0.1)
+
+st.markdown("---")
+
+# Dubbing Action Button
 can_run = is_vip or (rem_trials > 0)
 if st.button("▶ ចាប់ផ្តើមបកប្រែ និងបញ្ចូលសំឡេង", disabled=not can_run, type="primary", use_container_width=True):
     if not uploaded_vdo:
         st.warning("សូម Upload វីដេអូជាមុនសិន!")
     else:
         with st.spinner("🤖 កំពុងដំណើរការបកប្រែ និងបញ្ចូលសំឡេង AI..."):
-            res, txt = dub_video(uploaded_vdo.getvalue(), v_type[0], v_speed, input_script)
+            res, txt = dub_video(
+                video_bytes=uploaded_vdo.getvalue(),
+                voice_code=voice_code,
+                voice_speed=voice_speed,
+                input_text=input_script
+            )
             if res:
                 st.session_state.vdo = res
                 st.session_state.txt = txt
@@ -169,11 +201,21 @@ if st.button("▶ ចាប់ផ្តើមបកប្រែ និងបញ�
                     save_license(lic)
                     st.session_state.lic = lic
                 st.success("✅ រួចរាល់ 100%!")
+                time.sleep(0.5)
                 st.rerun()
 
-# Output Display
+# Output Display & Download
 if st.session_state.vdo:
     st.markdown("---")
     st.subheader("🎉 លទ្ធផលវីដេអូដែលធ្វើរួច៖")
+    if st.session_state.txt:
+        st.info(f"📝 **អត្ថបទបកប្រែខ្មែរ៖** {st.session_state.txt}")
+    
     st.video(st.session_state.vdo)
-    st.download_button("📥 ទាញយកវីដេអូទុក (Download Video)", st.session_state.vdo, file_name="dubbed_video.mp4", mime="video/mp4", use_container_width=True)
+    st.download_button(
+        label="📥 ទាញយកវីដេអូទុក (Download Video)",
+        data=st.session_state.vdo,
+        file_name="dubbed_video.mp4",
+        mime="video/mp4",
+        use_container_width=True
+    )
