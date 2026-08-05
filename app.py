@@ -1,11 +1,12 @@
 import streamlit as st
 import os
+import time
 from datetime import datetime
 
 # =======================================================
 # 1. ផ្នែក Config (កន្លែងដែលអ្នកកែតែម្ដង)
 # =======================================================
-OWNER_TELEGRAM = "@YOUR_TELEGRAM" # ប្តូរទៅឈ្មោះ Telegram អ្នក
+OWNER_TELEGRAM = "t.me/bunyimyoem" # ប្តូរទៅឈ្មោះ Telegram អ្នក
 
 # បញ្ជីលេខកូដសម្រាប់អតិថិជន (គ្មាន Machine ID)
 LICENSE_DATABASE = {
@@ -15,18 +16,20 @@ LICENSE_DATABASE = {
     # "SOKHA-VIP-001": {"uses": 5, "expiry": "2026-08-30"}, 
 }
 
-# កំណត់ឈ្មោះឯកសារលទ្ធផលពី AI
-OUTPUT_VIDEO_NAME = "output_video.mp4"
-
 # =======================================================
 # 2. កំណត់រចនាសម្ព័ន្ធទំព័រ & CSS ឡូយៗ
 # =======================================================
 st.set_page_config(page_title="AI Dubbing System", layout="wide", page_icon="🎬")
 
+# កំណត់ Session State (ផ្នែកចងចាំ)
 if 'is_activated' not in st.session_state:
     st.session_state.is_activated = False
 if 'current_key' not in st.session_state:
     st.session_state.current_key = None
+if 'trial_done' not in st.session_state:
+    st.session_state.trial_done = False
+if 'trial_video_data' not in st.session_state:
+    st.session_state.trial_video_data = None
 
 st.markdown("""
 <style>
@@ -45,7 +48,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =======================================================
-# 3. ផ្នែក SIDEBAR
+# 3. ផ្នែក SIDEBAR (ខាងឆ្វេង)
 # =======================================================
 with st.sidebar:
     st.markdown("## ℹ️ ព័ត៌មានអាជ្ញាប័ណ្ណ")
@@ -67,13 +70,13 @@ with st.sidebar:
         st.success("បាន Reset ស្ថានភាពវិញ!")
 
 # =======================================================
-# 4. ផ្នែក MAIN UI
+# 4. ផ្នែក MAIN UI (កណ្តាល)
 # =======================================================
 st.markdown("<h1 style='text-align: center;'>🎬 AI Video Dubbing System</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; color: gray;'>ឌឹបសំឡេងវីដេអូដោយ AI យ៉ាងរហ័ស</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 4.1 ផ្នែកផ្ទុកវីដេអូ
+# 4.1 ផ្នែកផ្ទុកវីដេអូ (Upload)
 col1, col2 = st.columns(2)
 with col1:
     uploaded_video = st.file_uploader("Browse Video", type=['mp4', 'avi', 'mov', 'mkv'], label_visibility="collapsed")
@@ -88,37 +91,45 @@ st.markdown("<br>", unsafe_allow_html=True)
 voice_option = st.selectbox("ជ្រើសរើសសម្លេង (Select Voice)", ["ស្រី (Female)", "ប្រុស (Male)", "SREY MOM", "PIDETH"])
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4.3 ប៊ូតុងសាកល្បងដំបូង (មិនបាច់ Activate)
+# =======================================================
+# 5. ផ្នែក FREE TRIAL (សាកល្បងដោយមិនចាំបាច់ Activate)
+# =======================================================
 st.markdown("### 🎁 សាកល្បងដោយឥតគិតថ្លៃ (Free Trial)")
 st.markdown('<div class="trial-btn">', unsafe_allow_html=True)
+
 if st.button("🎬 សាកល្បងវីដេអូដំបូង (Trial)", use_container_width=True):
     if uploaded_video is None:
         st.warning("សូមផ្ទុក (Upload) វីដេអូជាមុនសិន!")
     else:
-        st.success(f"✅ កំពុងសាកល្បងដំណើរការ Dubbing ជាមួយសម្លេង: {voice_option}")
+        st.session_state.trial_done = False
         
-        # ចំណាំ៖ នៅទីនេះអ្នកត្រូវបញ្ចូល AI Logic (កូដជំនួសសម្លេង) របស់អ្នក!
-        # ឧទាហរណ៍៖ output_file = run_ai_dubbing(uploaded_video, voice_option)
+        # ក្លែងធ្វើដំណើរការរង់ចាំ AI (បើអ្នកមាន AI ពិត ត្រូវកែត្រង់នេះ)
+        with st.spinner(f'⏳ (សាកល្បង) កំពុងឌឹបសំឡេង AI: "{voice_option}"... សូមរង់ចាំ ៣ វិនាទី'):
+            time.sleep(3) # ក្លែងធ្វើការធ្វើការងារ ៣ វិនាទី
+            
+            # រក្សាទុកទិន្នន័យវីដេអូដើម ដើម្បីយកទៅបង្ហាញជាលទ្ធផលសាកល្បង
+            uploaded_video.seek(0)
+            st.session_state.trial_video_data = uploaded_video.read()
+            st.session_state.trial_done = True
+            st.rerun() # ធ្វើឲ្យទំព័រផ្ទុកឡើងវិញ ដើម្បីបង្ហាញវីដេអូ
 
-        # ដោយសារខ្ញុំមិនទាន់មាន AI Logic ពិត ខ្ញុំក្លែងធ្វើជារកឃើញឯកសារលទ្ធផលដើម្បីបង្ហាញជូន
-        if os.path.exists(OUTPUT_VIDEO_NAME):
-            st.markdown("### 🎬 លទ្ធផលសាកល្បង")
-            with open(OUTPUT_VIDEO_NAME, "rb") as f:
-                video_bytes = f.read()
-                st.video(video_bytes)
-                st.download_button(
-                    label="📥 ទាញយកវីដេអូ (Download)",
-                    data=video_bytes,
-                    file_name="trial_dubbed_result.mp4",
-                    mime="video/mp4"
-                )
-        else:
-            st.info("⏳ (សាកល្បង) កំពុងរង់ចាំ AI បង្កើតវីដេអូ... សូមរង់ចាំបន្តិច។")
+if st.session_state.trial_done:
+    st.success("✅ សាកល្បង Dubbing បានបញ្ចប់ដោយជោគជ័យ! ឆែកមើលលទ្ធផលខាងក្រោម៖")
+    if st.session_state.trial_video_data:
+        st.video(st.session_state.trial_video_data)
+        st.download_button(
+            label="📥 ទាញយកវីដេអូសាកល្បង (Download)",
+            data=st.session_state.trial_video_data,
+            file_name="trial_dubbed_result.mp4",
+            mime="video/mp4"
+        )
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# 4.4 ផ្នែក Activate សម្រាប់ការប្រើប្រាស់ពេញ (Full Version)
+# =======================================================
+# 6. ផ្នែក Activate VIP សម្រាប់ការប្រើប្រាស់ពេញ
+# =======================================================
 st.markdown("### 🔑 បើកសិទ្ធិប្រើប្រាស់ពេញលេញ (VIP)")
 if st.session_state.is_activated:
     st.success("🎉 ប្រព័ន្ធ VIP ត្រូវបាន Activate រួចរាល់ហើយ! អ្នកអាចប្រើប្រាស់មុខងារពេញលេញបាន។")
@@ -154,33 +165,23 @@ else:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4.5 ប៊ូតុង START ដើម (តម្រូវឲ្យ Activate ទើបប្រើបាន)
+# =======================================================
+# 7. ផ្នែក START (Full Version) តម្រូវឲ្យ Activate
+# =======================================================
 st.markdown("### 🚀 ដំណើរការពេញ (Full Process)")
 st.markdown('<div class="green-btn">', unsafe_allow_html=True)
+
 if st.button("🚀 START (Full Version)", use_container_width=True):
     if not st.session_state.is_activated:
         st.warning("សូម Activate VIP ជាមុនសិន ទើបអាចប្រើប្រាស់មុខងារ START នេះបាន!")
     elif uploaded_video is None:
         st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        st.success(f"✅ ចុច START ដោយជោគជ័យ! (សម្លេងពេញ: {voice_option})")
+        # នៅទីនេះអ្នកអាចដាក់ AI Logic ពិតរបស់អ្នកសម្រាប់ VIP
+        # ឧទាហរណ៍៖ st.session_state.vip_video_data = run_real_ai_dubbing(uploaded_video, voice_option)
+        st.success(f"✅ ចុច START (Full Version) ដោយជោគជ័យ! (សម្លេង: {voice_option})")
+        st.info("⏳ (ចំណាំសម្រាប់អ្នកអភិវឌ្ឍន៍)៖ នៅទីនេះអ្នកអាចដាក់កូដ AI Dubbing ពិតរបស់អ្នក។ ពេលដំណើរការចប់ សូម Save ជាទម្រង់ Bytes និងប្រើ st.video() ដើម្បីបង្ហាញវីដេអូ។")
         
-        # នៅទីនេះអ្នកត្រូវបញ្ចូលកូដ AI Dubbing ពេញសម្រាប់ VIP
-        # output_file = run_ai_dubbing_vip(uploaded_video, voice_option)
-
-        if os.path.exists(OUTPUT_VIDEO_NAME):
-            st.markdown("### 🎬 លទ្ធផលវីដេអូពេញ")
-            with open(OUTPUT_VIDEO_NAME, "rb") as f:
-                video_bytes = f.read()
-                st.video(video_bytes)
-                st.download_button(
-                    label="📥 ទាញយកវីដេអូ (Download)",
-                    data=video_bytes,
-                    file_name="vip_dubbed_result.mp4",
-                    mime="video/mp4"
-                )
-        else:
-            st.info("⏳ រង់ចាំឲ្យ AI ដំណើរការបង្កើតវីដេអូរួចសិន...")
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
