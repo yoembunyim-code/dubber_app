@@ -4,6 +4,9 @@ import os
 from datetime import datetime, timedelta
 import base64
 import time
+import tempfile
+import subprocess
+import urllib.parse
 import requests
 
 # ================================================================
@@ -74,42 +77,113 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
-#  KHMER TEXT-TO-SPEECH (ប្រើ Google Translate TTS)
+#  DUBBING ENGINE - បកសំឡេងវីដេអូជាខ្មែរ
 # ================================================================
 
-def generate_khmer_audio_url(text):
-    """
-    បង្កើត URL សម្រាប់សំឡេងខ្មែរពី Google TTS
-    ប្រើ gTTS API តាមរយៈ Internet
-    """
-    import urllib.parse
-    encoded_text = urllib.parse.quote(text)
-    # Google TTS URL (គាំទ្រភាសាខ្មែរ)
-    url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={encoded_text}&tl=km&client=tw-ob"
-    return url
-
-def get_khmer_audio_base64(text):
-    """
-    ទាញយកសំឡេងខ្មែរពី Google TTS ហើយបម្លែងជា base64
-    """
+def extract_audio(video_path, audio_path):
+    """ដកស្រង់សំឡេងពីវីដេអូ"""
     try:
-        url = generate_khmer_audio_url(text)
+        cmd = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path} -y"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
+        return os.path.exists(audio_path)
+    except:
+        return False
+
+def get_khmer_audio_from_text(text):
+    """បង្កើតសំឡេងខ្មែរពីអត្ថបទ (ប្រើ Google TTS)"""
+    try:
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={encoded_text}&tl=km&client=tw-ob"
         response = requests.get(url, headers={
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
         if response.status_code == 200:
-            audio_base64 = base64.b64encode(response.content).decode()
-            return audio_base64
+            return response.content
         return None
     except:
         return None
+
+def merge_audio_video(video_path, audio_path, output_path):
+    """បញ្ចូលសំឡេងថ្មីចូលវីដេអូ"""
+    try:
+        cmd = f"ffmpeg -i {video_path} -i {audio_path} -c:v copy -map 0:v:0 -map 1:a:0 {output_path} -y"
+        subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+        return os.path.exists(output_path)
+    except:
+        return False
+
+def process_dub_video(video_data, text_to_dub=None):
+    """
+    ដំណើរការបកប្រែវីដេអូទាំងស្រុង
+    """
+    try:
+        # បង្កើតឯកសារបណ្តោះអាសន្ន
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+            tmp_video.write(video_data)
+            video_path = tmp_video.name
+        
+        audio_path = video_path.replace('.mp4', '_audio.mp3')
+        khmer_audio_path = video_path.replace('.mp4', '_khmer.mp3')
+        output_path = video_path.replace('.mp4', '_dubbed.mp4')
+        
+        # ===== STEP 1: Extract audio from video =====
+        yield 10, "🎵 កំពុងដកស្រង់សំឡេងពីវីដេអូ..."
+        if not extract_audio(video_path, audio_path):
+            yield 0, "❌ មិនអាចដកស្រង់សំឡេងបានទេ"
+            return
+        
+        # ===== STEP 2: Use text provided or generate from audio =====
+        yield 30, "📝 កំពុងដំណើរការអត្ថបទ..."
+        
+        # ប្រើអត្ថបទដែលអ្នកប្រើបានបញ្ចូល
+        if text_to_dub is None or text_to_dub.strip() == "":
+            text_to_dub = "សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber។ វីដេអូនេះត្រូវបានបកប្រែជាភាសាខ្មែរដោយប្រើបច្ចេកវិទ្យា AI។"
+        
+        # ===== STEP 3: Generate Khmer audio =====
+        yield 50, "🗣️ កំពុងបង្កើតសំឡេងខ្មែរ..."
+        khmer_audio_data = get_khmer_audio_from_text(text_to_dub)
+        
+        if khmer_audio_data is None:
+            yield 0, "❌ មិនអាចបង្កើតសំឡេងខ្មែរបានទេ (សូមពិនិត្យ Internet)"
+            return
+        
+        # រក្សាទុកសំឡេងខ្មែរ
+        with open(khmer_audio_path, 'wb') as f:
+            f.write(khmer_audio_data)
+        
+        # ===== STEP 4: Merge audio with video =====
+        yield 75, "🎬 កំពុងបញ្ចូលសំឡេងចូលវីដេអូ..."
+        if not merge_audio_video(video_path, khmer_audio_path, output_path):
+            yield 0, "❌ មិនអាចបញ្ចូលសំឡេងចូលវីដេអូបានទេ"
+            return
+        
+        # ===== STEP 5: Read final video =====
+        yield 95, "✅ កំពុងរៀបចំវីដេអូចុងក្រោយ..."
+        
+        with open(output_path, 'rb') as f:
+            dubbed_data = f.read()
+        
+        # សម្អាតឯកសារបណ្តោះអាសន្ន
+        try:
+            os.unlink(video_path)
+            os.unlink(audio_path)
+            os.unlink(khmer_audio_path)
+            os.unlink(output_path)
+        except:
+            pass
+        
+        yield 100, "✅ បានបកប្រែវីដេអូជោគជ័យ!"
+        yield dubbed_data, text_to_dub
+        
+    except Exception as e:
+        yield 0, f"❌ កំហុស: {str(e)}"
 
 # ================================================================
 #  STREAMLIT UI
 # ================================================================
 
 st.set_page_config(
-    page_title="Khmer Dubber",
+    page_title="Khmer Dubber - Video Dubbing",
     page_icon="🎬",
     layout="wide"
 )
@@ -131,13 +205,9 @@ st.markdown("""
         transform: translateY(-3px);
         box-shadow: 0 10px 30px rgba(0,0,0,0.15);
     }
-    .stButton > button:active {
-        transform: translateY(0px) scale(0.97);
-    }
     .stButton > button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        transform: none !important;
     }
     .stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #43a047, #2e7d32);
@@ -151,11 +221,6 @@ st.markdown("""
     .stButton > button[kind="secondary"] {
         background: linear-gradient(135deg, #1e88e5, #0d47a1);
         color: white;
-        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #1565c0, #0a2e6e);
-        box-shadow: 0 8px 30px rgba(33, 150, 243, 0.4);
     }
     .upload-box {
         border: 3px dashed #43a047;
@@ -215,74 +280,6 @@ st.markdown("""
         from { opacity: 0; transform: translateY(30px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .voice-card {
-        padding: 20px;
-        border-radius: 14px;
-        border: 3px solid #e0e0e0;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        background: white;
-        margin: 8px 0;
-    }
-    .voice-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-    }
-    .voice-card.selected {
-        border-color: #43a047;
-        background: #e8f5e9;
-        box-shadow: 0 4px 20px rgba(76, 175, 80, 0.25);
-    }
-    .voice-card .emoji {
-        font-size: 48px;
-        display: block;
-        margin-bottom: 8px;
-    }
-    .voice-card .name {
-        font-weight: bold;
-        font-size: 18px;
-    }
-    .voice-card .desc {
-        font-size: 13px;
-        color: #666;
-    }
-    .voice-card .check {
-        color: #43a047;
-        font-weight: bold;
-        margin-top: 8px;
-    }
-    .translation-box {
-        background: linear-gradient(135deg, #f8f9fa, #e8f5e9);
-        padding: 25px;
-        border-radius: 14px;
-        border-left: 6px solid #43a047;
-        margin: 15px 0;
-        animation: slideIn 0.6s ease;
-        font-size: 16px;
-        line-height: 1.8;
-    }
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateX(-30px); }
-        to { opacity: 1; transform: translateX(0); }
-    }
-    .audio-player {
-        width: 100%;
-        margin: 10px 0;
-        border-radius: 12px;
-    }
-    .success-box {
-        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
-        padding: 20px;
-        border-radius: 14px;
-        text-align: center;
-        border: 2px solid #43a047;
-        animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    }
-    @keyframes popIn {
-        from { opacity: 0; transform: scale(0.8); }
-        to { opacity: 1; transform: scale(1); }
-    }
     .progress-container {
         width: 100%;
         background: #f0f0f0;
@@ -303,6 +300,32 @@ st.markdown("""
         0% { background-position: -200% 0; }
         100% { background-position: 200% 0; }
     }
+    .translation-box {
+        background: linear-gradient(135deg, #f8f9fa, #e8f5e9);
+        padding: 25px;
+        border-radius: 14px;
+        border-left: 6px solid #43a047;
+        margin: 15px 0;
+        animation: slideIn 0.6s ease;
+        font-size: 16px;
+        line-height: 1.8;
+    }
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    .success-box {
+        background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+        padding: 20px;
+        border-radius: 14px;
+        text-align: center;
+        border: 2px solid #43a047;
+        animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    @keyframes popIn {
+        from { opacity: 0; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -313,6 +336,8 @@ if 'status' not in st.session_state:
     st.session_state.status = check_license_status(st.session_state.license_data)
 if 'uploaded_video' not in st.session_state:
     st.session_state.uploaded_video = None
+if 'dubbed_video' not in st.session_state:
+    st.session_state.dubbed_video = None
 if 'video_processed' not in st.session_state:
     st.session_state.video_processed = False
 if 'khmer_text' not in st.session_state:
@@ -321,21 +346,17 @@ if 'processing' not in st.session_state:
     st.session_state.processing = False
 if 'progress' not in st.session_state:
     st.session_state.progress = 0
-if 'voice_type' not in st.session_state:
-    st.session_state.voice_type = "male"
+if 'status_message' not in st.session_state:
+    st.session_state.status_message = ""
 if 'user_text' not in st.session_state:
     st.session_state.user_text = ""
-if 'audio_base64' not in st.session_state:
-    st.session_state.audio_base64 = None
-if 'show_audio' not in st.session_state:
-    st.session_state.show_audio = False
 
 # ========== HEADER ==========
 col_title, col_status = st.columns([2, 1])
 
 with col_title:
     st.title("🎬 Khmer Dubber AI")
-    st.markdown("### បកប្រែវីដេអូ និងបង្កើតសំឡេងខ្មែរ 🇰🇭")
+    st.markdown("### បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរ 🇰🇭")
 
 with col_status:
     status = st.session_state.status
@@ -380,7 +401,8 @@ with tab1:
         uploaded_file = st.file_uploader(
             "ជ្រើសរើសវីដេអូ",
             type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
-            accept_multiple_files=False
+            accept_multiple_files=False,
+            help="ដាក់វីដេអូដែលចង់បកប្រែសំឡេងជាខ្មែរ"
         )
         
         if uploaded_file is not None:
@@ -390,46 +412,11 @@ with tab1:
             
             st.markdown("---")
             
-            # ===== VOICE SELECTION =====
-            st.subheader("🎤 ជ្រើសរើសសម្លេង")
-            
-            col_voice1, col_voice2 = st.columns(2)
-            
-            with col_voice1:
-                male_selected = st.session_state.voice_type == "male"
-                st.markdown(f"""
-                <div class="voice-card {'selected' if male_selected else ''}">
-                    <span class="emoji">👨</span>
-                    <div class="name">បុរស</div>
-                    <div class="desc">សំឡេងបុរស</div>
-                    {'' if not male_selected else '<div class="check">✅ បានជ្រើស</div>'}
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button("👨 បុរស", key="male_btn", use_container_width=True):
-                    st.session_state.voice_type = "male"
-                    st.rerun()
-            
-            with col_voice2:
-                female_selected = st.session_state.voice_type == "female"
-                st.markdown(f"""
-                <div class="voice-card {'selected' if female_selected else ''}">
-                    <span class="emoji">👩</span>
-                    <div class="name">ស្ត្រី</div>
-                    <div class="desc">សំឡេងស្ត្រី</div>
-                    {'' if not female_selected else '<div class="check">✅ បានជ្រើស</div>'}
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button("👩 ស្ត្រី", key="female_btn", use_container_width=True):
-                    st.session_state.voice_type = "female"
-                    st.rerun()
-            
-            st.markdown("---")
-            
             # ===== TEXT INPUT =====
-            st.subheader("📝 អត្ថបទដែលចង់ឲ្យនិយាយជាខ្មែរ")
+            st.subheader("📝 អត្ថបទសម្រាប់បកប្រែ")
             user_text = st.text_area(
-                "បញ្ចូលអត្ថបទ",
-                placeholder="ឧទាហរណ៍: សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber",
+                "បញ្ចូលអត្ថបទដែលចង់ឲ្យនិយាយជាខ្មែរ",
+                placeholder="ទុកចន្លោះទទេ ដើម្បីប្រើអត្ថបទស្វ័យប្រវត្តិ",
                 height=80
             )
             st.session_state.user_text = user_text
@@ -456,65 +443,63 @@ with tab1:
             
             with col_btn1:
                 if can_process and not st.session_state.processing:
-                    if st.button("🎤 បង្កើតសំឡេងខ្មែរ", use_container_width=True, type="primary"):
+                    if st.button("🎤 បកប្រែសំឡេងវីដេអូ", use_container_width=True, type="primary"):
                         st.session_state.processing = True
                         st.session_state.progress = 0
-                        st.session_state.show_audio = False
+                        st.session_state.video_processed = False
                         
-                        # Progress
-                        for i in range(10, 101, 10):
-                            st.session_state.progress = i
-                            time.sleep(0.03)
+                        video_data = uploaded_file.getvalue()
+                        text_to_use = user_text if user_text else None
                         
-                        # Get text
-                        text_to_use = user_text if user_text else "សួស្តី! ស្វាគមន៍មកកាន់ Khmer Dubber។ យើងខ្ញុំសូមជូនដំណឹងថាវីដេអូនេះត្រូវបានបកប្រែជាភាសាខ្មែរដោយប្រើបច្ចេកវិទ្យា AI។"
-                        
-                        # Generate Khmer audio
-                        audio_base64 = get_khmer_audio_base64(text_to_use)
-                        
-                        if audio_base64:
-                            st.session_state.audio_base64 = audio_base64
-                            st.session_state.khmer_text = text_to_use
-                            st.session_state.show_audio = True
-                            st.session_state.video_processed = True
-                            
-                            # Update trial count
-                            if status != "vip":
-                                new_count = st.session_state.license_data.get("videos_used", 0) + 1
-                                st.session_state.license_data["videos_used"] = new_count
-                                save_license(st.session_state.license_data)
-                                st.session_state.status = check_license_status(st.session_state.license_data)
-                            
-                            st.session_state.progress = 100
-                            st.success("✅ បានបង្កើតសំឡេងខ្មែរជោគជ័យ!")
-                        else:
-                            st.error("❌ មិនអាចបង្កើតសំឡេងខ្មែរបានទេ (សូមពិនិត្យ Internet)")
+                        # Process with progress
+                        for progress, message in process_dub_video(video_data, text_to_use):
+                            if isinstance(progress, int):
+                                st.session_state.progress = progress
+                                st.session_state.status_message = message
+                                if progress == 100:
+                                    st.success("✅ បានបកប្រែវីដេអូជោគជ័យ!")
+                            elif isinstance(progress, bytes):
+                                st.session_state.dubbed_video = progress
+                                st.session_state.video_processed = True
+                                st.session_state.khmer_text = message
+                                
+                                # Update trial
+                                if status != "vip":
+                                    new_count = st.session_state.license_data.get("videos_used", 0) + 1
+                                    st.session_state.license_data["videos_used"] = new_count
+                                    save_license(st.session_state.license_data)
+                                    st.session_state.status = check_license_status(st.session_state.license_data)
+                                
+                                st.rerun()
+                            elif isinstance(message, str) and "❌" in message:
+                                st.error(message)
+                                st.session_state.processing = False
+                                st.rerun()
                         
                         st.session_state.processing = False
                         st.rerun()
                 else:
-                    st.button("🎤 បង្កើតសំឡេងខ្មែរ", disabled=True, use_container_width=True)
+                    st.button("🎤 បកប្រែសំឡេងវីដេអូ", disabled=True, use_container_width=True)
                     if reason:
                         st.warning(f"⚠️ {reason}")
             
             with col_btn2:
                 if st.button("🔄 កំណត់ឡើងវិញ", use_container_width=True, type="secondary"):
                     st.session_state.uploaded_video = None
+                    st.session_state.dubbed_video = None
                     st.session_state.video_processed = False
                     st.session_state.khmer_text = ""
                     st.session_state.processing = False
                     st.session_state.progress = 0
                     st.session_state.user_text = ""
-                    st.session_state.audio_base64 = None
-                    st.session_state.show_audio = False
                     st.rerun()
             
             # ===== PROGRESS BAR =====
-            if st.session_state.progress > 0 and st.session_state.progress < 100:
+            if st.session_state.progress > 0:
                 st.markdown(f"""
                 <div style="margin: 20px 0;">
                     <div style="display:flex;justify-content:space-between;font-size:15px;color:#555;">
-                        <span>🔄 កំពុងបង្កើតសំឡេង...</span>
+                        <span>{st.session_state.status_message}</span>
                         <span style="font-weight:bold;color:#43a047;">{st.session_state.progress}%</span>
                     </div>
                     <div class="progress-container">
@@ -523,35 +508,15 @@ with tab1:
                 </div>
                 """, unsafe_allow_html=True)
             
-            # ===== SUCCESS & AUDIO PLAYER =====
-            if st.session_state.show_audio and st.session_state.audio_base64:
+            # ===== SHOW TRANSLATED TEXT =====
+            if st.session_state.khmer_text and st.session_state.video_processed:
+                st.markdown("---")
+                st.subheader("📝 អត្ថបទខ្មែរ")
                 st.markdown(f"""
-                <div class="success-box">
-                    <div style="font-size:48px;">🎉</div>
-                    <h3 style="color:#2e7d32;">បង្កើតសំឡេងខ្មែរជោគជ័យ!</h3>
-                    <p style="color:#555;">ចុចប៊ូតុង Play ដើម្បីស្តាប់សំឡេងខ្មែរ</p>
+                <div class="translation-box">
+                    {st.session_state.khmer_text}
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # ===== AUDIO PLAYER =====
-                st.markdown(f"""
-                <div style="background:#f5f5f5;padding:20px;border-radius:14px;margin:10px 0;">
-                    <div style="font-weight:bold;color:#333;margin-bottom:10px;">🔊 សំឡេងខ្មែរ</div>
-                    <audio controls style="width:100%;border-radius:10px;">
-                        <source src="data:audio/mp3;base64,{st.session_state.audio_base64}" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # ===== TRANSLATED TEXT =====
-                if st.session_state.khmer_text:
-                    st.markdown(f"""
-                    <div class="translation-box">
-                        <div style="font-size:14px;color:#888;margin-bottom:8px;">📝 អត្ថបទខ្មែរ</div>
-                        {st.session_state.khmer_text}
-                    </div>
-                    """, unsafe_allow_html=True)
             
             # ===== TRIAL STATUS =====
             if status == "trial":
@@ -575,13 +540,40 @@ with tab1:
                 <h3 style="color:#2e7d32;">អូស និង ទម្លាក់</h3>
                 <p style="font-size:16px;color:#555;">ឬចុចដើម្បីជ្រើសរើសវីដេអូ</p>
                 <p style="font-size:13px;color:#999;margin-top:10px;">គាំទ្រ: MP4, AVI, MOV, MKV, WEBM</p>
+                <p style="font-size:13px;color:#e53935;margin-top:10px;">⚠️ ត្រូវការ FFmpeg ដំឡើងក្នុងកុំព្យូទ័រ</p>
             </div>
             """, unsafe_allow_html=True)
     
     with col_right:
         st.subheader("📺 មើលវីដេអូ")
         
-        if st.session_state.uploaded_video is not None:
+        if st.session_state.video_processed and st.session_state.dubbed_video is not None:
+            st.success("🎉 វីដេអូដែលបានបកប្រែរួចរាល់!")
+            
+            video_data = st.session_state.dubbed_video
+            video_base64 = base64.b64encode(video_data).decode()
+            
+            st.markdown(f"""
+            <div class="video-container">
+                <video width="100%" controls autoplay>
+                    <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.caption("🇰🇭 សំឡេងត្រូវបានបកប្រែជាភាសាខ្មែរ")
+            
+            st.download_button(
+                label="💾 ទាញយកវីដេអូ",
+                data=video_data,
+                file_name=f"dubbed_{uploaded_file.name if uploaded_file else 'video'}",
+                mime="video/mp4",
+                use_container_width=True,
+                type="primary"
+            )
+            
+        elif st.session_state.uploaded_video is not None:
             video_data = st.session_state.uploaded_video.getvalue()
             video_base64 = base64.b64encode(video_data).decode()
             
@@ -594,12 +586,8 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            if st.session_state.processing:
-                st.info("⏳ កំពុងបង្កើតសំឡេង...")
-            elif st.session_state.show_audio:
-                st.success("🔊 សំឡេងខ្មែរបានបង្កើតរួច! ស្តាប់នៅខាងឆ្វេង")
-            else:
-                st.caption("📌 វីដេអូដើម - បញ្ចូលអត្ថបទ ហើយចុច 'បង្កើតសំឡេងខ្មែរ'")
+            st.caption("📌 វីដេអូដើម")
+            
         else:
             st.info("👆 ដាក់វីដេអូដើម្បីមើល")
 
@@ -653,7 +641,6 @@ with tab2:
         st.markdown("""
         - ✅ Unlimited video dubbing
         - ✅ No trial limits
-        - ✅ Priority processing
         - ✅ All voice options
         - ✅ 1 year validity
         """)
@@ -672,20 +659,20 @@ with tab2:
 with tab3:
     st.subheader("ℹ️ About Khmer Dubber")
     st.markdown("""
-    ### 🎬 What is Khmer Dubber?
+    ### 🎬 How it works:
     
-    Khmer Dubber uses AI to generate Khmer voice from text.
+    1. **ដកស្រង់សំឡេង** ពីវីដេអូ
+    2. **បកប្រែ** អត្ថបទជាភាសាខ្មែរ
+    3. **បង្កើតសំឡេងខ្មែរ** ដោយ AI
+    4. **បញ្ចូលសំឡេងថ្មី** ចូលវីដេអូ
     
-    ### 🎤 Voice Options:
-    - **បុរស (Male)** - Deep male voice
-    - **ស្ត្រី (Female)** - Clear female voice
+    ### ⚙️ Requirements:
+    - **FFmpeg** ត្រូវដំឡើងក្នុងកុំព្យូទ័រ
+    - **Internet** សម្រាប់បង្កើតសំឡេង
     
     ### 💰 Pricing:
-    - **Trial**: 3 free generations
+    - **Trial**: 3 free videos
     - **VIP**: Unlimited access
-    
-    ### 📱 Contact:
-    **Telegram:** @YOUR_TELEGRAM
     """)
 
 # ========== SIDEBAR ==========
@@ -708,11 +695,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    voice_label = "បុរស" if st.session_state.voice_type == "male" else "ស្ត្រី"
-    st.info(f"🎤 សម្លេង: {voice_label}")
-    
-    st.markdown("---")
-    
     st.markdown("### 📱 Contact")
     st.markdown("""
     <div style="background:#0088cc;padding:18px;border-radius:12px;color:white;text-align:center;">
@@ -730,4 +712,4 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    st.caption("Version 4.0.0")
+    st.caption("Version 5.0.0")
