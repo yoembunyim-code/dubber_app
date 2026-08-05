@@ -111,7 +111,6 @@ with c3:
 
 st.button("🗣️ DUB AS-IS (no translate)", use_container_width=True)
 
-# 4.3 ប៊ូតុង START (បានកែឲ្យដំណើរការពេលចុចរួច និងការពារ NameError)
 st.markdown('<div class="green-btn">', unsafe_allow_html=True)
 if st.button("🚀 START", use_container_width=True):
     if not st.session_state.is_activated:
@@ -119,13 +118,47 @@ if st.button("🚀 START", use_container_width=True):
     elif uploaded_video is None:
         st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        # ដំណើរការដោយជោគជ័យ
-        st.success("✅ ចុច START ជោគជ័យ! (សម្លេងដែលអ្នកបានជ្រើសគឺ: " + voice_option + ")")
+        # ពីទីនេះទៅ គឺជាចំណុចដែលអ្នកត្រូវសរសេរកូដ AI Dubbing របស់អ្នក
+        # ឧទាហរណ៍៖ output_video_path = process_ai_dubbing(uploaded_video)
+        
+        # យើងក្លែងធ្វើជាកន្លែងរក្សាទុកវីដេអូលទ្ធផល
+        result_video_path = "output_video.mp4" # ជាឈ្មោះឯកសារលទ្ធផលក្រោយ AI ដំណើរការរួច
+        
+        st.success("✅ ដំណើរការ Dubbing ចប់ហើយ! អ្នកអាចឆែកមើល ឬទាញយកវីដេអូបាននៅខាងក្រោម៖")
+        
+        # បង្ហាញវីដេអូដោយផ្ទាល់ក្នុង App ដើម្បីឆែកមើល
+        # ចំណាំ៖ ប្រសិនបើអ្នកចង់បង្ហាញវីដេអូដែលទើបតែដំណើរការចប់ ត្រូវប្រាកដថាផ្លូវ (Path) ឯកសារត្រឹមត្រូវ។
+        with open(result_video_path, "rb") as f:
+            video_bytes = f.read()
+            st.video(video_bytes) # បង្ហាញក្នុង App
 
-        # នៅផ្នែកនេះ អ្នកនឹងសរសេរកូដ AI របស់អ្នក ដែលទាញយក voice_option មកប្រើដើម្បីកំណត់សម្លេង។
-        # ឧទាហរណ៍៖ run_ai_processing(uploaded_video, voice_option)
+        # ផ្តល់ប៊ូតុង Download ឱ្យអ្នកប្រើប្រាស់អាចយកទៅ Save នៅលើម៉ាស៊ីនរបស់ខ្លួន
+        st.download_button(
+            label="📥 ទាញយកវីដេអូដែលបាន Dubbing (Download)",
+            data=video_bytes,
+            file_name="dubbed_result_video.mp4",
+            mime="video/mp4"
+        )
 
-        # ពិនិត្យមើលថាវីដេអូលទ្ធផលត្រូវបាន AI បង្កើតជោគជ័យឬអត់ (ទប់ស្កាត់ NameError)
+st.markdown('</div>', unsafe_allow_html=True)
+BUNYIM LANGUAGE -->KHMER PRO
+https://chat.deepseek.com/share/gxn0xafdyij4fohg9o
+# ផ្នែក 4.3 START របស់អ្នក
+st.markdown('<div class="green-btn">', unsafe_allow_html=True)
+if st.button("🚀 START", use_container_width=True):
+    if not st.session_state.is_activated:
+        st.warning("សូម Activate VIP ជាមុនសិន!")
+    elif uploaded_video is None:
+        st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
+    else:
+        st.success(f"✅ ចុច START ជោគជ័យ! (សម្លេងដែលបានជ្រើសគឺ: {voice_option})")
+        
+        # ⚠️ ចាប់ពីកន្លែងនេះទៅ អ្នកត្រូវដាក់កូដ AI របស់អ្នកចូល
+        # ឧទាហរណ៍៖ process_ai_video(uploaded_video, voice_option)
+        # ឬ run_your_ai_model(uploaded_video, voice_option)
+        # ត្រូវប្រាកដថា AI របស់អ្នក Save ឯកសារដោយកំណត់ឈ្មោះថា "output_video.mp4" (ដូចដែលបានកំណត់ក្នុង OUTPUT_VIDEO_NAME)
+
+        # ពិនិត្យថាឯកសារលទ្ធផលមានឬអត់
         if os.path.exists(OUTPUT_VIDEO_NAME):
             st.markdown("### 🎬 ឆែកមើលវីដេអូដែលបាន Dubbing")
             with open(OUTPUT_VIDEO_NAME, "rb") as f:
@@ -138,7 +171,6 @@ if st.button("🚀 START", use_container_width=True):
                     mime="video/mp4"
                 )
         else:
-            st.info("⏳ រង់ចាំឲ្យ AI ដំណើរការបង្កើតវីដេអូរួចសិន ទើបបង្ហាញនៅទីនេះ (ឯកសារលទ្ធផលមិនទាន់មាន)។")
+            st.info("⏳ រង់ចាំឲ្យ AI ដំណើរការបង្កើតវីដេអូរួចសិន ទើបបង្ហាញនៅទីនេះ។")
 st.markdown('</div>', unsafe_allow_html=True)
-
 st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
