@@ -5,11 +5,11 @@ import asyncio
 import tempfile
 import streamlit as st
 
-# Safe Import for MoviePy to prevent crash
+# Safe Import for MoviePy 2.x
 try:
-    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
-except Exception:
     from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
+except Exception:
+    from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 
 import edge_tts
 from deep_translator import GoogleTranslator
@@ -59,7 +59,7 @@ def activate_vip(code):
         data["license_key"] = code
         data["activated"] = True
         save_license(data)
-        return True, "🎉 បើកប្រើប្រាស់ VIP ជោគជ័យ! អ្នកអាចប្រើបានគ្មានដែនកំណត់。"
+        return True, "🎉 បើកប្រើប្រាស់ VIP ជោគជ័យ! អ្នកអាចប្រើបានគ្មានដែនកំណត់។"
     return False, "⚠️ VIP Code មិនត្រឹមត្រូវទេ! សូមទាក់ទង Admin តាម Telegram។"
 
 
@@ -143,7 +143,7 @@ def process_clean_dubbing(video_bytes, voice_code):
             st.error(err)
             return None, ""
 
-        video = VideoFileClip(in_vdo_path).remove_audio()
+        video = VideoFileClip(in_vdo_path).without_audio()
         audio_clips = []
         full_transcript = []
 
@@ -151,12 +151,12 @@ def process_clean_dubbing(video_bytes, voice_code):
             seg_audio_path = in_vdo_path.replace(".mp4", f"_seg_{idx}.mp3")
             generate_tts_audio(seg["text"], voice_code, seg_audio_path)
 
-            speech_clip = AudioFileClip(seg_audio_path).set_start(seg["start"])
+            speech_clip = AudioFileClip(seg_audio_path).with_start(seg["start"])
             audio_clips.append(speech_clip)
             full_transcript.append(f"[{int(seg['start'])}s] {seg['text']}")
 
         final_audio = CompositeAudioClip(audio_clips)
-        final_video = video.set_audio(final_audio)
+        final_video = video.with_audio(final_audio)
         
         final_video.write_videofile(out_vdo_path, codec="libx264", audio_codec="aac", logger=None)
 
