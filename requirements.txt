@@ -2,3 +2,4 @@ streamlit
 gtts
 deep-translator
 imageio-ffmpeg
+openai-whisper
