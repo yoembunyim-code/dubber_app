@@ -6,12 +6,7 @@ import streamlit as st
 # ក្នុងជីវិតពិត អ្នកគួររក្សាទុកព័ត៌មាននេះនៅក្នុង Database (ដូចជា SQLite ឬ API)។
 # នៅទីនេះយើងក្លែងធ្វើ Data តាម Dictionary ដើម្បីឲ្យអ្នកសាកល្បងបានភ្លាមៗ។
 
-# ឧទាហរណ៍៖ License_Key: Machine_ID ដែលបានចងភ្ជាប់
-LICENSE_DATABASE = {
-    # លេខកូដត្រឹមត្រូវសម្រាប់ម៉ាស៊ីននេះ (សាកល្បងដាក់កូដនេះទៅ!)
-    "VIP-2026-ABCD": "58611610212922",
-    # លេខកូដដែលចងភ្ជាប់ជាមួយម៉ាស៊ីនផ្សេង (ដើម្បីសាកល្បងថាទប់ស្កាត់បាន)
-    "ADMIN-9999": "58221133882211"
+# ឧទាហរណ៍៖ License_Key: Machine_ID ដែលបានចងភ្ជាប់  
     LICENSE_DATABASE = { "LICENSE_KEY_1": "BUNYIM_ID_1",
                         "LICENSE_KEY_2": "BUNYIM_ID_2" }
 
