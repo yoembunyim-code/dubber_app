@@ -147,7 +147,7 @@ st.markdown("---")
 
 # Settings
 uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov"])
-input_script = st.text_area("២. បញ្ចូលអត្ថបទដែលត្រូវបកប្រែ និងនិយាយជាខ្មែរ៖", value="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរ។")
+#input_script = st.text_area("២. បញ្ចូលអត្ថបទដែលត្រូវបកប្រែ និងនិយាយជាខ្មែរ៖", value="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរ។")
 
 col_a, col_b = st.columns(2)
 v_type = col_a.selectbox("សំឡេង AI:", [("km-KH-PisethNeural", "🇰🇭 សំឡេងប្រុស (ពិសិដ្ឋ)"), ("km-KH-SreymomNeural", "🇰🇭 សំឡេងស្រី (ស្រីមុំ)")], format_func=lambda x: x[1])
