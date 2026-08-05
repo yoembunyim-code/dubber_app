@@ -1,208 +1,127 @@
-# app.py (សម្រាប់ Streamlit Cloud)
 import streamlit as st
-import json
-import os
-import uuid
-import datetime
-import platform
 
-# ================================================================
-#  ផ្នែក LICENSE MANAGER (ដូចគ្នានឹងមុន ប៉ុន្តែបន្ថែមការ​ប្រើ session_state)
-# ================================================================
+# 1. កំណត់រចនាសម្ព័ន្ធទំព័រ (Page Config)
+st.set_page_config(page_title="VIP Activation System", layout="wide", page_icon="🔑")
 
-LICENSE_FILE = "license.json"
-
-def get_machine_id():
-    """បង្កើត Machine ID តែមួយគត់"""
-    try:
-        # ប្រើ MAC address
-        return str(uuid.getnode())
-    except:
-        # បើមិនបាន ប្រើ hostname
-        return platform.node()
-
-def default_license():
-    return {
-        "license_key": "",
-        "activated": False,
-        "activation_date": None,
-        "expiry_date": None,
-        "machine_id": get_machine_id(),
-        "videos_used": 0
+# 2. បន្ថែម CSS ដើម្បីធ្វើឲ្យ UI ឡូយដូចរូបទី៣ (Desktop style)
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f8f9fa; /* ពណ៌ផ្ទៃខាងក្រោយស្រាល */
     }
-
-def load_license():
-    try:
-        with open(LICENSE_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            required = ["license_key","activated","activation_date","expiry_date","machine_id","videos_used"]
-            for field in required:
-                if field not in data:
-                    return default_license()
-            return data
-    except:
-        return default_license()
-
-def save_license(data):
-    try:
-        with open(LICENSE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-        return True
-    except:
-        return False
-
-def check_license(data):
-    if not data.get("activated", False):
-        return False, "Trial"
-    if data.get("machine_id") != get_machine_id():
-        return False, "Invalid Machine"
-    expiry = data.get("expiry_date")
-    if expiry:
-        try:
-            exp_date = datetime.datetime.strptime(expiry, "%Y-%m-%d").date()
-            if exp_date < datetime.datetime.now().date():
-                return False, "Expired"
-        except:
-            pass
-    return True, "VIP"
-
-def activate_license(key):
-    valid_keys = ["VIP-2024-ABCD", "SUPER-VIP-2026", "TEAM-8888"]
-    if key not in valid_keys:
-        return False, "Invalid Code"
-    data = load_license()
-    data["license_key"] = key
-    data["activated"] = True
-    data["activation_date"] = datetime.datetime.now().strftime("%Y-%m-%d")
-    exp = datetime.datetime.now() + datetime.timedelta(days=365)
-    data["expiry_date"] = exp.strftime("%Y-%m-%d")
-    data["machine_id"] = get_machine_id()
-    if save_license(data):
-        return True, "Activated Successfully"
-    return False, "Failed to save license"
+    /* តុបតែងប៊ូតុងទូទៅ */
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: bold;
+        height: 3.2em;
+        width: 100%;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    /* តុបតែង SideBar ឲ្យងងឹតឡូយ */
+    section[data-testid="stSidebar"] {
+        background-color: #1e2129;
+        color: #ffffff;
+    }
+    section[data-testid="stSidebar"] .stMarkdown, 
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h3 {
+        color: #ffffff;
+    }
+    /* ពណ៌ប៊ូតុង START (ប្ដូរទៅជាពណ៌បៃតងដូចរូបទី៣) */
+    .stButton.green-btn > button {
+        background-color: #28a745 !important;
+        color: white !important;
+        height: 4em;
+        font-size: 18px;
+        border: none;
+    }
+    /* តុបតែងប្រអប់បញ្ចូល Activation Code */
+    .stTextInput > div > div > input {
+        border-radius: 8px;
+        border: 1px solid #ced4da;
+        padding: 10px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
-# ================================================================
-#  ផ្នែក STREAMLIT UI
-# ================================================================
-
-# កំណត់រចនាសម្ព័ន្ធទំព័រ
-st.set_page_config(page_title="VIP Activation System", layout="centered")
-
-# ផ្ទុក License ពីឯកសារ (នឹងរក្សាទុកក្នុង session_state ដើម្បីកុំឲ្យអានឯកសារញឹកញាប់)
-if "license_data" not in st.session_state:
-    st.session_state.license_data = load_license()
-if "videos_used" not in st.session_state:
-    st.session_state.videos_used = st.session_state.license_data.get("videos_used", 0)
-
-# ========== HEADER ==========
-st.title("🔑 VIP Activation System")
-st.markdown("---")
-
-# ========== TOP SECTION: Activation ==========
-col1, col2 = st.columns([3, 2])
-with col1:
-    st.subheader("Activation Code")
-    code_input = st.text_input("បញ្ចូល Activation Code:", placeholder="e.g. VIP-2024-ABCD", key="code_input")
-with col2:
-    st.write("")  # spacing
-    st.write("")
-    col_act, col_chk = st.columns(2)
-    with col_act:
-        if st.button("✅ Activate VIP", use_container_width=True):
-            if code_input.strip() == "":
-                st.error("សូមបញ្ចូល Code មុនពេល Activate")
-            else:
-                success, msg = activate_license(code_input.strip())
-                if success:
-                    st.session_state.license_data = load_license()
-                    st.session_state.videos_used = st.session_state.license_data.get("videos_used", 0)
-                    st.success("🎉 VIP Activated ដោយជោគជ័យ!")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {msg}\n\nសូមទាក់ទង Telegram: @YOUR_TELEGRAM")
-    with col_chk:
-        if st.button("🔍 Check License", use_container_width=True):
-            st.session_state.license_data = load_license()
-            st.session_state.videos_used = st.session_state.license_data.get("videos_used", 0)
-            st.rerun()
-
-# ========== STATUS DISPLAY ==========
-st.markdown("---")
-license_data = st.session_state.license_data
-videos_used = st.session_state.videos_used
-is_vip, reason = check_license(license_data)
-
-if is_vip:
-    st.success("✅ **VIP Activated** (គ្មានដែនកំណត់)")
-    st.info(f"📅 ថ្ងៃផុតកំណត់: {license_data.get('expiry_date', 'N/A')}")
-    status_color = "green"
-    trial_msg = ""
-    start_disabled = False
-else:
-    if reason == "Expired":
-        st.error("⛔ **License Expired** - សូមទិញ VIP ថ្មី")
-        trial_msg = "សូមទិញ VIP ដើម្បីបន្តប្រើប្រាស់"
-        start_disabled = True
-    elif reason == "Invalid Machine":
-        st.error("⛔ **Invalid Device** - License មិនត្រូវគ្នានឹងឧបករណ៍នេះទេ")
-        trial_msg = "សូមទាក់ទងអ្នកគ្រប់គ្រង"
-        start_disabled = True
-    else:
-        remaining = 3 - videos_used
-        if remaining > 0:
-            st.warning(f"📌 **Trial Version** - នៅសល់ {remaining} ដង (ក្នុងចំណោម 3)")
-            trial_msg = f"នៅសល់ {remaining} ដង"
-            start_disabled = False
-        else:
-            st.error("⛔ **Trial Expired** - អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ")
-            trial_msg = "អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ"
-            start_disabled = True
-
-# ========== VIDEO SIMULATION ==========
-st.markdown("---")
-st.subheader("🎬 Video Player Simulation")
-
-# Button Start Video
-if st.button("▶ Start Video", disabled=start_disabled, use_container_width=True):
-    if is_vip:
-        st.success("កំពុងចាក់វីដេអូ... (VIP - Unlimited)")
-    else:
-        if videos_used < 3:
-            # បង្កើនចំនួន
-            new_videos_used = videos_used + 1
-            license_data["videos_used"] = new_videos_used
-            if save_license(license_data):
-                st.session_state.license_data = load_license()
-                st.session_state.videos_used = st.session_state.license_data.get("videos_used", 0)
-                remaining = 3 - new_videos_used
-                st.success(f"ចាក់វីដេអូរួចរាល់! (នៅសល់ {remaining} ដង)")
-                st.rerun()
-            else:
-                st.error("មានបញ្ហាក្នុងការរក្សាទុកទិន្នន័យ")
-        else:
-            st.warning("អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។ សូមទិញ VIP ដើម្បីបន្តប្រើប្រាស់")
-
-# ========== BUY VIP BUTTON ==========
-st.markdown("---")
-if st.button("💬 Buy VIP", use_container_width=True):
-    st.info("សម្រាប់ទិញ VIP ឬទទួល Activation Code\n\nសូមទាក់ទង Telegram: **@YOUR_TELEGRAM**\n\n(លុបពាក្យ YOUR_TELEGRAM ចេញ រួចដាក់ឈ្មោះអ្នកវិញ)")
-
-# ========== SIDEBAR ==========
+# ==========================================
+# 3. ផ្នែក SIDEBAR (កែច្នៃពីរូបទី 1)
+# ==========================================
 with st.sidebar:
-    st.header("ℹ️ License Info")
-    st.write(f"**Machine ID:** {get_machine_id()}")
-    st.write(f"**License Key:** {license_data.get('license_key', 'None')}")
-    st.write(f"**Activated:** {license_data.get('activated', False)}")
-    st.write(f"**Activation Date:** {license_data.get('activation_date', 'N/A')}")
-    st.write(f"**Expiry Date:** {license_data.get('expiry_date', 'N/A')}")
-    st.write(f"**Videos Used:** {videos_used}/3")
-    st.write("---")
-    if st.button("🔄 Reset License (Debug)"):
-        # សម្រាប់សាកល្បងតែប៉ុណ្ណោះ
-        if os.path.exists(LICENSE_FILE):
-            os.remove(LICENSE_FILE)
-        st.session_state.license_data = default_license()
-        st.session_state.videos_used = 0
-        st.success("បានកំណត់ License ឡើងវិញជា Trial")
-        st.rerun()
+    st.markdown("## ℹ️ **ព័ត៌មានអាជ្ញាប័ណ្ណ**")
+    st.markdown("---")
+    
+    # លេខសម្គាល់ម៉ាស៊ីន
+    st.markdown("**លេខសម្គាល់ឧបករណ៍ (Machine ID):**")
+    st.code("58611610212922", language="text") # លាក់ License Key ចោល បង្ហាញតែ Machine ID
+    
+    # ស្ថានភាព និងកាលបរិច្ឆេទ
+    st.markdown("**ស្ថានភាពប្រើប្រាស់:** `មិនទាន់បើកសកម្ម`")
+    st.markdown("**កាលបរិច្ឆេទផុតកំណត់:** `None`")
+    st.markdown("**ចំនួនវីដេអូដែលបានប្រើ:** `3/3`")
+    
+    st.markdown("---")
+    # ប៊ូតុង Reset License (Debug)
+    if st.button("🔄 Reset License (Debug)", use_container_width=True):
+        st.success("បានធ្វើការ Reset License ដោយជោគជ័យ (សម្រាប់សាកល្បង)")
+
+
+# ==========================================
+# 4. ផ្នែក MAIN UI (កែរូបទី 2 ឲ្យដូចរូបទី 3)
+# ==========================================
+st.markdown("<h1 style='text-align: center;'>🔑 VIP Activation System</h1>", unsafe_allow_html=True)
+st.markdown("---")
+
+# 4.1 ប្រអប់បញ្ចូល Activation Code និងប៊ូតុង Activate
+col_input, col_btn = st.columns([4, 1])
+with col_input:
+    act_code = st.text_input("បញ្ចូល Activation Code នៅទីនេះ", placeholder="ឧទាហរណ៍: XXXX-XXXX-XXXX", label_visibility="collapsed")
+with col_btn:
+    if st.button("✅ Activate VIP", type="primary", use_container_width=True):
+        if not act_code or act_code.strip() == "N/A":
+            st.error("❌ Invalid Code! សូមពិនិត្យមើលកូដរបស់អ្នកឡើងវិញ!")
+        else:
+            st.success("🎉 Activate ជោគជ័យ!") # នៅចំណុចនេះ អ្នកអាចបន្ថែម Logic Activate ពិតៗរបស់អ្នក
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 4.2 បង្កើតប្លង់ប៊ូតុងតាមជួរស្រដៀងរូបទី 3
+st.markdown("### 📂 ប្រអប់ឧបករណ៍គ្រប់គ្រង (Control Panel)")
+st.markdown("<hr style='border: 0;'>", unsafe_allow_html=True)
+
+# ជួរទី 1: Browse Video, Browse SRT
+c1, c2 = st.columns(2)
+with c1:
+    st.button("📂 BROWSE VIDEO", type="primary", use_container_width=True)
+with c2:
+    st.button("📄 BROWSE SRT", type="primary", use_container_width=True)
+
+# ជួរទី 2: Auto, SREY MOM, PIDETH
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.button("🤖 AUTO", use_container_width=True)
+with c2:
+    st.button("👩 SREY MOM", use_container_width=True)
+with c3:
+    st.button("🧑 PIDETH", use_container_width=True)
+
+# ជួរទី 3: DUB AS-IS
+st.button("🗣️ DUB AS-IS (no translate)", use_container_width=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# ជួរទី 4: START (ប៊ូតុងធំពណ៌បៃតង)
+# យើងរុំក្នុង HTML div class="green-btn" ដើម្បីឲ្យ CSS ខាងលើចាប់យកពណ៌បានត្រឹមត្រូវ
+st.markdown('<div class="green-btn">', unsafe_allow_html=True)
+if st.button("🚀 START", use_container_width=True):
+    st.success("កំពុងដំណើរការ Dubbing និង Translation... សូមរង់ចាំ!")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ជួរទី 5: OPEN FOLDER
+st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
