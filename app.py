@@ -4,24 +4,20 @@ import time
 from datetime import datetime
 
 # =======================================================
-# 1. ផ្នែក Config (កន្លែងដែលអ្នកកែតែម្ដង)
+# 1. ផ្នែក Config (សម្រាប់កែប្រែព័ត៌មានអ្នក)
 # =======================================================
-OWNER_TELEGRAM = "t.me/bunyimyoem" # ប្តូរទៅឈ្មោះ Telegram អ្នក
+OWNER_TELEGRAM = "t.me/bunyimyoem" # <-- កែត្រង់នេះទៅជាឈ្មោះរបស់អ្នក
 
-# បញ្ជីលេខកូដសម្រាប់អតិថិជន (គ្មាន Machine ID)
 LICENSE_DATABASE = {
-    "VIP-2026-ABCD": {"uses": 100, "expiry": "2026-12-31"}, # កូដសម្រាប់អ្នក
-    "ADMIN-9999":    {"uses": 999, "expiry": "2030-01-01"}, # កូដសាកល្បង
-    # បន្ថែមអតិថិជនថ្មីដូចនេះ៖
-    # "SOKHA-VIP-001": {"uses": 5, "expiry": "2026-08-30"}, 
+    "VIP-2026-ABCD": {"uses": 100, "expiry": "2026-12-31"}, 
+    "ADMIN-9999":    {"uses": 999, "expiry": "2030-01-01"}, 
 }
 
 # =======================================================
-# 2. កំណត់រចនាសម្ព័ន្ធទំព័រ & CSS ឡូយៗ
+# 2. កំណត់ទំព័រ និង CSS
 # =======================================================
-st.set_page_config(page_title="AI Dubbing System", layout="wide", page_icon="🎬")
+st.set_page_config(page_title="ប្រព័ន្ធឌឹបសំឡេង AI", layout="wide", page_icon="🎬")
 
-# កំណត់ Session State (ផ្នែកចងចាំ)
 if 'is_activated' not in st.session_state:
     st.session_state.is_activated = False
 if 'current_key' not in st.session_state:
@@ -31,24 +27,26 @@ if 'trial_done' not in st.session_state:
 if 'trial_video_data' not in st.session_state:
     st.session_state.trial_video_data = None
 
+# តុបតែង UI ឲ្យមានរូបរាងដូចរូបទី៣
 st.markdown("""
 <style>
-    .stApp { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+    .stApp { background-color: #f0f2f6; font-family: 'Khmer OS', 'Segoe UI', sans-serif; }
     section[data-testid="stSidebar"] { background-color: #1e293b; color: #ffffff; }
     section[data-testid="stSidebar"] .stMarkdown { color: #e2e8f0; }
-    .stButton > button { border-radius: 10px; font-weight: 600; border: none; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: all 0.2s; width: 100%; height: 3.2em; }
-    .stButton > button:hover { transform: translateY(-2px); }
+    section[data-testid="stSidebar"] h3 { color: #ffffff; }
+
+    .stButton > button { border-radius: 12px; font-weight: 600; border: none; transition: 0.2s; width: 100%; height: 3.5em; }
+    .stButton > button:hover { transform: scale(1.02); }
+    
     .stButton.green-btn > button { background-color: #10b981 !important; color: white !important; height: 4.5em; font-size: 20px; }
-    .stButton.trial-btn > button { background-color: #f59e0b !important; color: white !important; height: 4em; font-size: 18px; border: 2px solid white; }
-    div[data-testid="stFileUploader"] { width: 100%; }
-    div[data-testid="stFileUploader"] section { padding: 0; border: none; background: transparent; }
-    div[data-testid="stFileUploader"] button { background-color: #3b82f6 !important; color: white !important; border-radius: 10px; width: 100%; height: 3.2em; font-weight: bold; border: none; }
-    .stTextInput > div > div > input { border-radius: 10px; border: 1px solid #cbd5e1; padding: 12px; font-size: 16px; }
+    .stButton.trial-btn > button { background-color: #f59e0b !important; color: white !important; height: 4em; font-size: 18px; }
+    div[data-testid="stFileUploader"] button { background-color: #3b82f6 !important; color: white !important; border-radius: 12px; width: 100%; height: 3.5em; font-weight: bold; border: none; }
+    .stTextInput > div > div > input { border-radius: 8px; border: 1px solid #ddd; padding: 12px; }
 </style>
 """, unsafe_allow_html=True)
 
 # =======================================================
-# 3. ផ្នែក SIDEBAR (ខាងឆ្វេង)
+# 3. ផ្នែក SIDEBAR (បកប្រែជាខ្មែរទាំងស្រុង)
 # =======================================================
 with st.sidebar:
     st.markdown("## ℹ️ ព័ត៌មានអាជ្ញាប័ណ្ណ")
@@ -57,68 +55,63 @@ with st.sidebar:
     status_text = "✅ សកម្ម" if st.session_state.is_activated else "⛔ មិនទាន់បើក"
     st.markdown(f"**ស្ថានភាពប្រើប្រាស់:** `{status_text}`")
     if st.session_state.is_activated:
-        st.caption(f"កូដបច្ចុប្បន្ន៖ `{st.session_state.current_key}`")
+        st.caption(f"លេខកូដ៖ `{st.session_state.current_key}`")
     
     st.markdown("---")
     st.markdown("#### 📞 ត្រូវការជំនួយ?")
+    st.markdown(f"ទាក់ទងមកយើងតាម Telegram៖")
     st.markdown(f"[![Telegram](https://img.shields.io/badge/Telegram-{OWNER_TELEGRAM}-blue?style=for-the-badge&logo=telegram)](https://t.me/{OWNER_TELEGRAM.replace('@', '')})")
     
     st.markdown("---")
-    if st.button("🔄 Reset License (Debug)", use_container_width=True):
+    if st.button("🔄 កំណត់ឡើងវិញ (Debug)", use_container_width=True):
         st.session_state.is_activated = False
         st.session_state.current_key = None
-        st.success("បាន Reset ស្ថានភាពវិញ!")
+        st.success("បានកំណត់ឡើងវិញដោយជោគជ័យ!")
 
 # =======================================================
-# 4. ផ្នែក MAIN UI (កណ្តាល)
+# 4. ផ្នែក MAIN UI
 # =======================================================
-st.markdown("<h1 style='text-align: center;'>🎬 AI Video Dubbing System</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>ឌឹបសំឡេងវីដេអូដោយ AI យ៉ាងរហ័ស</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1e293b;'>🎬 ប្រព័ន្ធឌឹបសំឡេងវីដេអូ</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 4.1 ផ្នែកផ្ទុកវីដេអូ (Upload)
+# ផ្នែកផ្ទុកវីដេអូ
 col1, col2 = st.columns(2)
 with col1:
-    uploaded_video = st.file_uploader("Browse Video", type=['mp4', 'avi', 'mov', 'mkv'], label_visibility="collapsed")
+    uploaded_video = st.file_uploader("ផ្ទុកវីដេអូ", type=['mp4', 'avi', 'mov', 'mkv'], label_visibility="collapsed")
     if uploaded_video is not None:
         st.caption(f"ឯកសារ៖ `{uploaded_video.name}`")
 with col2:
-    st.button("📄 BROWSE SRT", type="primary", use_container_width=True)
+    st.button("📄 ផ្ទុកឯកសារ SRT", type="primary", use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 4.2 ផ្នែកជ្រើសរើសសម្លេង
-voice_option = st.selectbox("ជ្រើសរើសសម្លេង (Select Voice)", ["ស្រី (Female)", "ប្រុស (Male)", "SREY MOM", "PIDETH"])
+# ផ្នែកជ្រើសរើសសម្លេង
+voice_option = st.selectbox("ជ្រើសរើសសម្លេង", ["ស្រី (Female)", "ប្រុស (Male)", "SREY MOM", "PIDETH"])
 st.markdown("<br>", unsafe_allow_html=True)
 
 # =======================================================
-# 5. ផ្នែក FREE TRIAL (សាកល្បងដោយមិនចាំបាច់ Activate)
+# 5. ផ្នែក FREE TRIAL
 # =======================================================
-st.markdown("### 🎁 សាកល្បងដោយឥតគិតថ្លៃ (Free Trial)")
+st.markdown("### 🎁 សាកល្បងដោយឥតគិតថ្លៃ")
 st.markdown('<div class="trial-btn">', unsafe_allow_html=True)
-
-if st.button("🎬 សាកល្បងវីដេអូដំបូង (Trial)", use_container_width=True):
+if st.button("🎬 សាកល្បងឌឹបវីដេអូ (Trial)", use_container_width=True):
     if uploaded_video is None:
-        st.warning("សូមផ្ទុក (Upload) វីដេអូជាមុនសិន!")
+        st.warning("សូមផ្ទុកវីដេអូជាមុនសិន!")
     else:
         st.session_state.trial_done = False
-        
-        # ក្លែងធ្វើដំណើរការរង់ចាំ AI (បើអ្នកមាន AI ពិត ត្រូវកែត្រង់នេះ)
-        with st.spinner(f'⏳ (សាកល្បង) កំពុងឌឹបសំឡេង AI: "{voice_option}"... សូមរង់ចាំ ៣ វិនាទី'):
-            time.sleep(3) # ក្លែងធ្វើការធ្វើការងារ ៣ វិនាទី
-            
-            # រក្សាទុកទិន្នន័យវីដេអូដើម ដើម្បីយកទៅបង្ហាញជាលទ្ធផលសាកល្បង
+        with st.spinner('⏳ កំពុងដំណើរការឌឹប... សូមរង់ចាំបន្តិច'):
+            time.sleep(3)
             uploaded_video.seek(0)
             st.session_state.trial_video_data = uploaded_video.read()
             st.session_state.trial_done = True
-            st.rerun() # ធ្វើឲ្យទំព័រផ្ទុកឡើងវិញ ដើម្បីបង្ហាញវីដេអូ
+            st.rerun()
 
 if st.session_state.trial_done:
-    st.success("✅ សាកល្បង Dubbing បានបញ្ចប់ដោយជោគជ័យ! ឆែកមើលលទ្ធផលខាងក្រោម៖")
+    st.success("✅ ការសាកល្បងឌឹបសំឡេងបានបញ្ចប់! មើលលទ្ធផលខាងក្រោម៖")
     if st.session_state.trial_video_data:
         st.video(st.session_state.trial_video_data)
         st.download_button(
-            label="📥 ទាញយកវីដេអូសាកល្បង (Download)",
+            label="📥 ទាញយកវីដេអូ",
             data=st.session_state.trial_video_data,
             file_name="trial_dubbed_result.mp4",
             mime="video/mp4"
@@ -128,61 +121,61 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # =======================================================
-# 6. ផ្នែក Activate VIP សម្រាប់ការប្រើប្រាស់ពេញ
+# 6. ផ្នែក Activate VIP
 # =======================================================
-st.markdown("### 🔑 បើកសិទ្ធិប្រើប្រាស់ពេញលេញ (VIP)")
+st.markdown("### 🔑 បើកសិទ្ធិប្រើប្រាស់ពេញ")
 if st.session_state.is_activated:
-    st.success("🎉 ប្រព័ន្ធ VIP ត្រូវបាន Activate រួចរាល់ហើយ! អ្នកអាចប្រើប្រាស់មុខងារពេញលេញបាន។")
+    st.success("🎉 ប្រព័ន្ធបាន Activate រួចរាល់! ចូលប្រើប្រាស់មុខងារពេញលេញខាងក្រោម។")
+    
+    # ===================================================
+    # ផ្នែកនេះសំខាន់ណាស់! ខ្ញុំបានដាក់ Control Panel នៅទីនេះ
+    # ===================================================
+    st.markdown("### 📂 បន្ទះឧបករណ៍គ្រប់គ្រង")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.button("🤖 AUTO", use_container_width=True)
+    with c2:
+        st.button("👩 SREY MOM", use_container_width=True)
+    with c3:
+        st.button("🧑 PIDETH", use_container_width=True)
+
+    st.button("🗣️ DUB AS-IS", use_container_width=True)
+    
+    st.markdown('<div class="green-btn">', unsafe_allow_html=True)
+    if st.button("🚀 START (ពេញ)", use_container_width=True):
+        if uploaded_video is None:
+            st.warning("សូមផ្ទុកវីដេអូជាមុន!")
+        else:
+            st.success(f"✅ ចុច START ជោគជ័យ! សម្លេង: {voice_option}")
+            st.info("នៅទីនេះអ្នកនឹងដាក់កូដ AI Dubbing ពិតរបស់អ្នក។")
+    st.markdown('</div>', unsafe_allow_html=True)
+
 else:
+    # ផ្នែក Activate Code
     c_input, c_btn = st.columns([4, 1])
     with c_input:
-        act_code_input = st.text_input("បញ្ចូល Activation Code ដើម្បីបើកពេញ", placeholder="ឧ. VIP-2026-ABCD", label_visibility="collapsed")
+        act_code_input = st.text_input("បញ្ចូលលេខកូដ VIP នៅទីនេះ", placeholder="ឧ. VIP-2026-ABCD", label_visibility="collapsed")
     with c_btn:
         if st.button("✅ Activate VIP", type="primary", use_container_width=True):
             if not act_code_input or act_code_input.strip() == "":
-                st.error("❌ សូមបញ្ចូលលេខកូដជាមុនសិន។")
+                st.error("❌ សូមបញ្ចូលលេខកូដ។")
             else:
                 if act_code_input in LICENSE_DATABASE:
                     details = LICENSE_DATABASE[act_code_input]
                     try:
                         today = datetime.now().date()
                         expiry_date = datetime.strptime(details['expiry'], "%Y-%m-%d").date()
-                        
                         if today > expiry_date:
-                            st.error("❌ លេខកូដនេះបានផុតកំណត់ហើយ!")
+                            st.error("❌ កូដនេះផុតកំណត់ហើយ!")
                         elif details['uses'] <= 0:
-                            st.error("❌ លេខកូដនេះត្រូវបានប្រើអស់ចំនួនកំណត់ហើយ!")
+                            st.error("❌ កូដនេះអស់ការប្រើប្រាស់ហើយ!")
                         else:
                             st.session_state.is_activated = True
                             st.session_state.current_key = act_code_input
                             LICENSE_DATABASE[act_code_input]['uses'] -= 1
-                            st.success("🎉 Activate ជោគជ័យ! សូមរីករាយប្រើប្រាស់។")
+                            st.success("🎉 Activate ជោគជ័យ!")
                             st.rerun()
                     except ValueError:
-                        st.error("❌ កំហុសក្នុងទម្រង់កាលបរិច្ឆេទនៃលេខកូដនេះ។")
+                        st.error("❌ កំហុសទិន្នន័យ។")
                 else:
-                    st.error("❌ លេខកូដមិនត្រឹមត្រូវ! សូមទាក់ទង Telegram របស់យើងដើម្បីទិញ License។")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# =======================================================
-# 7. ផ្នែក START (Full Version) តម្រូវឲ្យ Activate
-# =======================================================
-st.markdown("### 🚀 ដំណើរការពេញ (Full Process)")
-st.markdown('<div class="green-btn">', unsafe_allow_html=True)
-
-if st.button("🚀 START (Full Version)", use_container_width=True):
-    if not st.session_state.is_activated:
-        st.warning("សូម Activate VIP ជាមុនសិន ទើបអាចប្រើប្រាស់មុខងារ START នេះបាន!")
-    elif uploaded_video is None:
-        st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
-    else:
-        # នៅទីនេះអ្នកអាចដាក់ AI Logic ពិតរបស់អ្នកសម្រាប់ VIP
-        # ឧទាហរណ៍៖ st.session_state.vip_video_data = run_real_ai_dubbing(uploaded_video, voice_option)
-        st.success(f"✅ ចុច START (Full Version) ដោយជោគជ័យ! (សម្លេង: {voice_option})")
-        st.info("⏳ (ចំណាំសម្រាប់អ្នកអភិវឌ្ឍន៍)៖ នៅទីនេះអ្នកអាចដាក់កូដ AI Dubbing ពិតរបស់អ្នក។ ពេលដំណើរការចប់ សូម Save ជាទម្រង់ Bytes និងប្រើ st.video() ដើម្បីបង្ហាញវីដេអូ។")
-        
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
+                    st.error("❌ លេខកូដមិនត្រឹមត្រូវ! ទាក់ទង Telegram ដើម្បីទិញ License។")
