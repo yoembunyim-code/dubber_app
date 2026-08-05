@@ -12,7 +12,8 @@ LICENSE_DATABASE = {
     "VIP-2026-ABCD": "58611610212922",
     # លេខកូដដែលចងភ្ជាប់ជាមួយម៉ាស៊ីនផ្សេង (ដើម្បីសាកល្បងថាទប់ស្កាត់បាន)
     "ADMIN-9999": "58221133882211"
-}
+    LICENSE_DATABASE = { "LICENSE_KEY_1": "BUNYIM_ID_1",
+                        "LICENSE_KEY_2": "BUNYIM_ID_2" }
 
 # សន្មតថាកុំព្យូទ័ររបស់អ្នកបច្ចុប្បន្នមាន Machine ID នេះ (អ្នកអាចប្តូរវាសាកល្បងបាន)
 CURRENT_MACHINE_ID = "58611610212922"
@@ -84,7 +85,7 @@ with st.sidebar:
     st.markdown("#### 📞 ត្រូវការជំនួយ?")
     st.markdown("សម្រាប់ការគាំទ្រ ឬទិញ License:")
     # ប្តូរ YOUR_TELEGRAM ទៅជាឈ្មោះពិតរបស់អ្នក
-    st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-@YOUR_TELEGRAM-blue?style=for-the-badge&logo=telegram)](https://t.me/YOUR_TELEGRAM)")
+    st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-@YOUR_TELEGRAM-blue?style=for-the-badge&logo=telegram)](https://t.me/bunyimyoem)")
     
     st.markdown("---")
     if st.button("🔄 Reset License (Debug)", use_container_width=True):
