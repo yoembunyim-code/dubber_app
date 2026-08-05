@@ -1,4 +1,4 @@
 streamlit
 deep-translator
-edge-tts==6.1.9
-ffmpeg-python
+edge-tts
+gTTS
