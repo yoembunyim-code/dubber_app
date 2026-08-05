@@ -4,3 +4,4 @@ moviepy>=2.0.0
 deep-translator
 openai-whisper
 numpy
+streamlit
