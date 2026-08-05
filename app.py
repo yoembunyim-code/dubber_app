@@ -15,7 +15,7 @@ st.set_page_config(
 
 # ==================== CSS Styling (UI ដូចរូបភាព) ====================
 st.markdown("""
-<style>
+<.start-btn > button { background-color: #4caf50 !important; color: white !important; font-size: 20px; height: 60px; width: 100%; border-radius: 10px; font-weight: bold; }>
     .main-title { font-size: 32px; font-weight: 800; color: #FF4B4B; text-align: center; margin-bottom: 5px; }
     .sub-title { font-size: 16px; color: #666666; text-align: center; margin-bottom: 20px; }
     .stButton>button {
