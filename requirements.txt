@@ -1,7 +1,5 @@
 streamlit
-gtts
-deep-translator
-imageio-ffmpeg
-openai-whisper
-flask
-pydub
+googletrans==3.1.0a0
+edge-tts
+moviepy
+ffmpeg-python
