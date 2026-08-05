@@ -37,7 +37,7 @@ async def generate_khmer_audio(text, voice_code, output_audio_path, rate=1.0):
     communicate = edge_tts.Communicate(text, voice_code, rate=rate_str)
     await communicate.save(output_audio_path)
 
-def process_video_dubbing(video_bytes, voice_model_key, voice_speed, text_to_dub="សួស្តី! នេះគឺជាវីដេអូដែលបានបញ្ចូលសំឡេងបកប្រែជាភាសាខ្មែរដោយស្វ័យប្រវត្តិ។"):
+def process_video_dubbing(video_bytes, voice_model_key, voice_speed,
     """ដំណើរការកាត់បញ្ចូលសំឡេងខ្មែរចូលក្នុងវីដេអូពិតប្រាកដ"""
     
     # កំណត់ Voice Model
