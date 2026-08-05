@@ -137,7 +137,27 @@ if st.button("🚀 START", use_container_width=True):
     elif uploaded_video is None:
         st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        st.success("ចាប់ផ្ដើមដំណើរការ Dubbing ដោយជោគជ័យ!")
-st.markdown('</div>', unsafe_allow_html=True)
+        # ពីទីនេះទៅ គឺជាចំណុចដែលអ្នកត្រូវសរសេរកូដ AI Dubbing របស់អ្នក
+        # ឧទាហរណ៍៖ output_video_path = process_ai_dubbing(uploaded_video)
+        
+        # យើងក្លែងធ្វើជាកន្លែងរក្សាទុកវីដេអូលទ្ធផល
+        result_video_path = "output_video.mp4" # ជាឈ្មោះឯកសារលទ្ធផលក្រោយ AI ដំណើរការរួច
+        
+        st.success("✅ ដំណើរការ Dubbing ចប់ហើយ! អ្នកអាចឆែកមើល ឬទាញយកវីដេអូបាននៅខាងក្រោម៖")
+        
+        # បង្ហាញវីដេអូដោយផ្ទាល់ក្នុង App ដើម្បីឆែកមើល
+        # ចំណាំ៖ ប្រសិនបើអ្នកចង់បង្ហាញវីដេអូដែលទើបតែដំណើរការចប់ ត្រូវប្រាកដថាផ្លូវ (Path) ឯកសារត្រឹមត្រូវ។
+        with open(result_video_path, "rb") as f:
+            video_bytes = f.read()
+            st.video(video_bytes) # បង្ហាញក្នុង App
 
+        # ផ្តល់ប៊ូតុង Download ឱ្យអ្នកប្រើប្រាស់អាចយកទៅ Save នៅលើម៉ាស៊ីនរបស់ខ្លួន
+        st.download_button(
+            label="📥 ទាញយកវីដេអូដែលបាន Dubbing (Download)",
+            data=video_bytes,
+            file_name="dubbed_result_video.mp4",
+            mime="video/mp4"
+        )
+
+st.markdown('</div>', unsafe_allow_html=True)
 st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
