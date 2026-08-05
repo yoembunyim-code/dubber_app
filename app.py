@@ -5,9 +5,6 @@ import subprocess
 import shutil
 import re
 from gtts import gTTS
-from pydub import AudioSegment
-from pydub.effects import speedup
-import io
 
 # ==================== កំណត់ទំព័រ ====================
 st.set_page_config(page_title="AI Dubbing Khmer PRO", page_icon="🎬", layout="centered")
@@ -114,14 +111,23 @@ if "is_vip" not in st.session_state: st.session_state.is_vip = False
 if "trial_count" not in st.session_state: st.session_state.trial_count = 0
 if "selected_voice" not in st.session_state: st.session_state.selected_voice = "female"
 if "processing_result" not in st.session_state: st.session_state.processing_result = None
-if "audio_paths" not in st.session_state: st.session_state.audio_paths = []  # រក្សាទុកឯកសារ audio បណ្ដោះអាសន្ន
 
-# ==================== មុខងារបង្កើតសំឡេងជាមួយការផ្អាកដូចមនុស្ស ====================
+# ==================== មុខងារបង្កើតសំឡេងដោយប្រើ FFmpeg (មិនប្រើ pydub) ====================
 def generate_khmer_audio_with_pauses(text, speed=1.0, pitch=1.0, voice="female"):
     """
-    បង្កើត audio ពីអត្ថបទ ដោយបំបែកជាប្រយោគ និងបន្ថែមចន្លោះពេលផ្អាកដូចមនុស្ស
+    បង្កើត audio ពីអត្ថបទ ដោយប្រើ gTTS + ffmpeg concat ដើម្បីបន្ថែមការផ្អាក
     """
     try:
+        # ពិនិត្យមើល ffmpeg
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            try:
+                import imageio_ffmpeg
+                ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            except:
+                st.error("⚠️ រក FFmpeg មិនឃើញ សូមដំឡើង FFmpeg")
+                return None
+
         # បំបែកអត្ថបទតាមសញ្ញាផ្អាក
         sentences = re.split(r'(?<=[។.!?;:,\n])', text)
         sentences = [s.strip() for s in sentences if s.strip()]
@@ -130,51 +136,67 @@ def generate_khmer_audio_with_pauses(text, speed=1.0, pitch=1.0, voice="female")
             st.warning("គ្មានអត្ថបទដើម្បីបង្កើតសំឡេង")
             return None
 
-        # បង្កើត audio សម្រាប់ប្រយោគនីមួយៗ
-        audio_segments = []
+        # បង្កើតឯកសារ audio សម្រាប់ប្រយោគនីមួយៗ
+        audio_files = []
+        temp_dir = tempfile.mkdtemp()
+
         for idx, sent in enumerate(sentences):
-            # ប្រើ gTTS ដើម្បីបង្កើត audio
+            # បង្កើត MP3 ដោយ gTTS
             tts = gTTS(text=sent, lang='km', slow=False)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-                tts.save(tmp.name)
-                audio = AudioSegment.from_mp3(tmp.name)
+            mp3_path = os.path.join(temp_dir, f"part_{idx:03d}.mp3")
+            tts.save(mp3_path)
+            audio_files.append(mp3_path)
 
-            # កែប្រែល្បឿន (speed)
+        # បង្កើតឯកសារ list.txt សម្រាប់ ffmpeg concat
+        list_path = os.path.join(temp_dir, "list.txt")
+        with open(list_path, "w", encoding="utf-8") as f:
+            for i, mp3 in enumerate(audio_files):
+                f.write(f"file '{mp3}'\n")
+                # បន្ថែម silence រវាងប្រយោគ (លើកលែងប្រយោគចុងក្រោយ)
+                if i < len(audio_files) - 1:
+                    # ពិនិត្យថាតើប្រយោគបញ្ចប់ដោយសញ្ញាណាមួយ
+                    last_char = sentences[i][-1] if sentences[i] else ''
+                    if last_char in '។.!?':
+                        pause_ms = 700   # ផ្អាកយូរ
+                    elif last_char in ';:,':
+                        pause_ms = 400   # ផ្អាកមធ្យម
+                    else:
+                        pause_ms = 250   # ផ្អាកខ្លី
+                    # បង្កើត silence ដោយ ffmpeg
+                    silence_file = os.path.join(temp_dir, f"silence_{i:03d}.mp3")
+                    subprocess.run([
+                        ffmpeg, "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=mono",
+                        "-t", f"{pause_ms/1000:.3f}", "-q:a", "9", "-y", silence_file
+                    ], capture_output=True, check=True)
+                    f.write(f"file '{silence_file}'\n")
+
+        # បញ្ចូលគ្នាទាំងអស់ជា audio តែមួយ
+        output_audio = os.path.join(temp_dir, "combined.mp3")
+        subprocess.run([
+            ffmpeg, "-f", "concat", "-safe", "0", "-i", list_path,
+            "-c", "copy", "-y", output_audio
+        ], capture_output=True, check=True)
+
+        # ប្រសិនបើមានការកែប្រែ speed/pitch យើងអាចធ្វើបានដោយ ffmpeg filter
+        if speed != 1.0 or pitch != 1.0:
+            final_audio = os.path.join(temp_dir, "final.mp3")
+            filter_str = ""
             if speed != 1.0:
-                # speedup មានប៉ារ៉ាម៉ែត្រ speed_factor
-                audio = speedup(audio, speed_factor=speed)
-
-            # កែប្រែ pitch (កម្រិតសំឡេងខ្ពស់ទាប) - ប្រើ pydub.effects
+                filter_str += f"atempo={speed}"
             if pitch != 1.0:
-                # បង្កើន/បន្ថយ pitch ដោយការប្តូរ sample rate
-                # (វិធីសាមញ្ញ៖ ប្តូរ frame_rate ហើយបញ្ជូនត្រឡប់)
-                new_frame_rate = int(audio.frame_rate * pitch)
-                audio = audio._spawn(audio.raw_data, overrides={'frame_rate': new_frame_rate})
-                audio = audio.set_frame_rate(44100)  # កំណត់ត្រឡប់ទៅ 44.1kHz
+                # pitch អាចធ្វើបានដោយ asetrate + aresample
+                if filter_str:
+                    filter_str += ","
+                filter_str += f"asetrate=44100*{pitch},aresample=44100"
+            cmd = [
+                ffmpeg, "-i", output_audio,
+                "-filter:a", filter_str,
+                "-y", final_audio
+            ]
+            subprocess.run(cmd, capture_output=True, check=True)
+            output_audio = final_audio
 
-            # បន្ថែមចន្លោះពេលផ្អាក (បើមិនមែនជាប្រយោគចុងក្រោយ)
-            if idx < len(sentences) - 1:
-                # ពិនិត្យថាតើប្រយោគបញ្ចប់ដោយសញ្ញាណាមួយ
-                last_char = sent[-1] if sent else ''
-                if last_char in '។.!?':
-                    pause_ms = 700   # ផ្អាកយូរ
-                elif last_char in ';:,':
-                    pause_ms = 400   # ផ្អាកមធ្យម
-                else:
-                    pause_ms = 250   # ផ្អាកខ្លី
-                audio += AudioSegment.silent(duration=pause_ms)
-
-            audio_segments.append(audio)
-
-        # បញ្ចូលគ្នាទាំងអស់
-        combined = AudioSegment.empty()
-        for seg in audio_segments:
-            combined += seg
-
-        # រក្សាទុកជាឯកសារ MP3 បណ្ដោះអាសន្ន
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_out:
-            combined.export(tmp_out.name, format="mp3")
-            return tmp_out.name
+        return output_audio
 
     except Exception as e:
         st.error(f"កំហុសក្នុងការបង្កើតសំឡេង៖ {e}")
@@ -321,8 +343,8 @@ if start_btn:
             voice=st.session_state.selected_voice
         )
 
-    if not audio_file:
-        st.error("បង្កើតសំឡេងមិនបានសូមពិនិត្យអត្ថបទ")
+    if not audio_file or not os.path.exists(audio_file):
+        st.error("បង្កើតសំឡេងមិនបាន សូមពិនិត្យអត្ថបទ")
         st.stop()
 
     # រក្សាទុកវីដេអូបណ្ដោះអាសន្ន
@@ -336,7 +358,7 @@ if start_btn:
 
     if output_video and os.path.exists(output_video):
         st.session_state.processing_result = output_video
-        st.session_state.trial_count += 1  # រាប់ការប្រើប្រាស់
+        st.session_state.trial_count += 1
         st.success("✅ ដំណើរការរួចរាល់!")
     else:
         st.error("❌ មានបញ្ហាក្នុងការដំណើរការវីដេអូ")
@@ -348,14 +370,11 @@ if st.session_state.processing_result:
         st.markdown("---")
         st.markdown("### 🎥 វីដេអូលទ្ធផល")
 
-        # អានវីដេអូជា binary
         with open(result_path, "rb") as f:
             video_bytes = f.read()
 
-        # បង្ហាញវីដេអូ
         st.video(video_bytes)
 
-        # ប៊ូតុងទាញយក
         st.download_button(
             label="📥 ទាញយកវីដេអូ",
             data=video_bytes,
@@ -364,7 +383,6 @@ if st.session_state.processing_result:
             use_container_width=True
         )
 
-        # ប៊ូតុងសម្អាត
         if st.button("🗑️ សម្អាតលទ្ធផល"):
             try:
                 os.remove(result_path)
