@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import math
 import asyncio
 import tempfile
 from datetime import datetime, timedelta
@@ -17,11 +18,9 @@ from deep_translator import GoogleTranslator
 import speech_recognition as sr
 
 # ==============================================================================
-# ⚙️ DEVELOPER CONFIGURATIONS
+# ⚙️ កន្លែងកំណត់ TELEGRAM & VIP CODES (អ្នកអាចផ្លាស់ប្តូរនៅទីនេះ)
 # ==============================================================================
-TELEGRAM_USERNAME = "@YOUR_TELEGRAM"
-TELEGRAM_LINK = f"https://t.me/{TELEGRAM_USERNAME.replace('@', '')}"
-
+TELEGRAM_USERNAME = "YOUR_TELEGRAM_NAME"  # ✍️ ដាក់ Username Telegram របស់អ្នក (ឧទាហរណ៍: bunyim)
 VALID_VIP_CODES = [
     "VIP-SECRET-2026",
     "VIP-PASS-8888",
@@ -32,12 +31,15 @@ VALID_VIP_CODES = [
 TRIAL_LIMIT = 3
 LICENSE_FILE = "license.json"
 
+clean_telegram = TELEGRAM_USERNAME.replace("@", "").strip()
+TELEGRAM_LINK = f"https://t.me/{clean_telegram}"
+
 
 # ==============================================================================
-# 🎙️ MULTI-LANGUAGE SPEECH RECOGNITION & TRANSLATION
+# 🎙️ ADVANCED SPEECH RECOGNITION (CHUNKED AUDIO ENGINE)
 # ==============================================================================
 def extract_and_translate_speech(video_path, source_lang_code):
-    """ស្តាប់សំឡេងតាមភាសាដើមនៃវីដេអូ រួចបកប្រែទៅជាភាសាខ្មែរ"""
+    """ស្តាប់សំឡេងតាមភាសាដើមនៃវីដេអូ ដោយបំបែកជាកង់ៗ (Chunks) រួចបកប្រែទៅជាភាសាខ្មែរ"""
     audio_wav_path = video_path.replace(".mp4", "_extracted.wav")
     
     try:
@@ -45,6 +47,9 @@ def extract_and_translate_speech(video_path, source_lang_code):
         if video.audio is None:
             video.close()
             return None, "⚠️ វីដេអូនេះគ្មានសំឡេងដើមទេ!"
+
+        total_duration = int(video.duration)
+        if total_duration < 1: total_duration = 1
 
         # Extract audio ជា WAV Mono 16kHz
         video.audio.write_audiofile(
@@ -57,26 +62,33 @@ def extract_and_translate_speech(video_path, source_lang_code):
         video.close()
 
         recognizer = sr.Recognizer()
+        full_text_list = []
+        chunk_seconds = 12  # បំបែកស្តាប់ម្តង ១២ វិនាទី ដើម្បីកុំឱ្យ Google API Error
+        
         with sr.AudioFile(audio_wav_path) as source:
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            audio_data = recognizer.record(source)
-            
-            # ស្តាប់សំឡេងតាមភាសាដែលបានជ្រើសរើស (ចិន, អង់គ្លេស, ថៃ...)
-            original_text = recognizer.recognize_google(audio_data, language=source_lang_code)
+            total_chunks = math.ceil(total_duration / chunk_seconds)
+            for _ in range(total_chunks):
+                try:
+                    audio_data = recognizer.record(source, duration=chunk_seconds)
+                    chunk_text = recognizer.recognize_google(audio_data, language=source_lang_code)
+                    if chunk_text and chunk_text.strip():
+                        full_text_list.append(chunk_text.strip())
+                except sr.UnknownValueError:
+                    continue  # កាត់រំលងផ្នែកដែលគ្មានសំឡេងនិយាយ ឬភ្លេងខ្លាំង
+                except Exception:
+                    continue
 
         if os.path.exists(audio_wav_path):
             os.remove(audio_wav_path)
 
+        original_text = " ".join(full_text_list)
+
         if original_text and original_text.strip():
-            # បកប្រែអត្ថបទដើមទៅជាភាសាខ្មែរ
             khmer_translation = GoogleTranslator(source='auto', target='km').translate(original_text)
             return khmer_translation, None
         else:
-            return None, "⚠️ មិនអាចចាប់យកសំឡេងនិយាយបានទេ! សូមពិនិត្យមើលថាភាសាដើមត្រូវឬនៅ។"
+            return None, "⚠️ មិនអាចស្តាប់យល់ពាក្យនិយាយបានទេ! សូមពិនិត្យមើលថាភាសាដើមត្រូវ ឬវីដេអូមានភ្លេងរំខានខ្លាំងពេក។"
 
-    except sr.UnknownValueError:
-        if os.path.exists(audio_wav_path): os.remove(audio_wav_path)
-        return None, "⚠️ មិនអាចស្តាប់យល់ពាក្យនិយាយបានទេ (អាចមកពីភ្លេងរំខានខ្លាំង ឬជ្រើសរើសភាសាដើមមិនត្រូវ)!"
     except Exception as e:
         if os.path.exists(audio_wav_path): os.remove(audio_wav_path)
         return None, f"⚠️ មានបញ្ហាក្នុងការទាញយកសំឡេង៖ {e}"
@@ -95,10 +107,8 @@ def dub_video_process(video_bytes, voice_code, voice_speed, mode, source_lang_co
         khmer_script = ""
 
         if mode == "auto":
-            # ស្តាប់សំឡេងដើមពីវីដេអូ
             translated, err = extract_and_translate_speech(in_vdo_path, source_lang_code)
             if err:
-                # ប្រសិនបើស្តាប់មិនបាន ត្រូវប្រាប់ Error ផ្ទាល់ មិនប្រើអក្សរគំរូឡើយ
                 st.error(err)
                 for p in [in_vdo_path, audio_path, out_vdo_path]:
                     if os.path.exists(p): os.remove(p)
@@ -114,7 +124,7 @@ def dub_video_process(video_bytes, voice_code, voice_speed, mode, source_lang_co
                 st.error("⚠️ សូមបញ្ចូលអត្ថបទខ្មែរជាមុនសិន!")
                 return None, ""
 
-        # បង្កើតសំឡេង AI ខ្មែរ (Edge TTS)
+        # បង្កើតសំឡេង AI ខ្មែរ
         rate_str = f"{int((voice_speed - 1.0) * 100):+d}%"
         communicate = edge_tts.Communicate(khmer_script, voice_code, rate=rate_str)
         asyncio.run(communicate.save(audio_path))
@@ -188,6 +198,9 @@ rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 
 st.title("🎙️ KHMER VIDEO DUBBER STUDIO")
 
+# 📲 Telegram Contact Bar (ប៊ូតុងទាក់ទង Telegram)
+st.link_button("💬 ទាក់ទង Admin តាម Telegram (ទិញ VIP Code)", TELEGRAM_LINK, use_container_width=True)
+
 # 🔑 VIP Activation
 with st.expander("🔑 VIP Activation Panel", expanded=not is_vip):
     col1, col2 = st.columns([3, 1])
@@ -201,10 +214,10 @@ with st.expander("🔑 VIP Activation Panel", expanded=not is_vip):
             st.rerun()
         else: st.error(msg)
 
-# Status
+# Status Badge
 if is_vip: st.success("ស្ថានភាព៖ VIP Activated ✅ (ប្រើបានគ្មានដែនកំណត់)")
 elif rem_trials > 0: st.warning(f"ស្ថានភាព៖ Trial Version ⏳ (នៅសល់ {rem_trials}/{TRIAL_LIMIT} វីដេអូ)")
-else: st.error(f"ស្ថានភាព៖ Trial Expired 🚫 (សូមទាក់ទង {TELEGRAM_USERNAME})")
+else: st.error("ស្ថានភាព៖ Trial Expired 🚫 (សូមទាក់ទង Telegram Admin ដើម្បីទិញកូដ)")
 
 st.markdown("---")
 
@@ -304,3 +317,7 @@ if st.session_state.vdo:
         mime="video/mp4",
         use_container_width=True
     )
+
+# 📲 Bottom Telegram Contact
+st.markdown("---")
+st.link_button("💬 មានចម្ងល់ ឬចង់ទិញ VIP Code? ទាក់ទងតាម Telegram ទីនេះ", TELEGRAM_LINK, use_container_width=True)
