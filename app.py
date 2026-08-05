@@ -70,20 +70,19 @@ def process_simple_dubbing(video_bytes, voice_code):
 
     try:
         video = VideoFileClip(in_vdo_path)
-        duration = video.duration
         
         # កាត់សំឡេងដើមចេញទាំងស្រុង យកតែវីដេអូស្អាត
         video_clean = video.without_audio()
 
-        # បង្កើតអត្ថបទសម្រាប់តេស្តសម្លេង AI ខ្មែរពេញវីដេអូ
         sample_text = "សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបញ្ចូលសំឡេង AI ខ្មែរដោយស្វ័យប្រវត្តិ។ លុបសំឡេងរំខាន ១០០ភាគរយ។"
         
         seg_audio_path = in_vdo_path.replace(".mp4", "_ai.mp3")
         generate_tts_audio(sample_text, voice_code, seg_audio_path)
 
-        ai_audio = AudioFileClip(seg_audio_path).set_start(0)
+        # ប្រើ with_start ជំនួស set_start សម្រាប់ MoviePy ជំនាន់ថ្មី
+        ai_audio = AudioFileClip(seg_audio_path).with_start(0)
         
-        final_video = video_clean.set_audio(ai_audio)
+        final_video = video_clean.with_audio(ai_audio)
         final_video.write_videofile(out_vdo_path, codec="libx264", audio_codec="aac", logger=None)
 
         with open(out_vdo_path, "rb") as f:
@@ -137,7 +136,7 @@ selected_voice = st.selectbox("២. ជ្រើសរើសសំឡេង៖",
 
 can_run = is_vip or (rem_trials > 0)
 
-if st.button("▶ ចាប់ផ្តើមလုပ်ការ (Process Video)", disabled=not can_run, type="primary", use_container_width=True):
+if st.button("▶ ចាប់ផ្តើមលុបកំចាត់សំឡេង (Process Video)", disabled=not can_run, type="primary", use_container_width=True):
     if not uploaded_vdo:
         st.warning("សូមដាក់វីដេអូសិន!")
     else:
