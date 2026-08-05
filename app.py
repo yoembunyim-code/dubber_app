@@ -3,6 +3,7 @@ import json
 import os
 from datetime import datetime, timedelta
 import base64
+import time
 
 # ================================================================
 #  LICENSE MANAGER
@@ -87,25 +88,35 @@ st.markdown("""
     .stButton > button {
         width: 100%;
         border-radius: 10px;
-        padding: 10px;
+        padding: 12px;
         font-weight: bold;
         font-size: 16px;
         transition: all 0.3s;
+        border: none;
     }
     .stButton > button:hover {
         transform: scale(1.02);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     }
     .stButton > button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+        transform: none;
+    }
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+    }
+    .stButton > button[kind="secondary"] {
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+        color: white;
     }
     .upload-box {
         border: 2px dashed #4CAF50;
         border-radius: 15px;
         padding: 30px;
         text-align: center;
-        background-color: #f0f8ff;
+        background: linear-gradient(135deg, #f0f8ff, #e8f5e9);
     }
     .video-container {
         border-radius: 15px;
@@ -113,7 +124,7 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
     .status-badge {
-        padding: 8px 16px;
+        padding: 8px 20px;
         border-radius: 20px;
         font-weight: bold;
         display: inline-block;
@@ -125,6 +136,7 @@ st.markdown("""
         color: white;
         text-align: center;
         margin: 10px 0;
+        box-shadow: 0 4px 15px rgba(0,136,204,0.3);
     }
     .telegram-box a {
         color: white;
@@ -134,6 +146,37 @@ st.markdown("""
     }
     .telegram-box a:hover {
         text-decoration: underline;
+    }
+    .voice-card {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+        border: 2px solid #e0e0e0;
+        margin: 5px 0;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .voice-card:hover {
+        border-color: #4CAF50;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .voice-card.selected {
+        border-color: #4CAF50;
+        background: #e8f5e9;
+    }
+    .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: #e0e0e0;
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+    .progress-bar .fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        border-radius: 3px;
+        transition: width 0.5s;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -149,13 +192,31 @@ if 'dubbed_video' not in st.session_state:
     st.session_state.dubbed_video = None
 if 'video_processed' not in st.session_state:
     st.session_state.video_processed = False
+if 'selected_voice' not in st.session_state:
+    st.session_state.selected_voice = "Male 1"
+if 'dub_language' not in st.session_state:
+    st.session_state.dub_language = "Khmer"
+if 'translation_text' not in st.session_state:
+    st.session_state.translation_text = ""
+if 'processing_progress' not in st.session_state:
+    st.session_state.processing_progress = 0
+
+# ========== VOICE OPTIONS ==========
+VOICE_OPTIONS = {
+    "Male 1": {"emoji": "👨", "desc": "បុរស សំឡេងធម្មតា"},
+    "Male 2": {"emoji": "👨‍🦰", "desc": "បុរស សំឡេងជ្រៅ"},
+    "Female 1": {"emoji": "👩", "desc": "ស្ត្រី សំឡេងធម្មតា"},
+    "Female 2": {"emoji": "👩‍🦳", "desc": "ស្ត្រី សំឡេងផ្អែម"},
+    "Youth": {"emoji": "🧑", "desc": "ក្មេង សំឡេងស្រស់"},
+    "Elder": {"emoji": "👴", "desc": "ចាស់ សំឡេងក្រៀម"},
+}
 
 # ========== HEADER ==========
 col_title, col_status = st.columns([2, 1])
 
 with col_title:
     st.title("🎬 Khmer Dubber")
-    st.markdown("បកប្រែវីដេអូជាភាសាខ្មែរ ជាមួយ AI")
+    st.markdown("បកប្រែវីដេអូជាភាសាខ្មែរ ជាមួយ AI និងសម្លេងជ្រើសរើស")
 
 with col_status:
     status = st.session_state.status
@@ -187,7 +248,7 @@ st.markdown("""
 st.markdown("---")
 
 # ========== MAIN LAYOUT ==========
-tab1, tab2, tab3 = st.tabs(["📹 Dub Video", "🔑 VIP Activation", "ℹ️ About"])
+tab1, tab2, tab3 = st.tabs(["🎬 Dub Video", "🔑 VIP Activation", "ℹ️ About"])
 
 # ========== TAB 1: DUB VIDEO ==========
 with tab1:
@@ -198,16 +259,72 @@ with tab1:
         st.subheader("📤 Upload Video")
         
         uploaded_file = st.file_uploader(
-            "Choose a video file",
-            type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
+            "ជ្រើសរើសវីដេអូ",
+            type=['mp4', 'avi', 'mov', 'mkv', 'webm', 'm4v'],
             accept_multiple_files=False,
-            help="Upload your video file to dub"
+            help="ដាក់វីដេអូដែលអ្នកចង់បកប្រែ"
         )
         
         if uploaded_file is not None:
             st.session_state.uploaded_video = uploaded_file
-            st.success(f"✅ Uploaded: {uploaded_file.name}")
-            st.info(f"📁 Size: {uploaded_file.size / (1024*1024):.2f} MB")
+            st.success(f"✅ បានដាក់វីដេអូ: {uploaded_file.name}")
+            st.info(f"📁 ទំហំ: {uploaded_file.size / (1024*1024):.2f} MB")
+            
+            # ===== LANGUAGE & VOICE SELECTION =====
+            st.markdown("---")
+            st.subheader("⚙️ ការកំណត់ការបកប្រែ")
+            
+            # Language selection
+            col_lang1, col_lang2 = st.columns(2)
+            with col_lang1:
+                dub_language = st.selectbox(
+                    "🌐 ភាសាគោលដៅ",
+                    ["Khmer", "English", "Thai", "Vietnamese", "Chinese", "Japanese"],
+                    index=0
+                )
+                st.session_state.dub_language = dub_language
+            
+            with col_lang2:
+                st.markdown("**🎤 ជ្រើសរើសសម្លេង**")
+                selected_voice = st.selectbox(
+                    "សម្លេង",
+                    list(VOICE_OPTIONS.keys()),
+                    index=0,
+                    format_func=lambda x: f"{VOICE_OPTIONS[x]['emoji']} {x} - {VOICE_OPTIONS[x]['desc']}"
+                )
+                st.session_state.selected_voice = selected_voice
+            
+            # ===== VOICE PREVIEW CARDS =====
+            st.markdown("**សម្លេងដែលអាចជ្រើសរើសបាន៖**")
+            cols = st.columns(3)
+            for idx, (voice, info) in enumerate(VOICE_OPTIONS.items()):
+                col_idx = idx % 3
+                with cols[col_idx]:
+                    is_selected = st.session_state.selected_voice == voice
+                    border_color = "#4CAF50" if is_selected else "#e0e0e0"
+                    bg_color = "#e8f5e9" if is_selected else "#f8f9fa"
+                    st.markdown(f"""
+                    <div style="background:{bg_color};padding:12px;border-radius:10px;border:2px solid {border_color};text-align:center;margin:5px 0;cursor:pointer;">
+                        <div style="font-size:28px;">{info['emoji']}</div>
+                        <div style="font-weight:bold;">{voice}</div>
+                        <div style="font-size:12px;color:#666;">{info['desc']}</div>
+                        {'' if not is_selected else '<div style="color:#4CAF50;">✅ Selected</div>'}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # ===== SUBTITLE OPTIONS =====
+            st.markdown("---")
+            st.subheader("📝 ចំណងជើងរង")
+            
+            col_sub1, col_sub2 = st.columns(2)
+            with col_sub1:
+                add_subtitles = st.checkbox("បន្ថែមចំណងជើងរងភាសាខ្មែរ", value=True)
+            with col_sub2:
+                subtitle_position = st.selectbox("ទីតាំង", ["បាត", "កណ្តាល", "លើ"])
+            
+            # ===== ACTION BUTTONS =====
+            st.markdown("---")
+            st.subheader("🎯 ចាប់ផ្តើមបកប្រែ")
             
             status = st.session_state.status
             can_process = False
@@ -216,56 +333,61 @@ with tab1:
             if status == "vip":
                 can_process = True
             elif status == "expired":
-                reason = "License expired. Please buy VIP."
+                reason = "License expired. សូមទិញ VIP"
             else:
                 videos_used = st.session_state.license_data.get("videos_used", 0)
                 if videos_used >= 3:
-                    reason = "Trial expired. Please buy VIP."
+                    reason = "Trial expired. សូមទិញ VIP"
                 else:
                     can_process = True
-            
-            st.markdown("---")
-            st.subheader("🎯 Action")
             
             col_btn1, col_btn2 = st.columns(2)
             
             with col_btn1:
                 if can_process:
-                    if st.button("🎤 Dub Video", use_container_width=True, type="primary"):
-                        with st.spinner("Processing video... This may take a moment..."):
-                            import time
-                            time.sleep(3)
+                    if st.button("🎤 បកប្រែវីដេអូ", use_container_width=True, type="primary"):
+                        with st.spinner("កំពុងដំណើរការបកប្រែ... សូមរង់ចាំ..."):
+                            # Simulate processing with progress
+                            for i in range(101):
+                                st.session_state.processing_progress = i
+                                time.sleep(0.02)
+                            
                             st.session_state.video_processed = True
                             st.session_state.dubbed_video = st.session_state.uploaded_video
                             
+                            # Update trial count
                             if status != "vip":
                                 new_count = st.session_state.license_data.get("videos_used", 0) + 1
                                 st.session_state.license_data["videos_used"] = new_count
                                 save_license(st.session_state.license_data)
                                 st.session_state.status = check_license_status(st.session_state.license_data)
                             
-                            st.success("✅ Video dubbed successfully!")
+                            # Set translation text
+                            st.session_state.translation_text = f"✅ បានបកប្រែជោគជ័យ!\n\nសម្លេង: {st.session_state.selected_voice}\nភាសា: {st.session_state.dub_language}"
+                            
+                            st.success("✅ បានបកប្រែវីដេអូជោគជ័យ!")
                             st.rerun()
                 else:
-                    st.button("🎤 Dub Video", disabled=True, use_container_width=True)
+                    st.button("🎤 បកប្រែវីដេអូ", disabled=True, use_container_width=True)
                     st.warning(f"⚠️ {reason}")
             
             with col_btn2:
-                if st.button("🔄 Reset", use_container_width=True):
+                if st.button("🔄 កំណត់ឡើងវិញ", use_container_width=True):
                     st.session_state.uploaded_video = None
                     st.session_state.dubbed_video = None
                     st.session_state.video_processed = False
+                    st.session_state.translation_text = ""
+                    st.session_state.processing_progress = 0
                     st.rerun()
             
+            # ===== TRIAL STATUS =====
             if status == "trial":
                 videos_used = st.session_state.license_data.get("videos_used", 0)
                 remaining = 3 - videos_used
                 if remaining > 0:
-                    st.info(f"📹 Trial remaining: {remaining} / 3")
+                    st.info(f"📹 នៅសល់សិទ្ធិសាកល្បង: {remaining} / 3")
                 else:
-                    st.warning("⚠️ No trials left! Activate VIP to continue.")
-                    
-                    # Telegram contact in warning
+                    st.warning("⚠️ អស់សិទ្ធិសាកល្បងហើយ! សូម Activate VIP ដើម្បីបន្តប្រើប្រាស់")
                     st.markdown("""
                     <div style="background:#fff3cd;padding:15px;border-radius:10px;border-left:4px solid #ffc107;">
                         <b>📱 ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖</b><br>
@@ -273,22 +395,37 @@ with tab1:
                     </div>
                     """, unsafe_allow_html=True)
             
+            # ===== PROGRESS BAR =====
+            if st.session_state.processing_progress > 0 and st.session_state.processing_progress < 100:
+                st.markdown(f"""
+                <div class="progress-bar">
+                    <div class="fill" style="width:{st.session_state.processing_progress}%;"></div>
+                </div>
+                <p style="text-align:center;font-size:14px;">កំពុងដំណើរការ... {st.session_state.processing_progress}%</p>
+                """, unsafe_allow_html=True)
+            
         else:
+            # Empty state
             st.markdown("""
             <div class="upload-box">
-                <h3>📂 Drag & Drop</h3>
-                <p>or click to browse</p>
-                <p style="font-size:12px;color:#888;">Supported: MP4, AVI, MOV, MKV, WEBM</p>
+                <h3>📂 អូស និង ទម្លាក់</h3>
+                <p>ឬចុចដើម្បីជ្រើសរើសវីដេអូ</p>
+                <p style="font-size:12px;color:#888;">គាំទ្រ: MP4, AVI, MOV, MKV, WEBM</p>
             </div>
             """, unsafe_allow_html=True)
     
     # ----- RIGHT COLUMN: Video Preview -----
     with col_right:
-        st.subheader("📺 Video Preview")
+        st.subheader("📺 មើលវីដេអូ")
         
         if st.session_state.video_processed and st.session_state.dubbed_video is not None:
-            st.success("🎉 Dubbed video ready!")
+            st.success("🎉 វីដេអូដែលបានបកប្រែរួចរាល់!")
             
+            # Show translation info
+            if st.session_state.translation_text:
+                st.info(st.session_state.translation_text)
+            
+            # Show video
             video_data = st.session_state.dubbed_video.getvalue()
             video_base64 = base64.b64encode(video_data).decode()
             
@@ -301,8 +438,9 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
+            # Download button
             st.download_button(
-                label="💾 Download Dubbed Video",
+                label="💾 ទាញយកវីដេអូដែលបានបកប្រែ",
                 data=video_data,
                 file_name=f"dubbed_{st.session_state.uploaded_video.name if st.session_state.uploaded_video else 'video'}",
                 mime="video/mp4",
@@ -310,6 +448,7 @@ with tab1:
             )
             
         elif st.session_state.uploaded_video is not None:
+            # Show original video
             video_data = st.session_state.uploaded_video.getvalue()
             video_base64 = base64.b64encode(video_data).decode()
             
@@ -322,10 +461,10 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
             
-            st.caption("📌 Original video - Click 'Dub Video' to process")
+            st.caption("📌 វីដេអូដើម - ចុច 'បកប្រែវីដេអូ' ដើម្បីដំណើរការ")
             
         else:
-            st.info("👆 Upload a video to preview")
+            st.info("👆 ដាក់វីដេអូដើម្បីមើល")
 
 # ========== TAB 2: VIP ACTIVATION ==========
 with tab2:
@@ -348,7 +487,7 @@ with tab2:
         
         st.markdown("---")
         
-        code = st.text_input("Activation Code", placeholder="Enter your VIP code...", type="password")
+        code = st.text_input("Activation Code", placeholder="បញ្ចូល Code VIP...", type="password")
         
         col_act_btn1, col_act_btn2 = st.columns(2)
         
@@ -364,7 +503,7 @@ with tab2:
                     else:
                         st.error(message)
                 else:
-                    st.warning("Please enter an Activation Code.")
+                    st.warning("សូមបញ្ចូល Activation Code")
         
         with col_act_btn2:
             if st.button("🔄 Check License", use_container_width=True):
@@ -376,17 +515,16 @@ with tab2:
         st.subheader("💎 Get VIP Access")
         
         st.markdown("""
-        ### 🎯 VIP Benefits:
-        - ✅ Unlimited video dubbing
-        - ✅ No trial limits
-        - ✅ Priority processing
-        - ✅ Access to all features
-        - ✅ 1 year validity
+        ### 🎯 អត្ថប្រយោជន៍ VIP:
+        - ✅ បកប្រែវីដេអូគ្មានដែនកំណត់
+        - ✅ មិនមានកំណត់ Trial
+        - ✅ ដំណើរការលឿនជាងមុន
+        - ✅ ប្រើប្រាស់មុខងារទាំងអស់
+        - ✅ សុពលភាព ១ ឆ្នាំ
         """)
         
         st.markdown("---")
         
-        # ===== TELEGRAM BOX IN VIP TAB =====
         st.markdown("""
         <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:20px;border-radius:15px;color:white;text-align:center;">
             <h3>📱 Contact for VIP Purchase</h3>
@@ -405,34 +543,35 @@ with tab3:
     col_about1, col_about2 = st.columns([2, 1])
     
     with col_about1:
-        st.subheader("ℹ️ About Khmer Dubber")
+        st.subheader("ℹ️ អំពី Khmer Dubber")
         
         st.markdown("""
-        ### 🎬 What is Khmer Dubber?
+        ### 🎬 តើ Khmer Dubber ជាអ្វី?
         
-        Khmer Dubber is an AI-powered video dubbing tool that translates videos into Khmer language.
+        Khmer Dubber គឺជាឧបករណ៍បកប្រែវីដេអូដោយប្រើ AI ដែលអាចបកប្រែវីដេអូជាភាសាខ្មែរ។
         
-        ### ✨ Features:
-        - 🎤 AI-powered voice dubbing
-        - 🇰🇭 Khmer language support
-        - 📹 Multiple video formats supported
-        - 💾 Download dubbed videos
+        ### ✨ មុខងារ:
+        - 🎤 បកប្រែសំឡេងដោយ AI
+        - 🇰🇭 គាំទ្រភាសាខ្មែរ
+        - 📹 គាំទ្រវីដេអូច្រើនប្រភេទ
+        - 💾 ទាញយកវីដេអូដែលបានបកប្រែ
+        - 🎤 ជ្រើសរើសសម្លេងបានច្រើនប្រភេទ
         
-        ### 📋 How to use:
-        1. Upload your video
-        2. Click "Dub Video"
-        3. Wait for processing
-        4. Download your dubbed video
+        ### 📋 របៀបប្រើប្រាស់:
+        1. ដាក់វីដេអូរបស់អ្នក
+        2. ជ្រើសរើសសម្លេងដែលចូលចិត្ត
+        3. ចុច "បកប្រែវីដេអូ"
+        4. រង់ចាំដំណើរការ
+        5. ទាញយកវីដេអូដែលបានបកប្រែ
         
-        ### 💰 Pricing:
-        - **Trial**: 3 free videos
-        - **VIP**: Unlimited access
+        ### 💰 តម្លៃ:
+        - **Trial**: ៣ វីដេអូឥតគិតថ្លៃ
+        - **VIP**: ប្រើប្រាស់គ្មានដែនកំណត់
         """)
     
     with col_about2:
         st.subheader("📱 Contact Us")
         
-        # ===== TELEGRAM BOX IN ABOUT TAB =====
         st.markdown("""
         <div style="background:linear-gradient(135deg,#0088cc,#00acee);padding:20px;border-radius:15px;color:white;text-align:center;">
             <h3>📱 Telegram</h3>
@@ -474,9 +613,20 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.markdown("### 📱 Contact")
+    st.markdown("### 🎤 សម្លេងបច្ចុប្បន្ន")
+    if st.session_state.selected_voice:
+        voice_info = VOICE_OPTIONS.get(st.session_state.selected_voice, {})
+        st.markdown(f"""
+        <div style="background:#f0f0f0;padding:15px;border-radius:10px;text-align:center;">
+            <div style="font-size:40px;">{voice_info.get('emoji', '🎤')}</div>
+            <div style="font-weight:bold;">{st.session_state.selected_voice}</div>
+            <div style="font-size:12px;color:#666;">{voice_info.get('desc', '')}</div>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # ===== TELEGRAM IN SIDEBAR =====
+    st.markdown("---")
+    
+    st.markdown("### 📱 Contact")
     st.markdown("""
     <div style="background:#0088cc;padding:15px;border-radius:10px;color:white;text-align:center;">
         <b>📱 Telegram</b><br>
@@ -494,12 +644,10 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    st.caption("Version 1.0.0")
+    st.caption("Version 2.0.0")
 
 # ========== FOOTER ==========
 st.markdown("---")
-
-# ===== TELEGRAM IN FOOTER =====
 st.markdown("""
 <div style="text-align:center;padding:10px;">
     <p>📱 <b>Contact:</b> <a href="https://t.me/YOUR_TELEGRAM" target="_blank">@YOUR_TELEGRAM</a></p>
