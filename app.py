@@ -1,102 +1,93 @@
 import streamlit as st
 
-# =====================================================================
-# 1. ផ្នែកក្លែងធ្វើ Backend Database (សម្រាប់ចាក់សោលេខកូដ ១ ប្រើ ១ ឧបករណ៍)
-# =====================================================================
-# ក្នុងជីវិតពិត អ្នកគួររក្សាទុកព័ត៌មាននេះនៅក្នុង Database (ដូចជា SQLite ឬ API)។
-# នៅទីនេះយើងក្លែងធ្វើ Data តាម Dictionary ដើម្បីឲ្យអ្នកសាកល្បងបានភ្លាមៗ។
+# =======================================================
+# 🔑 ផ្នែកទី 1៖ កំណត់ទម្រង់ដែលងាយស្រួលកែប្រែ (Config)
+# =======================================================
 
-# ឧទាហរណ៍៖ License_Key: Machine_ID ដែលបានចងភ្ជាប់  
-    LICENSE_DATABASE = { "LICENSE_KEY_1": "BUNYIM_ID_1",
-                        "LICENSE_KEY_2": "BUNYIM_ID_2" }
+# 1.1 ដាក់ឈ្មោះ Telegram របស់អ្នកនៅទីនេះ (អ្នកគ្រាន់តែប្តូរតែត្រង់នេះម្តងគត់)
+OWNER_TELEGRAM = "t.me/bunyimyoem" # ឧ. "@SereyMom_Ai"
 
-# សន្មតថាកុំព្យូទ័ររបស់អ្នកបច្ចុប្បន្នមាន Machine ID នេះ (អ្នកអាចប្តូរវាសាកល្បងបាន)
+# 1.2 លេខ Machine ID របស់កុំព្យូទ័រអ្នកបច្ចុប្បន្ន
 CURRENT_MACHINE_ID = "58611610212922"
 
-# =====================================================================
-# 2. កំណត់រចនាសម្ព័ន្ធទំព័រ
-# =====================================================================
+# 1.3 បញ្ជីលេខកូដសម្រាប់ភ្ញៀវ (ដាក់បន្ថែមបានច្រើនដោយគ្រាន់តែបន្ថែមបន្ទាត់ចុះក្រោម)
+# ទម្រង់៖ "លេខកូដរបស់ភ្ញៀវ": "លេខ Machine ID របស់ភ្ញៀវ"
+LICENSE_DATABASE = {
+    # លេខសម្រាប់អ្នកប្រើប្រាស់របស់អ្នក
+    "BUNYIM-VIP-001": "58611610212922",
+    
+    # សម្រាប់សាកល្បងការទប់ស្កាត់
+    "ADMIN-9999": "58221133882211",
+    
+    # (ឧទាហរណ៍: បន្ថែមភ្ញៀវថ្មីនៅទីនេះ)
+    # "ជាឧទាហរណ៍-8888": "59001122334455",
+}
+
+
+# =======================================================
+# 2. កំណត់រចនាសម្ព័ន្ធទំព័រ Streamlit
+# =======================================================
 st.set_page_config(page_title="VIP Activation System", layout="wide", page_icon="🔑")
 
-# 3. ការកំណត់ Session State (ដើម្បីឲ្យកម្មវិធីចងចាំថាបាន Activate ហើយ)
+# =======================================================
+# 3. កំណត់ Session State (ចងចាំថាបាន Activate ឬអត់)
+# =======================================================
 if 'is_activated' not in st.session_state:
     st.session_state.is_activated = False
-if 'machine_id' not in st.session_state:
-    st.session_state.machine_id = CURRENT_MACHINE_ID
 
-# =====================================================================
-# 4. CSS ធ្វើឲ្យ UI ឡូយដូច Desktop App
-# =====================================================================
+# =======================================================
+# 4. CSS តុបតែង UI ឲ្យឡូយៗ (អ្នកមិនចាំបាច់កែផ្នែកនេះទេ)
+# =======================================================
 st.markdown("""
 <style>
     .stApp { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
-    /* Sidebar ពណ៌ងងឹត ឡូយ */
     section[data-testid="stSidebar"] { background-color: #1e293b; color: #ffffff; }
     section[data-testid="stSidebar"] .stMarkdown { color: #e2e8f0; }
     
-    /* តុបតែងប៊ូតុងទូទៅ */
-    .stButton > button {
-        border-radius: 10px; font-weight: 600; border: none;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        transition: all 0.2s ease-in-out; width: 100%; height: 3.2em;
-    }
-    .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-
-    /* ប៊ូតុង START ពណ៌បៃតងទំហំធំ */
+    .stButton > button { border-radius: 10px; font-weight: 600; border: none; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: all 0.2s; width: 100%; height: 3.2em; }
+    .stButton > button:hover { transform: translateY(-2px); }
     .stButton.green-btn > button { background-color: #10b981 !important; color: white !important; height: 4.5em; font-size: 20px; }
     
-    /* តុបតែងកន្លែងផ្ទុកវីដេអូ (File Uploader) ឲ្យក្លែងជាប៊ូតុងពណ៌ខៀវ */
     div[data-testid="stFileUploader"] { width: 100%; }
     div[data-testid="stFileUploader"] section { padding: 0; border: none; background: transparent; }
-    div[data-testid="stFileUploader"] button {
-        background-color: #3b82f6 !important; color: white !important; border-radius: 10px;
-        width: 100%; height: 3.2em; font-weight: bold; border: none;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: all 0.2s;
-    }
-    div[data-testid="stFileUploader"] button:hover { background-color: #2563eb !important; transform: translateY(-2px); }
-
-    /* តុបតែងប្រអប់បញ្ចូល */
+    div[data-testid="stFileUploader"] button { background-color: #3b82f6 !important; color: white !important; border-radius: 10px; width: 100%; height: 3.2em; font-weight: bold; border: none; }
+    
     .stTextInput > div > div > input { border-radius: 10px; border: 1px solid #cbd5e1; padding: 12px; font-size: 16px; }
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================================
-# 5. ផ្នែក SIDEBAR (ព័ត៌មាន និង Telegram)
-# =====================================================================
+# =======================================================
+# 5. ផ្នែក SIDEBAR (ខាងឆ្វេង)
+# =======================================================
 with st.sidebar:
     st.markdown("## ℹ️ ព័ត៌មានអាជ្ញាប័ណ្ណ")
     st.markdown("---")
     st.markdown("**លេខសម្គាល់ឧបករណ៍ (Machine ID):**")
-    st.code(CURRENT_MACHINE_ID, language="text") # បង្ហាញ ID ប៉ុន្តែមិនបង្ហាញ Key
+    st.code(CURRENT_MACHINE_ID, language="text")
     
-    # ពិនិត្យស្ថានភាព
     status_text = "✅ សកម្ម" if st.session_state.is_activated else "⛔ មិនទាន់បើក"
     st.markdown(f"**ស្ថានភាពប្រើប្រាស់:** `{status_text}`")
-    st.markdown("**កាលបរិច្ឆេទផុតកំណត់:** `គ្មានកំណត់`")
     
     st.markdown("---")
-    
-    # ----- កន្លែងឈ្មោះ Telegram -----
+    # ផ្នែក Telegram ត្រូវបានចាប់យក OWNER_TELEGRAM ពីផ្នែក Config ដោយស្វ័យប្រវត្តិ
     st.markdown("#### 📞 ត្រូវការជំនួយ?")
-    st.markdown("សម្រាប់ការគាំទ្រ ឬទិញ License:")
-    # ប្តូរ YOUR_TELEGRAM ទៅជាឈ្មោះពិតរបស់អ្នក
-    st.markdown("[![Telegram](https://img.shields.io/badge/Telegram-@YOUR_TELEGRAM-blue?style=for-the-badge&logo=telegram)](https://t.me/bunyimyoem)")
+    st.markdown(f"[![Telegram](https://img.shields.io/badge/Telegram-{OWNER_TELEGRAM}-blue?style=for-the-badge&logo=telegram)](https://t.me/{OWNER_TELEGRAM.replace('@', '')})")
     
     st.markdown("---")
     if st.button("🔄 Reset License (Debug)", use_container_width=True):
         st.session_state.is_activated = False
-        st.success("បាន Reset ស្ថានភាពទៅដើមវិញដោយជោគជ័យ!")
+        st.success("បាន Reset ស្ថានភាពវិញ!")
 
-# =====================================================================
-# 6. ផ្នែក MAIN UI (ការ Activate និង Control Panel)
-# =====================================================================
+# =======================================================
+# 6. ផ្នែក MAIN UI
+# =======================================================
 st.markdown("<h1 style='text-align: center;'>🔑 VIP Activation System</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
+# 6.1 ផ្នែកបញ្ចូល Activation Code និង Activate
 if st.session_state.is_activated:
     st.success("🎉 ប្រព័ន្ធត្រូវបាន Activate រួចរាល់ហើយ! អ្នកអាចប្រើប្រាស់មុខងារខាងក្រោមបានពេញលេញ។")
 else:
-    # 6.1 ប្រអប់បញ្ចូល Activation Code តែម្ដង
     c_input, c_btn = st.columns([4, 1])
     with c_input:
         act_code_input = st.text_input("បញ្ចូល Activation Code ដើម្បីបើកសិទ្ធិ", placeholder="ឧ. VIP-2026-ABCD", label_visibility="collapsed")
@@ -105,32 +96,27 @@ else:
             if not act_code_input or act_code_input.strip() == "":
                 st.error("❌ សូមបញ្ចូលលេខកូដជាមុនសិន។")
             else:
-                # Logic ពិនិត្យលេខកូដ ១ ប្រើ ១ ឧបករណ៍
                 if act_code_input in LICENSE_DATABASE:
                     expected_machine = LICENSE_DATABASE[act_code_input]
                     if expected_machine == CURRENT_MACHINE_ID:
                         st.session_state.is_activated = True
                         st.success("🎉 ធ្វើការ Activate ជោគជ័យ! សូមរីករាយប្រើប្រាស់។")
-                        st.rerun() # Refresh ទំព័រឲ្យបង្ហាញ Control Panel ភ្លាមៗ
+                        st.rerun()
                     else:
                         st.error("❌ លេខកូដនេះត្រូវបានប្រើប្រាស់ដោយឧបករណ៍ (Machine) ផ្សេងហើយ! លេខកូដ ១ អាចប្រើបានតែ ១ ឧបករណ៍ប៉ុណ្ណោះ។")
                 else:
-                    st.error("❌ លេខកូដមិនត្រឹមត្រូវ! សូមពិនិត្យឡើងវិញ (ឬទាក់ទង Telegram ដើម្បីទិញ)។")
+                    st.error("❌ លេខកូដមិនត្រឹមត្រូវ! សូមទាក់ទង Telegram របស់យើងដើម្បីទិញ License។")
 
-# =====================================================================
-# 7. ប្លង់ Control Panel ស្រដៀងរូបទី៣
-# =====================================================================
+# 6.2 ផ្នែកឧបករណ៍គ្រប់គ្រងរូបទី៣
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### 📂 ប្រអប់ឧបករណ៍គ្រប់គ្រង")
 st.markdown("<hr style='border: 0;'>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
-    # ជំនួសឲ្យប៊ូតុង យើងប្រើ file_uploader ឲ្យដាក់វីដេអូបានពិត
     uploaded_video = st.file_uploader("Browse Video", type=['mp4', 'avi', 'mov', 'mkv'], label_visibility="collapsed")
     if uploaded_video is not None:
-        st.caption(f"ឯកសារ៖ `{uploaded_video.name}` ទំហំ៖ {round(len(uploaded_video.getvalue()) / 1024 / 1024, 2)} MB")
-        # នៅចំណុចនេះ អ្នកអាចបញ្ចូលកូដដំណើរការ AI Dubbing របស់អ្នកបានដោយប្រើ uploaded_video.read()
+        st.caption(f"ឯកសារ៖ `{uploaded_video.name}`")
 with col2:
     st.button("📄 BROWSE SRT", type="primary", use_container_width=True)
 
@@ -144,18 +130,14 @@ with c3:
 
 st.button("🗣️ DUB AS-IS (no translate)", use_container_width=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ប៊ូតុង START ពណ៌បៃតងធំ
 st.markdown('<div class="green-btn">', unsafe_allow_html=True)
 if st.button("🚀 START", use_container_width=True):
     if not st.session_state.is_activated:
-        st.warning("សូម Activate VIP ជាមុនសិន ទើបអាចប្រើ START បាន!")
+        st.warning("សូម Activate VIP ជាមុនសិន!")
     elif uploaded_video is None:
         st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        st.success("ចាប់ផ្ដើមដំណើរការ Dubbing និង Translation ដោយជោគជ័យ!")
+        st.success("ចាប់ផ្ដើមដំណើរការ Dubbing ដោយជោគជ័យ!")
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
 st.button("📂 OPEN FOLDER", type="secondary", use_container_width=True)
