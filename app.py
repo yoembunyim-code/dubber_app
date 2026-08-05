@@ -525,4 +525,4 @@ if uploaded_file is not None:
                     """, unsafe_allow_html=True)
 
 else:
-    st.info("📂 *រង់ចាំការផ្ទុកវីដេអូ...*
+    st.info("📂 *រង់ចាំការផ្ទុកវីដេអូ...*")
