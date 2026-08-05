@@ -81,7 +81,7 @@ with st.sidebar:
 # =======================================================
 # 6. ផ្នែក MAIN UI
 # =======================================================
-st.markdown("<h1 style='text-align: center;'>🔑 VIP Activation System</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🔑 BUNYIM LANGUAGE --> KHMER PRO</h1>", unsafe_allow_html=True)
 st.markdown("---")
 
 # 6.1 ផ្នែកបញ្ចូល Activation Code និង Activate
