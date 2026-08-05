@@ -5,6 +5,7 @@ import asyncio
 import tempfile
 import streamlit as st
 
+# Safe Import for MoviePy to prevent crash
 try:
     from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 except Exception:
@@ -58,7 +59,7 @@ def activate_vip(code):
         data["license_key"] = code
         data["activated"] = True
         save_license(data)
-        return True, "🎉 បើកប្រើប្រាស់ VIP ជោគជ័យ! អ្នកអាចប្រើបានគ្មានដែនកំណត់។"
+        return True, "🎉 បើកប្រើប្រាស់ VIP ជោគជ័យ! អ្នកអាចប្រើបានគ្មានដែនកំណត់。"
     return False, "⚠️ VIP Code មិនត្រឹមត្រូវទេ! សូមទាក់ទង Admin តាម Telegram។"
 
 
@@ -71,7 +72,6 @@ def load_whisper_model():
 
 
 def transcribe_video_segments(video_path):
-    """ស្តាប់សំឡេងតួអង្គ និងទាញយក Timecode យ៉ាងជាក់លាក់"""
     audio_wav_path = video_path.replace(".mp4", "_temp.wav")
     try:
         video = VideoFileClip(video_path)
@@ -79,7 +79,6 @@ def transcribe_video_segments(video_path):
             video.close()
             return None, "⚠️ វីដេអូនេះគ្មានសំឡេងដើមទេ!"
 
-        # ទាញយកសំឡេងជា WAV ធម្មតា بۆ Whisper စစ်ဆေး
         video.audio.write_audiofile(
             audio_wav_path,
             codec='pcm_s16le',
@@ -127,13 +126,11 @@ def transcribe_video_segments(video_path):
 
 
 def generate_tts_audio(text, voice_code, output_path):
-    """បង្កើតសំឡេង AI ខ្មែរស្អាតគ្មានសំឡេងរំខាន"""
     communicate = edge_tts.Communicate(text, voice_code)
     asyncio.run(communicate.save(output_path))
 
 
 def process_clean_dubbing(video_bytes, voice_code):
-    """កាត់សំឡេងដើម និងសំឡេងរំខានចេញទាំងស្រុង ដាក់បញ្ចូលតែសំឡេង AI សុទ្ធ"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_in:
         f_in.write(video_bytes)
         in_vdo_path = f_in.name
@@ -146,24 +143,18 @@ def process_clean_dubbing(video_bytes, voice_code):
             st.error(err)
             return None, ""
 
-        # បើកវីដេអូដើម ប៉ុន្តែដកសំឡេងដើមចេញទាំងស្រុង (remove_audio())
         video = VideoFileClip(in_vdo_path).remove_audio()
         audio_clips = []
         full_transcript = []
 
         for idx, seg in enumerate(segments):
             seg_audio_path = in_vdo_path.replace(".mp4", f"_seg_{idx}.mp3")
-            
-            # បង្កើតសំឡេង AI សម្រាប់ប្រយោគនីមួយៗ
             generate_tts_audio(seg["text"], voice_code, seg_audio_path)
 
-            # កំណត់ទីតាំងសំឡេង AI ឱ្យចេញចំពេលតួអង្គនិយាយ
             speech_clip = AudioFileClip(seg_audio_path).set_start(seg["start"])
             audio_clips.append(speech_clip)
-            
             full_transcript.append(f"[{int(seg['start'])}s] {seg['text']}")
 
-        # ដាក់បញ្ចូលតែសំឡេង AI សុទ្ធចូលទៅក្នុងវីដេអូ
         final_audio = CompositeAudioClip(audio_clips)
         final_video = video.set_audio(final_audio)
         
@@ -201,12 +192,10 @@ rem_trials = max(0, TRIAL_LIMIT - lic.get("trial_used", 0))
 st.title("🎙️ KHMER AI PURE DUBBER (NO NOISE)")
 st.caption("កាត់សំឡេងដើម និងសំឡេងរំខានចេញទាំងស្រុង យកតែសំឡេង AI ខ្មែរនិយាយតាមតួអង្គសុទ្ធៗ")
 
-# 📲 Telegram Contact
 st.link_button("💬 ទាក់ទង Admin តាម Telegram (ដើម្បីទិញ VIP Code)", TELEGRAM_LINK, use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 🔑 VIP Activation
 with st.expander("🔑 ផ្ទាំងបញ្ចូល VIP Code ចូលប្រើប្រាស់", expanded=not is_vip):
     col1, col2 = st.columns([3, 1])
     code_in = col1.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដ VIP...", label_visibility="collapsed")
@@ -229,10 +218,8 @@ else:
 
 st.markdown("---")
 
-# 1. Video Upload
 uploaded_vdo = st.file_uploader("១. បញ្ចូលវីដេអូ (MP4/MOV)", type=["mp4", "mov"])
 
-# 2. Voice Selection
 selected_voice = st.selectbox(
     "២. ជ្រើសរើសសំឡេង AI ខ្មែរ៖",
     options=[
@@ -244,7 +231,6 @@ selected_voice = st.selectbox(
 
 st.markdown("---")
 
-# 3. Action Button
 can_run = is_vip or (rem_trials > 0)
 
 if st.button("▶ ចាប់ផ្តើមបកប្រែ (កាត់សំឡេងរំខានចេញ យកតែសំឡេង AI សុទ្ធ)", disabled=not can_run, type="primary", use_container_width=True):
@@ -267,7 +253,6 @@ if st.button("▶ ចាប់ផ្តើមបកប្រែ (កាត់ស
                 time.sleep(0.5)
                 st.rerun()
 
-# 4. Results
 if st.session_state.vdo:
     st.markdown("---")
     st.subheader("🎉 លទ្ធផលវីដេអូដែលធ្វើរួច៖")
