@@ -1,321 +1,184 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import json
-import os
+import json, os
 from datetime import datetime, timedelta
-import uuid
-import platform
-
-# ================================================================
-#  LICENSE MANAGER (ផ្នែកគ្រប់គ្រងទិន្នន័យ License)
-# ================================================================
+import uuid, platform
 
 LICENSE_FILE = "license.json"
-VALID_KEY = "DEEPSEEK-VIP-2026"   # កូដសម្ងាត់សម្រាប់ Activate VIP
+VALID_KEY = "DEEPSEEK-VIP-2026"
 
 def get_machine_id():
-    """បង្កើត Machine ID សម្រាប់ភ្ជាប់ជាមួយ License"""
     return str(uuid.getnode()) + "_" + platform.node()
 
 def load_license():
-    """អានទិន្នន័យពី license.json បើគ្មានឯកសារបង្កើតថ្មី"""
-    default_data = {
-        "license_key": "",
-        "activated": False,
-        "activation_date": "",
-        "expiry_date": "",
-        "machine_id": get_machine_id(),
-        "videos_used": 0
-    }
-    
-    if not os.path.exists(LICENSE_FILE):
-        return default_data
-
+    default = {"license_key":"", "activated":False, "activation_date":"", "expiry_date":"", "machine_id":get_machine_id(), "videos_used":0}
+    if not os.path.exists(LICENSE_FILE): return default
     try:
         with open(LICENSE_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # បញ្ចូល Key ដែលបាត់ (ករណីមានឯកសារចាស់)
-            for key in default_data:
-                if key not in data:
-                    data[key] = default_data[key]
+            for k in default:
+                if k not in data: data[k] = default[k]
             return data
-    except (json.JSONDecodeError, IOError):
-        return default_data
+    except: return default
 
 def save_license(data):
-    """រក្សាទុកទិន្នន័យទៅ license.json"""
     try:
         with open(LICENSE_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
         return True
-    except IOError:
-        return False
+    except: return False
 
-def check_license_status(data):
-    """
-    ពិនិត្យស្ថានភាព License
-    Return: 'vip', 'expired', 'trial'
-    """
+def check_status(data):
     if data.get("activated", False):
         expiry = data.get("expiry_date", "")
         if expiry:
             try:
-                exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-                if datetime.now() > exp_date:
+                if datetime.now() > datetime.strptime(expiry, "%Y-%m-%d"):
                     return "expired"
-            except ValueError:
-                pass
+            except: pass
         return "vip"
     return "trial"
 
 def activate_license(key):
-    """
-    ដំណើរការ Activate VIP
-    Return: (success, message, updated_data)
-    """
     data = load_license()
-    
     if key.strip() == VALID_KEY:
         data["license_key"] = key.strip()
         data["activated"] = True
         data["activation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data["expiry_date"] = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")  # VIP 1 ឆ្នាំ
+        data["expiry_date"] = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
         data["machine_id"] = get_machine_id()
-        data["videos_used"] = 0  # Reset ចំនួនប្រើ
-        
-        if save_license(data):
-            return True, "VIP Activated Successfully! ✅", data
-        else:
-            return False, "Failed to save license file.", data
-    else:
-        return False, "Invalid Activation Code. ❌", data
-
-
-# ================================================================
-#  MAIN APPLICATION - GUI
-# ================================================================
+        data["videos_used"] = 0
+        if save_license(data): return True, "VIP Activated! ✅", data
+        return False, "Save failed.", data
+    return False, "Invalid Code. ❌", data
 
 class VIPApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VIP Activation System - Video Tool")
+        self.title("VIP Activation System")
         self.geometry("750x550")
         self.resizable(False, False)
-        
-        # ដំណើរការផ្ទុក License ពេលបើកកម្មវិធី
         self.license_data = load_license()
-        self.current_status = check_license_status(self.license_data)
-        self.remaining_videos = 3 - self.license_data.get("videos_used", 0)
-        if self.remaining_videos < 0:
-            self.remaining_videos = 0
-
         self.setup_ui()
-        self.update_ui_state()
+        self.update_ui()
 
     def setup_ui(self):
-        # Container មេ
-        main_frame = ttk.Frame(self, padding="15")
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # ========== 1. ផ្នែកខាងលើ: Activation System ==========
-        activation_frame = ttk.LabelFrame(main_frame, text="🔑 VIP Activation System", padding="15")
-        activation_frame.pack(fill=tk.X, pady=(0, 15))
-
-        # Grid សម្រាប់រៀបចំផ្នែក Activation
-        activation_frame.columnconfigure(0, weight=1)
-        activation_frame.columnconfigure(1, weight=1)
-
-        # ----- ផ្នែកឆ្វេង: Entry + Buttons -----
-        left_act = ttk.Frame(activation_frame)
-        left_act.grid(row=0, column=0, sticky="w", padx=5)
-
-        ttk.Label(left_act, text="Activation Code:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 8))
+        main = ttk.Frame(self, padding=15)
+        main.pack(fill=tk.BOTH, expand=True)
         
-        self.code_entry = ttk.Entry(left_act, width=30, font=("Arial", 10))
-        self.code_entry.pack(side=tk.LEFT, padx=(0, 10))
+        # Activation
+        af = ttk.LabelFrame(main, text="🔑 VIP Activation", padding=15)
+        af.pack(fill=tk.X, pady=(0,15))
+        af.columnconfigure(0, weight=1)
         
-        self.activate_btn = ttk.Button(left_act, text="✅ Activate VIP", command=self.activate_vip)
-        self.activate_btn.pack(side=tk.LEFT, padx=(0, 5))
+        left = ttk.Frame(af)
+        left.grid(row=0, column=0, sticky="w", padx=5)
+        ttk.Label(left, text="Code:").pack(side=tk.LEFT, padx=(0,8))
+        self.entry = ttk.Entry(left, width=30)
+        self.entry.pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(left, text="✅ Activate", command=self.activate).pack(side=tk.LEFT, padx=(0,5))
+        ttk.Button(left, text="🔍 Check", command=self.check).pack(side=tk.LEFT)
         
-        self.check_btn = ttk.Button(left_act, text="🔍 Check License", command=self.check_license)
-        self.check_btn.pack(side=tk.LEFT)
-
-        # ----- ផ្នែកខាងស្តាំ: Status Label -----
-        right_act = ttk.Frame(activation_frame)
-        right_act.grid(row=0, column=1, sticky="e", padx=5)
-
-        self.status_label = ttk.Label(right_act, text="Status: Checking...", font=("Arial", 11, "bold"))
-        self.status_label.pack(side=tk.RIGHT)
-
-        # ========== 2. ផ្នែកកណ្តាល: Video Player ==========
-        video_frame = ttk.LabelFrame(main_frame, text="▶️ Video Player Control", padding="15")
-        video_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
-
-        # Label បង្ហាញចំនួនវីដេអូនៅសល់
-        self.remaining_label = ttk.Label(video_frame, text="Videos Remaining (Trial): 3", font=("Arial", 11))
-        self.remaining_label.pack(pady=(0, 10))
-
-        # បង្អួចសម្រាប់បង្ហាញវីដេអូ (សាកល្បង)
-        self.video_display = tk.Text(video_frame, height=8, state=tk.DISABLED, bg="#f4f4f4", font=("Arial", 11))
-        self.video_display.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        self.update_video_display("🎬 Press '▶ Start Video' to play.\n\n(Simulation for demonstration)")
-
-        # ----- Control Buttons -----
-        control_frame = ttk.Frame(video_frame)
-        control_frame.pack(fill=tk.X)
-
-        self.start_btn = ttk.Button(control_frame, text="▶ Start Video", command=self.start_video, width=15)
-        self.start_btn.pack(side=tk.LEFT, padx=(0, 15))
-
-        self.buy_vip_btn = ttk.Button(control_frame, text="💎 Buy VIP", command=self.show_telegram, width=15)
-        self.buy_vip_btn.pack(side=tk.LEFT)
-
-        # ========== 3. ផ្នែកខាងក្រោម: Telegram Contact ==========
-        tele_frame = ttk.Frame(main_frame)
-        tele_frame.pack(fill=tk.X)
+        right = ttk.Frame(af)
+        right.grid(row=0, column=1, sticky="e", padx=5)
+        self.status = ttk.Label(right, text="Status: Checking...", font=("Arial",11,"bold"))
+        self.status.pack(side=tk.RIGHT)
         
-        self.tele_label = ttk.Label(tele_frame, text="📱 Contact Telegram: @YOUR_TELEGRAM", foreground="#1a73e8", font=("Arial", 10, "bold"))
-        self.tele_label.pack(side=tk.RIGHT)
+        # Video
+        vf = ttk.LabelFrame(main, text="▶️ Video Player", padding=15)
+        vf.pack(fill=tk.BOTH, expand=True, pady=(0,15))
+        
+        self.remain = ttk.Label(vf, text="Videos Remaining: 3", font=("Arial",11))
+        self.remain.pack(pady=(0,10))
+        
+        self.display = tk.Text(vf, height=8, state=tk.DISABLED, bg="#f4f4f4", font=("Arial",11))
+        self.display.pack(fill=tk.BOTH, expand=True, pady=(0,10))
+        self.update_display("🎬 Press 'Start Video' to play.")
+        
+        cf = ttk.Frame(vf)
+        cf.pack(fill=tk.X)
+        self.start_btn = ttk.Button(cf, text="▶ Start Video", command=self.start_video, width=15)
+        self.start_btn.pack(side=tk.LEFT, padx=(0,15))
+        ttk.Button(cf, text="💎 Buy VIP", command=self.show_telegram, width=15).pack(side=tk.LEFT)
+        
+        # Telegram
+        tf = ttk.Frame(main)
+        tf.pack(fill=tk.X)
+        ttk.Label(tf, text="📱 Telegram: @YOUR_TELEGRAM", foreground="#1a73e8", font=("Arial",10,"bold")).pack(side=tk.RIGHT)
 
-    # ============================================================
-    #  METHODS
-    # ============================================================
+    def update_display(self, text):
+        self.display.config(state=tk.NORMAL)
+        self.display.delete(1.0, tk.END)
+        self.display.insert(tk.END, text)
+        self.display.config(state=tk.DISABLED)
 
-    def update_video_display(self, text):
-        """ធ្វើបច្ចុប្បន្នភាពអត្ថបទក្នុងបង្អួច Video"""
-        self.video_display.config(state=tk.NORMAL)
-        self.video_display.delete(1.0, tk.END)
-        self.video_display.insert(tk.END, text)
-        self.video_display.config(state=tk.DISABLED)
-
-    def update_ui_state(self):
-        """ធ្វើបច្ចុប្បន្នភាព UI តាមស្ថានភាពបច្ចុប្បន្ន"""
-        status = check_license_status(self.license_data)
-        self.current_status = status
-
+    def update_ui(self):
+        status = check_status(self.license_data)
         if status == "vip":
-            self.status_label.config(text="✅ VIP Activated", foreground="green")
-            self.remaining_label.config(text="🎉 VIP Mode - Unlimited Videos")
+            self.status.config(text="✅ VIP Activated", foreground="green")
+            self.remain.config(text="🎉 VIP - Unlimited")
             self.start_btn.config(state=tk.NORMAL)
-
         elif status == "expired":
-            self.status_label.config(text="❌ License Expired", foreground="red")
-            self.remaining_label.config(text="⛔ License Expired. Please buy VIP.")
+            self.status.config(text="❌ Expired", foreground="red")
+            self.remain.config(text="⛔ Please buy VIP")
             self.start_btn.config(state=tk.DISABLED)
-
-        else:  # Trial
-            remaining = 3 - self.license_data.get("videos_used", 0)
-            if remaining < 0:
-                remaining = 0
-            self.remaining_videos = remaining
-
-            if remaining > 0:
-                self.status_label.config(text="🆓 Trial Version", foreground="orange")
-                self.remaining_label.config(text=f"📹 Videos Remaining (Trial): {remaining}")
+        else:
+            rem = 3 - self.license_data.get("videos_used",0)
+            if rem < 0: rem = 0
+            if rem > 0:
+                self.status.config(text="🆓 Trial", foreground="orange")
+                self.remain.config(text=f"📹 {rem} videos left")
                 self.start_btn.config(state=tk.NORMAL)
             else:
-                self.status_label.config(text="⛔ Trial Expired", foreground="red")
-                self.remaining_label.config(text="🚫 No trials left.")
+                self.status.config(text="⛔ Trial Expired", foreground="red")
+                self.remain.config(text="🚫 No trials left")
                 self.start_btn.config(state=tk.DISABLED)
-                # បង្ហាញសារក្នុង Video Display
-                self.update_video_display(
-                    "⛔ អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\n"
-                    "ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM"
-                )
+                self.update_display("⛔ អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\nដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM")
 
-    def activate_vip(self):
-        """ដំណើរការចុច Activate VIP"""
-        code = self.code_entry.get()
-        success, message, updated_data = activate_license(code)
-        
+    def activate(self):
+        success, msg, data = activate_license(self.entry.get())
         if success:
-            self.license_data = updated_data
-            self.update_ui_state()
-            self.update_video_display("✅ VIP Activated Successfully! All features unlocked. 🎉")
-            self.code_entry.delete(0, tk.END)  # សម្អាត TextBox
-            messagebox.showinfo("Success", message)
+            self.license_data = data
+            self.update_ui()
+            self.update_display("✅ VIP Activated! 🎉")
+            self.entry.delete(0, tk.END)
+            messagebox.showinfo("Success", msg)
         else:
-            messagebox.showerror("Activation Failed", message)
+            messagebox.showerror("Failed", msg)
 
-    def check_license(self):
-        """ពិនិត្យ License ឡើងវិញ"""
+    def check(self):
         self.license_data = load_license()
-        self.update_ui_state()
-        
-        status = self.current_status
-        if status == "vip":
-            msg = "✅ VIP Activated and valid."
-        elif status == "expired":
-            msg = "❌ License expired."
+        self.update_ui()
+        status = check_status(self.license_data)
+        if status == "vip": msg = "✅ VIP Active"
+        elif status == "expired": msg = "❌ Expired"
         else:
-            remaining = 3 - self.license_data.get("videos_used", 0)
-            if remaining < 0:
-                remaining = 0
-            msg = f"🆓 Trial mode. {remaining} videos remaining."
-        
+            rem = 3 - self.license_data.get("videos_used",0)
+            msg = f"🆓 Trial: {rem if rem>0 else 0} videos left"
         messagebox.showinfo("License Status", msg)
 
     def start_video(self):
-        """ដំណើរការចុច Start Video"""
-        status = check_license_status(self.license_data)
-        
-        # ករណី Expired
+        status = check_status(self.license_data)
         if status == "expired":
-            messagebox.showerror("Access Denied", "License expired. Please buy VIP.")
+            messagebox.showerror("Denied", "License expired. Buy VIP.")
             return
-
-        # ករណី VIP
         if status == "vip":
-            self.update_video_display("🎬 Playing video... (VIP - Unlimited)\n\nEnjoy full access!")
+            self.update_display("🎬 Playing... (VIP Unlimited)")
             return
-
-        # ----- ករណី Trial -----
-        videos_used = self.license_data.get("videos_used", 0)
-        if videos_used >= 3:
-            self.start_btn.config(state=tk.DISABLED)
-            self.update_ui_state()
-            messagebox.showwarning(
-                "Trial Expired",
-                "អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\n"
-                "ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM"
-            )
+        used = self.license_data.get("videos_used",0)
+        if used >= 3:
+            self.update_ui()
+            messagebox.showwarning("Trial Expired", "អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\nទាក់ទង Telegram: @YOUR_TELEGRAM")
             return
-
-        # ប្រើប្រាស់វីដេអូ ១ ដង
-        self.license_data["videos_used"] = videos_used + 1
+        self.license_data["videos_used"] = used + 1
         save_license(self.license_data)
-        
-        remaining = 3 - self.license_data["videos_used"]
-        self.remaining_videos = remaining
-        self.update_video_display(f"▶ Playing video... ({videos_used + 1}/3 used)")
-        self.update_ui_state()
-
-        # បើអស់ហើយ បង្ហាញសារ
-        if remaining == 0:
-            self.start_btn.config(state=tk.DISABLED)
-            self.update_video_display(
-                "⛔ អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\n"
-                "ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM"
-            )
-            messagebox.showwarning(
-                "Trial Expired",
-                "អ្នកបានប្រើសិទ្ធិសាកល្បងអស់ហើយ។\n\n"
-                "ដើម្បីដោះសោ VIP សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM"
-            )
+        self.update_display(f"▶ Playing ({used+1}/3)")
+        self.update_ui()
+        if used + 1 >= 3:
+            self.update_display("⛔ អស់សិទ្ធិសាកល្បងហើយ។\n\nទាក់ទង Telegram: @YOUR_TELEGRAM")
 
     def show_telegram(self):
-        """បង្ហាញព័ត៌មានទំនាក់ទំនង Telegram"""
-        messagebox.showinfo(
-            "Contact for VIP",
-            "សម្រាប់ទិញ VIP ឬទទួល Activation Code សូមទាក់ទង Telegram៖\n\n"
-            "📱 @YOUR_TELEGRAM"
-        )
-
-
-# ================================================================
-#  MAIN ENTRY POINT
-# ================================================================
+        messagebox.showinfo("Buy VIP", "សម្រាប់ទិញ VIP សូមទាក់ទង Telegram៖\n\n📱 @YOUR_TELEGRAM")
 
 if __name__ == "__main__":
-    app = VIPApp()
-    app.mainloop()
+    VIPApp().mainloop()
