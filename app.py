@@ -147,6 +147,7 @@ with col1:
         st.balloons()
         st.success("ដំណើរការបញ្ចប់! ពិនិត្យមើលវីដេអូលទ្ធផលខាងក្រោម។")
         
-        st.video("https://www.w3schools.com/html/mov_bbb.mp4")
+# បង្ហាញវីដេអូលទ្ធផលពិតប្រាកដដែលអ្នកបាន Upload
+st.video(video_file)
 
         st.session_state['process_start'] = False
