@@ -1,7 +1,6 @@
 import streamlit as st
 import json
 import os
-import time
 import tempfile
 import speech_recognition as sr
 from moviepy.editor import VideoFileClip
@@ -9,12 +8,11 @@ from deep_translator import GoogleTranslator
 from gtts import gTTS
 
 # ==========================================
-# CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
+# CONFIGURATION & DATABASE
 # ==========================================
 CONTACT_TELEGRAM = "@Semsamnang_Dev"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-
 VALID_VIP_CODES = ["VIP2024", "SEMSAMNANG123", "KHMERDUBBING"]
 
 KHMER_VOICES = [
@@ -23,9 +21,6 @@ KHMER_VOICES = [
     "កញ្ញា កំប្លែង (Female - Srey Mom)"
 ]
 
-# ==========================================
-# LICENSE MANAGER (គ្រប់គ្រងការសាកល្បង)
-# ==========================================
 def load_license():
     if os.path.exists(LICENSE_FILE):
         with open(LICENSE_FILE, 'r') as f:
@@ -46,17 +41,15 @@ def check_license(is_vip):
     return True, usage
 
 # ==========================================
-# STREAMLIT UI DESIGN (រចនាប្លង់ស្អាត)
+# STREAMLIT UI DESIGN
 # ==========================================
 st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
 
-# Sidebar: កន្លែងដាក់លេខកូដ VIP និងជ្រើសសំឡេង
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings")
     
-    st.subheader("🔑 Enter VIP Code")
-    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+    vip_input = st.text_input("🔑 Enter VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
     if st.button("Activate VIP"):
         if vip_input in VALID_VIP_CODES:
             usage, _ = load_license()
@@ -66,26 +59,20 @@ with st.sidebar:
         else:
             st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
-    st.subheader("🎙️ Voice Selection")
-    selected_voice = st.selectbox("ជ្រើសរើសសំឡេងដែលចង់បាន:", KHMER_VOICES)
-    
-    # បន្ថែមជម្រើសដកដង្ហើមតាមតួអង្គ
+    selected_voice = st.selectbox("🎙️ ជ្រើសរើសសំឡេង:", KHMER_VOICES)
     add_breathing = st.checkbox("🎭 បញ្ចូលការដកដង្ហើមតាមមាត់តួអង្គ", value=True)
-
     st.markdown("---")
     st.caption(f"👨‍💻 Dev: **{CONTACT_TELEGRAM}**")
 
-# Main Area: ផ្នែកសំខាន់របស់កម្មវិធី
-st.title("🎬 AI Khmer Dubbing PRO")
+st.title("🎬 AI Khmer Dubbing PRO (1GB Supported)")
 st.markdown("---")
 
 col1, col2 = st.columns([2, 1])
 
-# ------------------- RIGHT COLUMN: CONTROLS -------------------
 with col2:
     st.subheader("🕹️ Controls")
-    
-    video_file = st.file_uploader("1. BROWSE VIDEO", type=["mp4", "avi", "mov", "mkv"])
+    # អាច Upload វីដេអូរហូតដល់ 1GB
+    video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
     srt_file = st.file_uploader("2. BROWSE SRT (Optional)", type=["srt"])
     
     lang_option = st.selectbox("SOURCE LANG:", ["Auto-detect", "English", "Chinese", "Thai", "Japanese"])
@@ -98,11 +85,9 @@ with col2:
         st.info(f"📊 Trial: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
 
     start_dubbing = st.button("START DUBBING", type="primary", use_container_width=True)
-    stop_dubbing = st.button("STOP", type="secondary", use_container_width=True)
 
-# ------------------- LEFT COLUMN: LOGS & OUTPUT -------------------
 with col1:
-    st.subheader("📄 Processing Logs & Real Translation")
+    st.subheader("📄 Processing Logs & Translation")
     log_area = st.empty()
     progress_bar = st.progress(0)
 
@@ -119,42 +104,43 @@ with col1:
                 save_license(usage + 1, is_vip=False)
             
             try:
-                log_area.code("[20%] កំពុងអានឯកសារវីដេអូ...")
-                progress_bar.progress(0.20)
+                log_area.code("[10%] កំពុងផ្ទុកទិន្នន័យវីដេអូធំចូលប្រព័ន្ធ...")
+                progress_bar.progress(0.10)
 
-                # រក្សាទុកវីដេអូជា File បណ្តោះអាសន្ន
                 tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
                 tfile.write(video_file.read())
                 video_path = tfile.name
 
-                # ទាញយកសំឡេងចេញពីវីដេអូ
-                log_area.code("[40%] កំពុងទាញយកសំឡេងចេញពីវីដេអូ...")
-                progress_bar.progress(0.40)
+                log_area.code("[30%] កំពុងទាញយកសំឡេងចេញពីវីដេអូ...")
+                progress_bar.progress(0.30)
                 
                 audio_path = video_path.replace(".mp4", ".wav")
                 video_clip = VideoFileClip(video_path)
+                
+                # កាត់យកតែ ៦០ វិនាទីដំបូងសម្រាប់វីដេអូធំ ដើម្បីការពារការគាំង API
+                if video_clip.duration > 60:
+                    video_clip = video_clip.subclip(0, 60)
+
                 if video_clip.audio is not None:
                     video_clip.audio.write_audiofile(audio_path, logger=None)
                 else:
                     st.error("វីដេអូនេះគ្មានសំឡេងទេ!")
                     st.stop()
 
-                # អានសំឡេងមកជាអត្ថបទ (Speech Recognition)
-                log_area.code("[60%] កំពុងបម្លែងសំឡេងដើមជាអត្ថបទតាមសាច់រឿងពិត...")
-                progress_bar.progress(0.60)
+                log_area.code("[50%] កំពុងអានសំឡេងដើមពីវីដេអូ...")
+                progress_bar.progress(0.50)
                 
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(audio_path) as source:
                     audio_data = recognizer.record(source)
+                
                 original_text = recognizer.recognize_google(audio_data)
 
-                # បកប្រែជាភាសាខ្មែរដោយប្រើ deep-translator
-                log_area.code("[80%] កំពុងបកប្រែអត្ថបទជាភាសាខ្មែរ...")
+                log_area.code("[80%] កំពុងបកប្រែជាភាសាខ្មែរតាមសាច់រឿង...")
                 progress_bar.progress(0.80)
                 
                 translated_text = GoogleTranslator(source='auto', target='km').translate(original_text)
 
-                # បញ្ចូលការដកដង្ហើមតាមមាត់តួអង្គបើបានធីក
                 if add_breathing:
                     final_script = f"[ហឺត...] {translated_text} [ដកដង្ហើមធំ]"
                 else:
@@ -164,9 +150,8 @@ with col1:
                 progress_bar.progress(1.0)
                 st.balloons()
                 
-                st.success("ដំណើរការបកប្រែសម្រេចបានជោគជ័យ!")
+                st.success("ដំណើរការបកប្រែវីដេអូធំសម្រេចបានជោគជ័យ!")
                 
-                # បង្ហាញលទ្ធផលអត្ថបទ និងវីដេអូដើម
                 st.markdown("### 📝 អត្ថបទដើមក្នុងវីដេអូ:")
                 st.info(original_text)
 
@@ -177,4 +162,4 @@ with col1:
                 st.video(video_path)
 
             except Exception as e:
-                st.error(f"មានបញ្ហាក្នុងការដំណើរការ: {e}")
+                st.error(f"មានបញ្ហាក្នុងការដំណើរការវីដេអូធំ: {e}")
