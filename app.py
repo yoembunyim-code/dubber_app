@@ -191,7 +191,7 @@ with col1:
                     progress_bar.progress(1.0)
                     st.balloons()
                     
-                    st.success("✅ វីដេអូបកប្រែ និងพากย์សំឡេងរួចរាល់ជាស្ថាពរ!")
+                    st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
                     st.warning("រកមិនឃើញអត្ថបទត្រូវបកប្រែក្នុងវីដេអូនេះទេ!")
