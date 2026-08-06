@@ -7,8 +7,7 @@ import speech_recognition as sr
 from moviepy.editor import VideoFileClip
 from deep_translator import GoogleTranslator
 from gtts import gTTS
-# បកប្រែជាភាសាខ្មែរដោយប្រើ deep-translator
-translated_text = GoogleTranslator(source='auto', target='km').translate(original_text)
+
 # ==========================================
 # CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
 # ==========================================
@@ -149,12 +148,11 @@ with col1:
                     audio_data = recognizer.record(source)
                 original_text = recognizer.recognize_google(audio_data)
 
-                # បកប្រែជាភាសាខ្មែរ
+                # បកប្រែជាភាសាខ្មែរដោយប្រើ deep-translator
                 log_area.code("[80%] កំពុងបកប្រែអត្ថបទជាភាសាខ្មែរ...")
                 progress_bar.progress(0.80)
                 
-                translator = Translator()
-                translated_text = translator.translate(original_text, dest='kh').text
+                translated_text = GoogleTranslator(source='auto', target='km').translate(original_text)
 
                 # បញ្ចូលការដកដង្ហើមតាមមាត់តួអង្គបើបានធីក
                 if add_breathing:
