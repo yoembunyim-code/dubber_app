@@ -12,11 +12,11 @@ import edge_tts
 # ==========================================
 # CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
 # ==========================================
-CONTACT_TELEGRAM = "@Semsamnang_Dev"
-TELEGRAM_LINK = "https://t.me/Semsamnang_Dev"
+CONTACT_TELEGRAM = "@yoem bunyim"
+TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-VALID_VIP_CODES = ["VIP2024", "SEMSAMNANG123", "KHMERDUBBING"]
+VALID_VIP_CODES = ["BUNYIM-VIP-001", "BUNYIM-VIP-002", "BUNYIM-VIP-003"]
 
 def load_license():
     if os.path.exists(LICENSE_FILE):
