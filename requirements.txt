@@ -1,3 +1,5 @@
 streamlit
-openai
-moviepy
+moviepy==1.0.3
+SpeechRecognition
+googletrans==4.0.0-rc1
+gTTS
