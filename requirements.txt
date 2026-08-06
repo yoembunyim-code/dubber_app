@@ -5,3 +5,6 @@ ffmpeg-python
 pydub
 # បើអ្នកប្រើ Google Cloud TTS ត្រូវបន្ថែម:
 google-cloud-texttospeech
+streamlit
+openai
+moviepy
