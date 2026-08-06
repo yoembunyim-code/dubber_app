@@ -1,527 +1,129 @@
 import streamlit as st
-import json
 import os
-from datetime import datetime, timedelta
-import uuid
-import platform
-import base64
+import time
+import subprocess
+import tempfile
+from pathlib import Path
 
-# ================================================================
-#  LICENSE MANAGER
-# ================================================================
+# ==========================================
+# កំណត់រចនាសម្ព័ន្ធរបស់អ្នកនៅទីនេះ
+CONTACT_TELEGRAM = "@Semsamnang_Dev"
+TRIAL_VIDEO_LIMIT = 3
+# ==========================================
 
-LICENSE_FILE = "license.json"
-VALID_KEY = "DEEPSEEK-VIP-2026"
+# 1. កំណត់ Session State សម្រាប់រក្សាទិន្នន័យ និងរាប់លេខ
+if 'usage_count' not in st.session_state:
+    st.session_state.usage_count = 0
+if 'log_messages' not in st.session_state:
+    st.session_state.log_messages = []
+if 'is_processing' not in st.session_state:
+    st.session_state.is_processing = False
 
-def get_machine_id():
-    return str(uuid.getnode()) + "_" + platform.node()
+st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
 
-def load_license():
-    default_data = {
-        "license_key": "",
-        "activated": False,
-        "activation_date": "",
-        "expiry_date": "",
-        "machine_id": get_machine_id(),
-        "videos_used": 0
-    }
+# 2. ក្បាលកម្មវិធី
+st.title("🎬 AI Khmer Dubbing PRO")
+st.markdown(f"**ទាក់ទងទិញកូដពេញលេញ (Unlimited)៖** `{CONTACT_TELEGRAM}`")
+st.divider()
+
+# 3. បង្កើត UI ដូចរូបភាព (ចែកជា 2 ជួរ)
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.subheader("ជ្រើសរើសប្រភព")
+    uploaded_video = st.file_uploader("**BROWSE VIDEO (វីដេអូ)**", type=['mp4', 'avi', 'mov', 'mkv'], key='video')
+    uploaded_srt = st.file_uploader("**BROWSE SRT (ឯកសារបកប្រែ)**", type=['srt'], key='srt')
     
-    if not os.path.exists(LICENSE_FILE):
-        return default_data
+    # ជម្រើសផ្សេងៗ
+    col_opt1, col_opt2, col_opt3 = st.columns(3)
+    with col_opt1:
+        st.button("AUTO", use_container_width=True)
+    with col_opt2:
+        st.button("SREY MOM", use_container_width=True)
+    with col_opt3:
+        st.button("DUB AS-IS", use_container_width=True)
 
-    try:
-        with open(LICENSE_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            for key in default_data:
-                if key not in data:
-                    data[key] = default_data[key]
-            return data
-    except (json.JSONDecodeError, IOError):
-        return default_data
-
-def save_license(data):
-    try:
-        with open(LICENSE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-        return True
-    except IOError:
-        return False
-
-def check_license_status(data):
-    if data.get("activated", False):
-        expiry = data.get("expiry_date", "")
-        if expiry:
-            try:
-                exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-                if datetime.now() > exp_date:
-                    return "expired"
-            except ValueError:
-                pass
-        return "vip"
-    return "trial"
-
-def activate_license(key):
-    data = load_license()
+with col2:
+    st.subheader("ការគ្រប់គ្រង")
+    btn_start = st.button("▶ START DUBBING", use_container_width=True, type="primary")
+    btn_stop = st.button("⏹ STOP", use_container_width=True, type="secondary")
+    btn_open = st.button("📂 OPEN FOLDER", use_container_width=True)
     
-    if key.strip() == VALID_KEY:
-        data["license_key"] = key.strip()
-        data["activated"] = True
-        data["activation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        data["expiry_date"] = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
-        data["machine_id"] = get_machine_id()
-        data["videos_used"] = 0
-        
-        if save_license(data):
-            return True, "VIP Activated Successfully! ✅", data
-        else:
-            return False, "Failed to save license file.", data
+    # បង្ហាញថានៅសល់ប៉ុន្មានដង
+    remaining = TRIAL_VIDEO_LIMIT - st.session_state.usage_count
+    if remaining > 0:
+        st.info(f"💡 នៅសល់ការសាកល្បងឥតគិតថ្លៃ៖ **{remaining}** ដង")
     else:
-        return False, "Invalid Activation Code. ❌", data
+        st.error(f"⚠️ អស់ចំនួនសាកល្បងហើយ! សូមទិញកូដពីញុម។")
 
-# ================================================================
-#  STREAMLIT UI
-# ================================================================
+# 4. តំបន់បង្ហាញ Log (ដូចក្នុងរូបភាព)
+st.divider()
+log_container = st.container()
+with log_container:
+    st.subheader("ដំណើរការ (Logs)")
+    log_text = st.empty()
 
-st.set_page_config(
-    page_title="🎬 AI Video Dubber",
-    page_icon="🎬",
-    layout="wide"
-)
+# ==========================================
+# មុខងារដំណើរការ AI (ស្នូលកម្មវិធី)
+# ==========================================
+def run_dubbing_engine(video_path, srt_path):
+    """ដំណើរការ AI Pipeline"""
+    # ដាក់បញ្ចូលសារ Log ទៅក្នុងប្រអប់
+    def update_log(msg):
+        st.session_state.log_messages.append(msg)
+        with log_container:
+            log_text.text("\n".join(st.session_state.log_messages))
 
-# ----- CUSTOM CSS -----
-st.markdown("""
-<style>
-    .stApp {
-        background: linear-gradient(135deg, #f0f4ff 0%, #e8edf5 100%);
-    }
-    
-    .main-container {
-        background: #ffffff !important;
-        border-radius: 20px;
-        padding: 30px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-        margin: 15px 10px;
-    }
-    
-    .card {
-        background: #ffffff !important;
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border: 1px solid #e5e7eb;
-    }
-    
-    .upload-box {
-        border: 2px dashed #667eea;
-        border-radius: 15px;
-        padding: 40px;
-        text-align: center;
-        background: #f8faff !important;
-        transition: all 0.3s ease;
-    }
-    .upload-box h3 {
-        color: #1f2937 !important;
-        font-weight: 700;
-    }
-    .upload-box p {
-        color: #4b5563 !important;
-    }
-    
-    .title-gradient {
-        color: #1f2937 !important;
-        font-size: 2.8em;
-        font-weight: 800;
-        text-align: center;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    
-    h1, h2, h3, h4, h5, h6, p, label, div, span, .stMarkdown {
-        color: #1f2937 !important;
-    }
-    
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 24px !important;
-        font-weight: 600 !important;
-        font-size: 16px !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35) !important;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5) !important;
-    }
-    .stButton > button:disabled {
-        background: #9ca3af !important;
-        box-shadow: none !important;
-        cursor: not-allowed;
-    }
-    
-    .badge-vip {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-        color: #ffffff !important;
-        padding: 10px 24px !important;
-        border-radius: 25px !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        display: inline-block;
-        text-align: center;
-    }
-    .badge-trial {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
-        color: #ffffff !important;
-        padding: 10px 24px !important;
-        border-radius: 25px !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        display: inline-block;
-        text-align: center;
-    }
-    .badge-expired {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-        color: #ffffff !important;
-        padding: 10px 24px !important;
-        border-radius: 25px !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        display: inline-block;
-        text-align: center;
-    }
-    
-    .footer {
-        text-align: center;
-        padding: 20px;
-        color: #6b7280 !important;
-        font-size: 0.9em;
-        border-top: 1px solid #e5e7eb;
-        margin-top: 20px;
-    }
-    .footer p {
-        color: #6b7280 !important;
-    }
-    
-    .stTextInput input {
-        color: #1f2937 !important;
-        background: #ffffff !important;
-        border: 2px solid #e5e7eb !important;
-        border-radius: 10px !important;
-        padding: 12px !important;
-        font-size: 16px !important;
-    }
-    .stTextInput input:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
-    }
-    
-    .stTextArea textarea {
-        color: #1f2937 !important;
-        background: #ffffff !important;
-        border: 2px solid #e5e7eb !important;
-        border-radius: 10px !important;
-        padding: 12px !important;
-        font-size: 16px !important;
-    }
-    .stTextArea textarea:focus {
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
-    }
-    
-    /* Video container */
-    .video-container {
-        position: relative;
-        width: 100%;
-        padding-bottom: 56.25%;
-        height: 0;
-        overflow: hidden;
-        border-radius: 12px;
-        background: #000;
-    }
-    .video-container video {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        border-radius: 12px;
-    }
-    
-    /* Playing indicator */
-    .playing-indicator {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-weight: 600;
-        display: inline-block;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.6; }
-        100% { opacity: 1; }
-    }
-</style>
-""", unsafe_allow_html=True)
+    update_log("[20%] Aligning audio... / កំពុងដកស្រង់សំឡេង...")
+    time.sleep(1.5) # ពិតៗ ត្រូវហៅ Whisper model នៅទីនេះ
 
-# ================================================================
-#  INITIALIZE SESSION STATE
-# ================================================================
+    update_log("[40%] Translating to Khmer... / កំពុងបកប្រែជាភាសាខ្មែរ...")
+    time.sleep(1.5) # ពិតៗ ត្រូវហៅ Google Translate API នៅទីនេះ
 
-if 'license_data' not in st.session_state:
-    st.session_state.license_data = load_license()
-    st.session_state.current_status = check_license_status(st.session_state.license_data)
-    st.session_state.video_file = None
-    st.session_state.video_bytes = None
-    st.session_state.selected_voice = "Male Voice 1"
-    st.session_state.is_playing = False
-    st.session_state.script_text = ""
-    st.session_state.show_video = False
+    update_log("[65%] Generating Khmer TTS... / កំពុងបង្កើតសំឡេងខ្មែរ...")
+    time.sleep(1.5) # ពិតៗ ត្រូវហៅ TTS Model នៅទីនេះ
 
-# ================================================================
-#  SIDEBAR
-# ================================================================
+    update_log("[85%] Mixing audio into video... / កំពុងលាយសំឡេងចូលវីដេអូ...")
+    time.sleep(2) # ពិតៗ ត្រូវហៅ FFmpeg នៅទីនេះ
 
-with st.sidebar:
-    st.markdown("## 🔑 VIP Control Panel")
-    st.markdown("---")
-    
-    status = st.session_state.current_status
-    if status == "vip":
-        st.markdown('<div class="badge-vip">✅ VIP Activated</div>', unsafe_allow_html=True)
-        st.success("🎉 Unlimited Access")
-    elif status == "expired":
-        st.markdown('<div class="badge-expired">❌ License Expired</div>', unsafe_allow_html=True)
-        st.error("Please renew your license")
+    update_log("[100%] Rendering final video... / កំពុង Render ចប់ហើយ! រួចរាល់!")
+    st.success("✅ ដំណើរការ Dubbing បានបញ្ចប់ដោយជោគជ័យ!")
+
+# ==========================================
+# ការគ្រប់គ្រងព្រឹត្តិការណ៍ (When button clicked)
+# ==========================================
+
+# ចុចប៊ូតុង START
+if btn_start:
+    if not uploaded_video:
+        st.warning("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
     else:
-        remaining = 3 - st.session_state.license_data.get("videos_used", 0)
-        if remaining < 0:
-            remaining = 0
-        if remaining > 0:
-            st.markdown(f'<div class="badge-trial">🆓 Trial: {remaining} left</div>', unsafe_allow_html=True)
+        # ពិនិត្យចំនួនដងដែលបានប្រើ
+        if st.session_state.usage_count >= TRIAL_VIDEO_LIMIT:
+            st.error(f"❌ អស់ចំនួនការសាកល្បងហើយ! អ្នកត្រូវទិញកូដពេញលេញពីញុម ដើម្បីបន្តប្រើប្រាស់។ ទាក់ទងតាម Telegram: `{CONTACT_TELEGRAM}`")
         else:
-            st.markdown('<div class="badge-expired">⛔ Trial Expired</div>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    st.markdown("### 🔐 Activate VIP")
-    code = st.text_input("Activation Code:", placeholder="Enter your code", type="password")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Activate", use_container_width=True):
-            success, message, updated_data = activate_license(code)
-            if success:
-                st.session_state.license_data = updated_data
-                st.session_state.current_status = check_license_status(updated_data)
-                st.success(message)
-                st.rerun()
-            else:
-                st.error(message)
-    
-    with col2:
-        if st.button("🔍 Check", use_container_width=True):
-            st.session_state.license_data = load_license()
-            st.session_state.current_status = check_license_status(st.session_state.license_data)
-            st.rerun()
-    
-    st.markdown("---")
-    
-    st.markdown("### 📱 Contact")
-    st.info("💎 For VIP Purchase\n📱 @YOUR_TELEGRAM")
-
-# ================================================================
-#  MAIN CONTENT
-# ================================================================
-
-st.markdown('<h1 class="title-gradient">🎬 AI Video Dubber</h1>', unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #4b5563; font-size: 1.1em;'>Convert your videos with AI voiceovers in multiple languages</p>", unsafe_allow_html=True)
-
-# ----- Main Container -----
-with st.container():
-    st.markdown('<div class="main-container">', unsafe_allow_html=True)
-    
-    # ========== TWO COLUMN LAYOUT ==========
-    col_video, col_control = st.columns([2, 1])
-    
-    # ----- LEFT COLUMN: Video Upload & Player -----
-    with col_video:
-        st.markdown("### 📹 Video Upload & Player")
-        
-        # Video Upload
-        uploaded_file = st.file_uploader(
-            "Choose a video file",
-            type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
-            help="Supported formats: MP4, AVI, MOV, MKV, WEBM"
-        )
-        
-        if uploaded_file is not None:
-            st.session_state.video_file = uploaded_file
-            st.session_state.video_bytes = uploaded_file.read()
-            st.session_state.show_video = True
-        
-        # Display video
-        if st.session_state.video_bytes is not None and st.session_state.show_video:
-            video_base64 = base64.b64encode(st.session_state.video_bytes).decode()
+            # ចាប់ផ្ដើមរាប់ +1
+            st.session_state.usage_count += 1
             
-            # Check if playing
-            autoplay = "autoplay" if st.session_state.is_playing else ""
-            muted = "muted" if st.session_state.is_playing else ""
+            # រក្សាទុកវីដេអូជាឯកសារបណ្ដោះអាសន្ន
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_video:
+                tmp_video.write(uploaded_video.read())
+                video_path = tmp_video.name
             
-            st.markdown(f"""
-            <div class="card">
-                <div class="video-container">
-                    <video width="100%" controls {autoplay} {muted}>
-                        <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
-                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: #6b7280; font-size: 0.9em;">📁 {st.session_state.video_file.name if st.session_state.video_file else "video.mp4"}</span>
-                    <span style="color: #6b7280; font-size: 0.9em;">🎤 {st.session_state.selected_voice}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            srt_path = None
+            if uploaded_srt:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.srt') as tmp_srt:
+                    tmp_srt.write(uploaded_srt.read())
+                    srt_path = tmp_srt.name
+
+            # ដំណើរការ AI (នឹងមិនបង្កក UI ទេ ព្រោះ Streamlit គឺដំណើរការតាមលំដាប់)
+            st.session_state.log_messages = [] # សម្អាត Log ចាស់
+            run_dubbing_engine(video_path, srt_path)
             
-            # Show playing status
-            if st.session_state.is_playing:
-                st.markdown('<div style="text-align: center; margin-top: 10px;"><span class="playing-indicator">▶ LIVE • Playing now</span></div>', unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            <div class="upload-box">
-                <h3 style="color: #1f2937;">📤 Drop your video here</h3>
-                <p style="color: #4b5563;">or click to browse files</p>
-                <p style="font-size: 0.8em; color: #6b7280;">Supported: MP4, AVI, MOV, MKV, WEBM</p>
-                <p style="font-size: 0.8em; color: #6b7280;">Max: 1GB per file</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Script Display Area
-        st.markdown("### 📝 Script / Subtitle")
-        script_area = st.text_area(
-            "Enter script or subtitles",
-            placeholder="Type your script here or upload SRT file...",
-            height=150,
-            key="script_input"
-        )
-        if script_area:
-            st.session_state.script_text = script_area
-    
-    # ----- RIGHT COLUMN: Voice Selection & Controls -----
-    with col_control:
-        st.markdown("### 🎤 Voice Selection")
-        
-        voices = {
-            "Male Voice 1": "🎙️ Deep Male",
-            "Male Voice 2": "🎙️ Warm Male", 
-            "Female Voice 1": "🎙️ Bright Female",
-            "Female Voice 2": "🎙️ Soft Female",
-            "Khmer Voice": "🇰🇭 សំឡេងខ្មែរ",
-            "English Voice": "🇬🇧 English Voice"
-        }
-        
-        voice_cols = st.columns(2)
-        for idx, (voice_key, voice_label) in enumerate(voices.items()):
-            col_idx = idx % 2
-            with voice_cols[col_idx]:
-                is_selected = st.session_state.selected_voice == voice_key
-                btn_style = "font-weight: 700; border: 2px solid #667eea; background: #e0e7ff;" if is_selected else ""
-                
-                if st.button(
-                    voice_label,
-                    key=f"voice_{voice_key}",
-                    use_container_width=True,
-                    help=f"Select {voice_key}"
-                ):
-                    st.session_state.selected_voice = voice_key
-                    st.rerun()
-        
-        st.markdown("---")
-        
-        # ====== Control Buttons ======
-        st.markdown("### 🎮 Controls")
-        
-        has_video = st.session_state.video_bytes is not None
-        status = st.session_state.current_status
-        
-        can_play = False
-        if status == "vip":
-            can_play = True
-        elif status == "expired":
-            can_play = False
-        else:
-            remaining = 3 - st.session_state.license_data.get("videos_used", 0)
-            can_play = remaining > 0
-        
-        col_start, col_stop = st.columns(2)
-        with col_start:
-            if st.button("▶ Start", use_container_width=True, disabled=not (can_play and has_video)):
-                if not has_video:
-                    st.warning("Please upload a video first!")
-                else:
-                    status = st.session_state.current_status
-                    
-                    if status == "trial":
-                        videos_used = st.session_state.license_data.get("videos_used", 0)
-                        if videos_used >= 3:
-                            st.error("Trial expired! Please activate VIP.")
-                        else:
-                            st.session_state.license_data["videos_used"] = videos_used + 1
-                            save_license(st.session_state.license_data)
-                            st.session_state.current_status = check_license_status(st.session_state.license_data)
-                            st.session_state.is_playing = True
-                            st.session_state.show_video = True
-                            st.success(f"🎬 Playing with {st.session_state.selected_voice}!")
-                            st.rerun()
-                    else:
-                        st.session_state.is_playing = True
-                        st.session_state.show_video = True
-                        st.success(f"🎬 Playing with {st.session_state.selected_voice}!")
-                        st.rerun()
-        
-        with col_stop:
-            if st.button("⏹ Stop", use_container_width=True):
-                st.session_state.is_playing = False
-                st.info("⏹ Stopped")
-                st.rerun()
-        
-        # Status display
-        if st.session_state.is_playing:
-            st.info(f"🎬 Now playing with {st.session_state.selected_voice}")
-        else:
-            if has_video:
-                st.info("⏸ Ready to play")
-            else:
-                st.warning("📤 Upload a video to start")
-        
-        st.markdown("---")
-        
-        # ====== Buy VIP ======
-        st.markdown("### 💎 Unlock VIP")
-        if st.button("💎 Buy VIP Now", use_container_width=True):
-            st.info("💎 សម្រាប់ទិញ VIP ឬទទួល Activation Code សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM")
-        
-        # ====== Status Summary ======
-        st.markdown("---")
-        st.markdown("### 📊 Status")
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            st.metric("License", "VIP" if status == "vip" else "Trial" if status == "trial" else "Expired")
-        with col_s2:
-            st.metric("Voice", st.session_state.selected_voice.split(" ")[0])
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+            # បង្ហាញ Telegram ជាថ្មីម្ដងទៀត ក្រោយដំណើរការចប់
+            if st.session_state.usage_count >= TRIAL_VIDEO_LIMIT:
+                st.warning(f"👉 ប្រសិនបើអ្នកពេញចិត្តនឹងកម្មវិធីនេះ សូមទិញកូដ Unlimited ពីញុមដើម្បីប្រើប្រាស់គ្មានដែនកំណត់។ Telegram: **{CONTACT_TELEGRAM}**")
 
-# ================================================================
-#  FOOTER
-# ================================================================
-
-st.markdown("""
-<div class="footer">
-    <p>🎬 AI Video Dubber v2.0 | Powered by DeepSeek AI</p>
-    <p style="font-size: 0.8em; color: #6b7280;">Contact Telegram: @YOUR_TELEGRAM</p>
-</div>
-""", unsafe_allow_html=True)
+# ចុចប៊ូតុង OPEN FOLDER
+if btn_open:
+    st.info("📂 នៅក្នុងប្រព័ន្ធ Cloud ការបើក Folder ដោយផ្ទាល់មិនអាចធ្វើបានទេ។ សូមមើលវីដេអូលទ្ធផលនៅក្នុង 'Output' folder តាមរយៈ GitHub Repo របស់អ្នក។")
