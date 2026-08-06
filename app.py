@@ -127,3 +127,26 @@ if btn_start:
 # ចុចប៊ូតុង OPEN FOLDER
 if btn_open:
     st.info("📂 នៅក្នុងប្រព័ន្ធ Cloud ការបើក Folder ដោយផ្ទាល់មិនអាចធ្វើបានទេ។ សូមមើលវីដេអូលទ្ធផលនៅក្នុង 'Output' folder តាមរយៈ GitHub Repo របស់អ្នក។")
+
+    # ... (ផ្នែកខាងលើនៃមុខងារ run_dubbing_engine មានស្រាប់) ...
+
+    update_log("[100%] Rendering final video... / កំពុង Render ចប់ហើយ! រួចរាល់!")
+    st.success("✅ ដំណើរការ Dubbing បានបញ្ចប់ដោយជោគជ័យ!")
+
+    # ==========================================
+    # បន្ថែមកូដនេះដើម្បីបង្ហាញវីដេអូលទ្ធផល
+    # ==========================================
+    output_video_path = "output/final_video.mp4" # ត្រូវប្តូរទៅជាផ្លូវឯកសារលទ្ធផលពិតរបស់អ្នក
+    
+    if os.path.exists(output_video_path):
+        with open(output_video_path, "rb") as video_file:
+            video_bytes = video_file.read()
+        st.video(video_bytes)  # នេះជាបន្ទាត់ដែលបង្ហាញវីដេអូនៅលើ Web
+        st.download_button(
+            label="📥 ទាញយកវីដេអូនេះ (Download)",
+            data=video_bytes,
+            file_name="dubbed_final_video.mp4",
+            mime="video/mp4"
+        )
+    else:
+        st.warning("⚠️ វីដេអូលទ្ធផលមិនទាន់ត្រូវបានបង្កើតទេ ឬទីតាំង File មិនត្រឹមត្រូវ។")
