@@ -46,7 +46,6 @@ with col1:
             st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
         else:
             try:
-                # ១. រក្សាទុកវីដេអូដើម
                 log_area.code("[10%] កំពុងផ្ទុកទិន្នន័យវីដេអូ...")
                 progress_bar.progress(0.10)
 
@@ -57,14 +56,12 @@ with col1:
                 vid_out = vid_in.replace(".mp4", "_dubbed.mp4")
                 temp_dir = tempfile.mkdtemp()
 
-                # ២. ទាញសំឡេងដើម & ឱ្យ AI (Whisper) វិភាគម៉ោង
                 log_area.code("[30%] កំពុងទាញសំឡេង និងវិភាគម៉ោងជាមួយ Whisper AI...")
                 progress_bar.progress(0.30)
                 
                 temp_audio = os.path.join(temp_dir, "temp.mp3")
                 subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                # ใช้ model "tiny" ដើម្បីឱ្យដំណើរការលឿននៅលើ Cloud
                 model = whisper.load_model("tiny")
                 segments = model.transcribe(temp_audio)["segments"]
 
@@ -72,7 +69,6 @@ with col1:
                 inputs, filters = [], []
                 count = 0
 
-                # មុខងារជំនួយការដកដង្ហើម
                 def add_breathing_pauses(text):
                     if not add_breathing:
                         return text
@@ -82,12 +78,11 @@ with col1:
                     text = text.replace("។", "។ ").replace(",,", ",").replace(", ,", ",")
                     return text
 
-                # ៣. បង្កើតសំឡេងខ្មែរតាមម៉ោងនីមួយៗ (Async function)
                 log_area.code("[60%] កំពុងបកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ...")
                 progress_bar.progress(0.60)
 
                 async def process_audio():
-                    nonlocal count
+                    local_count = 0
                     for seg in segments:
                         text = seg["text"].strip()
                         if not text: continue
@@ -96,19 +91,19 @@ with col1:
                         except: kh_text = text
                         
                         kh_text_ready = add_breathing_pauses(kh_text)
-                        audio_path = os.path.join(temp_dir, f"s_{count}.mp3")
+                        audio_path = os.path.join(temp_dir, f"s_{local_count}.mp3")
                         
                         communicate = edge_tts.Communicate(kh_text_ready, selected_voice, rate="-10%", pitch="-2Hz")
                         await communicate.save(audio_path)
                         
                         delay_ms = int(seg["start"] * 1000)
                         inputs.extend(["-i", audio_path])
-                        filters.append(f"[{count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{count}]")
-                        count += 1
+                        filters.append(f"[{local_count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{local_count}]")
+                        local_count += 1
+                    return local_count
 
-                asyncio.run(process_audio())
+                count = asyncio.run(process_audio())
 
-                # ៤. បញ្ចូលសំឡេងទៅក្នុងវីដេអូដោយប្រើ FFmpeg
                 if count > 0:
                     log_area.code("[85%] កំពុងដំឡើងសំឡេង AI ចូលក្នុងវីដេអូ...")
                     progress_bar.progress(0.85)
@@ -134,8 +129,7 @@ with col1:
                 else:
                     st.warning("រកមិនឃើញអត្ថបទត្រូវបកប្រែក្នុងវីដេអូនេះទេ!")
 
-                # សម្អាតថតបណ្តោះអាសន្ន
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
             except Exception as e:
-                st.error(f"មានបញ្តាក្នុងការដំណើរការ: {e}")
+                st.error(f"មានបញ្ហាក្នុងការដំណើរការ: {e}")
