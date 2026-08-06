@@ -79,7 +79,7 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
-#  STREAMLIT UI - FIXED COLOR CONTRAST
+#  STREAMLIT UI
 # ================================================================
 
 st.set_page_config(
@@ -88,15 +88,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# ----- CUSTOM CSS WITH FIXED COLORS -----
+# ----- CUSTOM CSS -----
 st.markdown("""
 <style>
-    /* Fix background - Light theme */
     .stApp {
         background: linear-gradient(135deg, #f0f4ff 0%, #e8edf5 100%);
     }
     
-    /* Main container - White background with shadow */
     .main-container {
         background: #ffffff !important;
         border-radius: 20px;
@@ -105,7 +103,6 @@ st.markdown("""
         margin: 15px 10px;
     }
     
-    /* Card style */
     .card {
         background: #ffffff !important;
         border-radius: 15px;
@@ -114,7 +111,6 @@ st.markdown("""
         border: 1px solid #e5e7eb;
     }
     
-    /* Upload box */
     .upload-box {
         border: 2px dashed #667eea;
         border-radius: 15px;
@@ -131,7 +127,6 @@ st.markdown("""
         color: #4b5563 !important;
     }
     
-    /* Title - Dark text */
     .title-gradient {
         color: #1f2937 !important;
         font-size: 2.8em;
@@ -140,30 +135,10 @@ st.markdown("""
         text-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
-    /* All text colors - DARK for readability */
     h1, h2, h3, h4, h5, h6, p, label, div, span, .stMarkdown {
         color: #1f2937 !important;
     }
     
-    /* Fix metric labels */
-    .stMetric label {
-        color: #374151 !important;
-        font-weight: 600;
-    }
-    .stMetric div {
-        color: #111827 !important;
-        font-weight: 700;
-    }
-    
-    /* Fix info/warning/success boxes text */
-    .stAlert {
-        border-radius: 12px !important;
-    }
-    .stAlert div {
-        color: #1f2937 !important;
-    }
-    
-    /* Fix button text */
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         color: #ffffff !important;
@@ -185,28 +160,6 @@ st.markdown("""
         cursor: not-allowed;
     }
     
-    /* Voice selection buttons */
-    .voice-btn {
-        background: #f3f4f6 !important;
-        color: #1f2937 !important;
-        border: 2px solid #e5e7eb !important;
-        border-radius: 10px !important;
-        padding: 12px !important;
-        font-weight: 500 !important;
-        transition: all 0.3s ease !important;
-    }
-    .voice-btn:hover {
-        background: #e5e7eb !important;
-        border-color: #667eea !important;
-    }
-    .voice-btn.selected {
-        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%) !important;
-        border-color: #667eea !important;
-        color: #1f2937 !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Status badges */
     .badge-vip {
         background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
         color: #ffffff !important;
@@ -238,15 +191,6 @@ st.markdown("""
         text-align: center;
     }
     
-    /* Sidebar - Light background */
-    .css-1d391kg {
-        background: #ffffff !important;
-    }
-    .sidebar-content {
-        color: #1f2937 !important;
-    }
-    
-    /* Footer */
     .footer {
         text-align: center;
         padding: 20px;
@@ -259,7 +203,6 @@ st.markdown("""
         color: #6b7280 !important;
     }
     
-    /* Fix text input */
     .stTextInput input {
         color: #1f2937 !important;
         background: #ffffff !important;
@@ -273,7 +216,6 @@ st.markdown("""
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
     }
     
-    /* Fix text area */
     .stTextArea textarea {
         color: #1f2937 !important;
         background: #ffffff !important;
@@ -287,28 +229,40 @@ st.markdown("""
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
     }
     
-    /* Fix labels and captions */
-    .stCaption, .stCaption p {
-        color: #4b5563 !important;
+    /* Video container */
+    .video-container {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%;
+        height: 0;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #000;
+    }
+    .video-container video {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
     }
     
-    /* Fix progress bar text */
-    .stProgress div {
-        color: #1f2937 !important;
+    /* Playing indicator */
+    .playing-indicator {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        display: inline-block;
+        animation: pulse 1.5s ease-in-out infinite;
     }
     
-    /* Fix metric values */
-    div[data-testid="metric-container"] {
-        background: #f9fafb !important;
-        padding: 15px !important;
-        border-radius: 12px !important;
-        border: 1px solid #e5e7eb !important;
-    }
-    div[data-testid="metric-container"] label {
-        color: #4b5563 !important;
-    }
-    div[data-testid="metric-container"] div {
-        color: #111827 !important;
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -321,9 +275,11 @@ if 'license_data' not in st.session_state:
     st.session_state.license_data = load_license()
     st.session_state.current_status = check_license_status(st.session_state.license_data)
     st.session_state.video_file = None
+    st.session_state.video_bytes = None
     st.session_state.selected_voice = "Male Voice 1"
     st.session_state.is_playing = False
     st.session_state.script_text = ""
+    st.session_state.show_video = False
 
 # ================================================================
 #  SIDEBAR
@@ -333,7 +289,6 @@ with st.sidebar:
     st.markdown("## 🔑 VIP Control Panel")
     st.markdown("---")
     
-    # Status Display
     status = st.session_state.current_status
     if status == "vip":
         st.markdown('<div class="badge-vip">✅ VIP Activated</div>', unsafe_allow_html=True)
@@ -352,7 +307,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Activation
     st.markdown("### 🔐 Activate VIP")
     code = st.text_input("Activation Code:", placeholder="Enter your code", type="password")
     
@@ -376,7 +330,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Telegram Contact
     st.markdown("### 📱 Contact")
     st.info("💎 For VIP Purchase\n📱 @YOUR_TELEGRAM")
 
@@ -407,28 +360,35 @@ with st.container():
         
         if uploaded_file is not None:
             st.session_state.video_file = uploaded_file
+            st.session_state.video_bytes = uploaded_file.read()
+            st.session_state.show_video = True
+        
+        # Display video
+        if st.session_state.video_bytes is not None and st.session_state.show_video:
+            video_base64 = base64.b64encode(st.session_state.video_bytes).decode()
             
-            # Save and display video
-            video_bytes = uploaded_file.read()
-            video_base64 = base64.b64encode(video_bytes).decode()
+            # Check if playing
+            autoplay = "autoplay" if st.session_state.is_playing else ""
+            muted = "muted" if st.session_state.is_playing else ""
             
             st.markdown(f"""
             <div class="card">
-                <video width="100%" controls>
-                    <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
+                <div class="video-container">
+                    <video width="100%" controls {autoplay} {muted}>
+                        <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #6b7280; font-size: 0.9em;">📁 {st.session_state.video_file.name if st.session_state.video_file else "video.mp4"}</span>
+                    <span style="color: #6b7280; font-size: 0.9em;">🎤 {st.session_state.selected_voice}</span>
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
-            # Video Info
-            col_info1, col_info2, col_info3 = st.columns(3)
-            with col_info1:
-                st.metric("File Size", f"{len(video_bytes)//1024} KB")
-            with col_info2:
-                st.metric("Format", uploaded_file.type.split('/')[-1].upper())
-            with col_info3:
-                st.metric("Status", "✅ Loaded")
+            # Show playing status
+            if st.session_state.is_playing:
+                st.markdown('<div style="text-align: center; margin-top: 10px;"><span class="playing-indicator">▶ LIVE • Playing now</span></div>', unsafe_allow_html=True)
         else:
             st.markdown("""
             <div class="upload-box">
@@ -454,7 +414,6 @@ with st.container():
     with col_control:
         st.markdown("### 🎤 Voice Selection")
         
-        # Voice options
         voices = {
             "Male Voice 1": "🎙️ Deep Male",
             "Male Voice 2": "🎙️ Warm Male", 
@@ -464,13 +423,12 @@ with st.container():
             "English Voice": "🇬🇧 English Voice"
         }
         
-        # Voice selection grid
         voice_cols = st.columns(2)
         for idx, (voice_key, voice_label) in enumerate(voices.items()):
             col_idx = idx % 2
             with voice_cols[col_idx]:
                 is_selected = st.session_state.selected_voice == voice_key
-                btn_class = "voice-btn selected" if is_selected else "voice-btn"
+                btn_style = "font-weight: 700; border: 2px solid #667eea; background: #e0e7ff;" if is_selected else ""
                 
                 if st.button(
                     voice_label,
@@ -486,30 +444,18 @@ with st.container():
         # ====== Control Buttons ======
         st.markdown("### 🎮 Controls")
         
-        # Check if video is uploaded
-        has_video = st.session_state.video_file is not None
-        
-        # Status checks
+        has_video = st.session_state.video_bytes is not None
         status = st.session_state.current_status
-        can_play = False
-        status_msg = ""
         
+        can_play = False
         if status == "vip":
             can_play = True
-            status_msg = "VIP Mode - Unlimited"
         elif status == "expired":
             can_play = False
-            status_msg = "❌ License Expired"
-        else:  # trial
+        else:
             remaining = 3 - st.session_state.license_data.get("videos_used", 0)
-            if remaining > 0:
-                can_play = True
-                status_msg = f"Trial - {remaining} left"
-            else:
-                can_play = False
-                status_msg = "⛔ Trial Expired"
+            can_play = remaining > 0
         
-        # Start Button
         col_start, col_stop = st.columns(2)
         with col_start:
             if st.button("▶ Start", use_container_width=True, disabled=not (can_play and has_video)):
@@ -527,11 +473,14 @@ with st.container():
                             save_license(st.session_state.license_data)
                             st.session_state.current_status = check_license_status(st.session_state.license_data)
                             st.session_state.is_playing = True
+                            st.session_state.show_video = True
                             st.success(f"🎬 Playing with {st.session_state.selected_voice}!")
                             st.rerun()
                     else:
                         st.session_state.is_playing = True
+                        st.session_state.show_video = True
                         st.success(f"🎬 Playing with {st.session_state.selected_voice}!")
+                        st.rerun()
         
         with col_stop:
             if st.button("⏹ Stop", use_container_width=True):
@@ -542,7 +491,6 @@ with st.container():
         # Status display
         if st.session_state.is_playing:
             st.info(f"🎬 Now playing with {st.session_state.selected_voice}")
-            st.progress(100, text="Processing...")
         else:
             if has_video:
                 st.info("⏸ Ready to play")
@@ -551,12 +499,12 @@ with st.container():
         
         st.markdown("---")
         
-        # ====== Buy VIP Button ======
+        # ====== Buy VIP ======
         st.markdown("### 💎 Unlock VIP")
         if st.button("💎 Buy VIP Now", use_container_width=True):
             st.info("💎 សម្រាប់ទិញ VIP ឬទទួល Activation Code សូមទាក់ទង Telegram៖ @YOUR_TELEGRAM")
         
-        # ====== Current Status Summary ======
+        # ====== Status Summary ======
         st.markdown("---")
         st.markdown("### 📊 Status")
         col_s1, col_s2 = st.columns(2)
