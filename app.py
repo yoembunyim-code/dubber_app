@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import uuid
 import platform
 import base64
-from pathlib import Path
 
 # ================================================================
 #  LICENSE MANAGER
@@ -80,141 +79,236 @@ def activate_license(key):
         return False, "Invalid Activation Code. ❌", data
 
 # ================================================================
-#  STREAMLIT UI - MODERN DESIGN
+#  STREAMLIT UI - FIXED COLOR CONTRAST
 # ================================================================
 
 st.set_page_config(
     page_title="🎬 AI Video Dubber",
     page_icon="🎬",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-# ----- Custom CSS for Beautiful Design -----
+# ----- CUSTOM CSS WITH FIXED COLORS -----
 st.markdown("""
 <style>
-    /* Gradient Background */
+    /* Fix background - Light theme */
     .stApp {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #f0f4ff 0%, #e8edf5 100%);
     }
     
-    /* Main Container */
+    /* Main container - White background with shadow */
     .main-container {
-        background: rgba(255, 255, 255, 0.95);
+        background: #ffffff !important;
         border-radius: 20px;
         padding: 30px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        margin: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+        margin: 15px 10px;
     }
     
-    /* Card Style */
+    /* Card style */
     .card {
-        background: white;
+        background: #ffffff !important;
         border-radius: 15px;
-        padding: 25px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease;
-    }
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid #e5e7eb;
     }
     
-    /* Gradient Button */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 12px 30px !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-    }
-    .stButton > button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
-    }
-    
-    /* Success/Info Boxes */
-    .stAlert {
-        border-radius: 12px !important;
-        border-left: 5px solid #667eea !important;
-    }
-    
-    /* Upload Box */
+    /* Upload box */
     .upload-box {
         border: 2px dashed #667eea;
         border-radius: 15px;
         padding: 40px;
         text-align: center;
-        background: rgba(102, 126, 234, 0.05);
+        background: #f8faff !important;
         transition: all 0.3s ease;
     }
-    .upload-box:hover {
-        background: rgba(102, 126, 234, 0.1);
-        border-color: #764ba2;
+    .upload-box h3 {
+        color: #1f2937 !important;
+        font-weight: 700;
+    }
+    .upload-box p {
+        color: #4b5563 !important;
     }
     
-    /* Title Animation */
+    /* Title - Dark text */
     .title-gradient {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 3em;
+        color: #1f2937 !important;
+        font-size: 2.8em;
         font-weight: 800;
         text-align: center;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
-    /* Voice Selection Styling */
-    .voice-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        border-radius: 12px;
-        padding: 15px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        border: 2px solid transparent;
-    }
-    .voice-card:hover {
-        border-color: #667eea;
-        transform: scale(1.05);
-    }
-    .voice-card.selected {
-        border-color: #667eea;
-        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+    /* All text colors - DARK for readability */
+    h1, h2, h3, h4, h5, h6, p, label, div, span, .stMarkdown {
+        color: #1f2937 !important;
     }
     
-    /* Status Badge */
-    .badge-vip {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        padding: 8px 20px;
-        border-radius: 20px;
+    /* Fix metric labels */
+    .stMetric label {
+        color: #374151 !important;
         font-weight: 600;
+    }
+    .stMetric div {
+        color: #111827 !important;
+        font-weight: 700;
+    }
+    
+    /* Fix info/warning/success boxes text */
+    .stAlert {
+        border-radius: 12px !important;
+    }
+    .stAlert div {
+        color: #1f2937 !important;
+    }
+    
+    /* Fix button text */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 12px 24px !important;
+        font-weight: 600 !important;
+        font-size: 16px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35) !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5) !important;
+    }
+    .stButton > button:disabled {
+        background: #9ca3af !important;
+        box-shadow: none !important;
+        cursor: not-allowed;
+    }
+    
+    /* Voice selection buttons */
+    .voice-btn {
+        background: #f3f4f6 !important;
+        color: #1f2937 !important;
+        border: 2px solid #e5e7eb !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+    .voice-btn:hover {
+        background: #e5e7eb !important;
+        border-color: #667eea !important;
+    }
+    .voice-btn.selected {
+        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%) !important;
+        border-color: #667eea !important;
+        color: #1f2937 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Status badges */
+    .badge-vip {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        color: #ffffff !important;
+        padding: 10px 24px !important;
+        border-radius: 25px !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        display: inline-block;
+        text-align: center;
     }
     .badge-trial {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        color: white;
-        padding: 8px 20px;
-        border-radius: 20px;
-        font-weight: 600;
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+        color: #ffffff !important;
+        padding: 10px 24px !important;
+        border-radius: 25px !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        display: inline-block;
+        text-align: center;
     }
     .badge-expired {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-        color: white;
-        padding: 8px 20px;
-        border-radius: 20px;
-        font-weight: 600;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        color: #ffffff !important;
+        padding: 10px 24px !important;
+        border-radius: 25px !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        display: inline-block;
+        text-align: center;
+    }
+    
+    /* Sidebar - Light background */
+    .css-1d391kg {
+        background: #ffffff !important;
+    }
+    .sidebar-content {
+        color: #1f2937 !important;
     }
     
     /* Footer */
     .footer {
         text-align: center;
         padding: 20px;
-        color: #6b7280;
+        color: #6b7280 !important;
         font-size: 0.9em;
+        border-top: 1px solid #e5e7eb;
+        margin-top: 20px;
+    }
+    .footer p {
+        color: #6b7280 !important;
+    }
+    
+    /* Fix text input */
+    .stTextInput input {
+        color: #1f2937 !important;
+        background: #ffffff !important;
+        border: 2px solid #e5e7eb !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+    .stTextInput input:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
+    }
+    
+    /* Fix text area */
+    .stTextArea textarea {
+        color: #1f2937 !important;
+        background: #ffffff !important;
+        border: 2px solid #e5e7eb !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+        font-size: 16px !important;
+    }
+    .stTextArea textarea:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
+    }
+    
+    /* Fix labels and captions */
+    .stCaption, .stCaption p {
+        color: #4b5563 !important;
+    }
+    
+    /* Fix progress bar text */
+    .stProgress div {
+        color: #1f2937 !important;
+    }
+    
+    /* Fix metric values */
+    div[data-testid="metric-container"] {
+        background: #f9fafb !important;
+        padding: 15px !important;
+        border-radius: 12px !important;
+        border: 1px solid #e5e7eb !important;
+    }
+    div[data-testid="metric-container"] label {
+        color: #4b5563 !important;
+    }
+    div[data-testid="metric-container"] div {
+        color: #111827 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -232,7 +326,7 @@ if 'license_data' not in st.session_state:
     st.session_state.script_text = ""
 
 # ================================================================
-#  SIDEBAR - VIP Activation
+#  SIDEBAR
 # ================================================================
 
 with st.sidebar:
@@ -291,7 +385,7 @@ with st.sidebar:
 # ================================================================
 
 st.markdown('<h1 class="title-gradient">🎬 AI Video Dubber</h1>', unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #6b7280;'>Convert your videos with AI voiceovers in multiple languages</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #4b5563; font-size: 1.1em;'>Convert your videos with AI voiceovers in multiple languages</p>", unsafe_allow_html=True)
 
 # ----- Main Container -----
 with st.container():
@@ -338,9 +432,10 @@ with st.container():
         else:
             st.markdown("""
             <div class="upload-box">
-                <h3>📤 Drop your video here</h3>
-                <p style="color: #6b7280;">or click to browse files</p>
-                <p style="font-size: 0.8em; color: #9ca3af;">Supported: MP4, AVI, MOV, MKV, WEBM</p>
+                <h3 style="color: #1f2937;">📤 Drop your video here</h3>
+                <p style="color: #4b5563;">or click to browse files</p>
+                <p style="font-size: 0.8em; color: #6b7280;">Supported: MP4, AVI, MOV, MKV, WEBM</p>
+                <p style="font-size: 0.8em; color: #6b7280;">Max: 1GB per file</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -375,8 +470,7 @@ with st.container():
             col_idx = idx % 2
             with voice_cols[col_idx]:
                 is_selected = st.session_state.selected_voice == voice_key
-                border_style = "2px solid #667eea" if is_selected else "2px solid transparent"
-                bg_style = "linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)" if is_selected else "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)"
+                btn_class = "voice-btn selected" if is_selected else "voice-btn"
                 
                 if st.button(
                     voice_label,
@@ -480,14 +574,6 @@ with st.container():
 st.markdown("""
 <div class="footer">
     <p>🎬 AI Video Dubber v2.0 | Powered by DeepSeek AI</p>
-    <p style="font-size: 0.8em; color: #9ca3af;">Contact Telegram: @YOUR_TELEGRAM</p>
+    <p style="font-size: 0.8em; color: #6b7280;">Contact Telegram: @YOUR_TELEGRAM</p>
 </div>
 """, unsafe_allow_html=True)
-
-# ================================================================
-#  REQUIREMENTS.TXT
-# ================================================================
-
-# streamlit
-# openai-whisper (optional for speech-to-text)
-# moviepy (optional for video processing)
