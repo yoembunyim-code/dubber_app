@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import json
 import asyncio
 import tempfile
 import shutil
@@ -9,23 +10,71 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 # ==========================================
+# CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
+# ==========================================
+CONTACT_TELEGRAM = "@Semsamnang_Dev"
+TELEGRAM_LINK = "https://t.me/Semsamnang_Dev"
+TRIAL_VIDEO_LIMIT = 3
+LICENSE_FILE = "license.json"
+VALID_VIP_CODES = ["VIP2024", "SEMSAMNANG123", "KHMERDUBBING"]
+
+def load_license():
+    if os.path.exists(LICENSE_FILE):
+        with open(LICENSE_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get("video_processed", 0), data.get("is_vip", False)
+    return 0, False
+
+def save_license(count, is_vip=False):
+    with open(LICENSE_FILE, 'w') as f:
+        json.dump({"video_processed": count, "is_vip": is_vip}, f)
+
+def check_license(is_vip):
+    if is_vip:
+        return True, "VIP Unlimited"
+    usage, _ = load_license()
+    if usage >= TRIAL_VIDEO_LIMIT:
+        return False, usage
+    return True, usage
+
+# ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing PRO (Edge TTS)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
-    st.title("⚙️ Settings")
+    st.title("⚙️ Settings & VIP")
     
+    # ផ្នែកបញ្ចូលកូដ VIP
+    st.subheader("🔑 Enter VIP Code")
+    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+    if st.button("Activate VIP"):
+        if vip_input in VALID_VIP_CODES:
+            usage, _ = load_license()
+            save_license(usage, is_vip=True)
+            st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
+            st.rerun()
+        else:
+            st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
+
+    st.markdown("---")
+    
+    # ប៊ូតុងទាក់ទងតេលេក្រាមដើម្បីទិញ VIP
+    st.subheader("💎 ទិញកូដ VIP (Unlimit)")
+    st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
+    st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
+
+    st.markdown("---")
     selected_voice = st.selectbox(
         "🎙️ ជ្រើសរើសសំឡេង AI:", 
         ["km-KH-SreymomNeural", "km-KH-PisethNeural"]
     )
     add_breathing = st.checkbox("🎭 បញ្ចូលការផ្អាកដកដង្ហើមតាមតួអង្គ", value=True)
     st.markdown("---")
-    st.caption("👨‍💻 Dev: Telegram @Semsamnang_Dev")
+    st.caption(f"👨‍💻 Dev: **{CONTACT_TELEGRAM}**")
 
-st.title("🎬 AI Khmer Video Dubbing PRO")
+st.title("🎬 AI Khmer Video Dubbing PRO (VIP Supported)")
 st.markdown("បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរតាមសាច់រឿងពិតប្រាកដ ព្រមទាំងដាក់បញ្ចូលសំឡេង AI ធម្មជាតិ (Edge-TTS)។")
 st.markdown("---")
 
@@ -34,6 +83,14 @@ col1, col2 = st.columns([2, 1])
 with col2:
     st.subheader("🕹️ Controls")
     video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
+    
+    # បង្ហាញស្ថានភាពកូតា (Trial vs VIP)
+    usage, is_vip = load_license()
+    if is_vip:
+        st.success("🔓 VIP Mode Active (Unlimited)")
+    else:
+        st.warning(f"📊 Trial Usage: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
+
     start_dubbing = st.button("🚀 START DUBBING", type="primary", use_container_width=True)
 
 with col1:
@@ -45,6 +102,16 @@ with col1:
         if video_file is None:
             st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
         else:
+            # ពិនិត្យសិទ្ធិប្រើប្រាស់ (License Check)
+            can_run, status_msg = check_license(is_vip)
+            if not can_run:
+                st.error(f"❌ អ្នកបានប្រើប្រាស់អស់កូតាឥតគិតថ្លៃ (3 វីដេអូ) ហើយ! សូមទាក់ទងមកកាន់ Telegram {CONTACT_TELEGRAM} ដើម្បីទិញកូដ VIP បន្ត។")
+                st.stop()
+            
+            # បន្ថើមកំណត់ត្រាការប្រើប្រាស់បើមិនទាន់ជា VIP
+            if not is_vip:
+                save_license(usage + 1, is_vip=False)
+
             try:
                 log_area.code("[10%] កំពុងផ្ទុកទិន្នន័យវីដេអូ...")
                 progress_bar.progress(0.10)
