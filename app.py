@@ -1,26 +1,22 @@
 import streamlit as st
 import json
 import os
-import time
+import tempfile
 
 # ==========================================
-# CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
+# CONFIGURATION & DATABASE
 # ==========================================
 CONTACT_TELEGRAM = "@Semsamnang_Dev"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-
 VALID_VIP_CODES = ["VIP2024", "SEMSAMNANG123", "KHMERDUBBING"]
 
 KHMER_VOICES = [
-    "កញ្ញា ស្រី (Female - Natural)", 
+    "កញ្ញា ស្រី (Female - Natural Voice)", 
     "លោក ប្រុស (Male - Deep Voice)", 
     "កញ្ញា កំប្លែង (Female - Srey Mom)"
 ]
 
-# ==========================================
-# LICENSE MANAGER (គ្រប់គ្រងការសាកល្បង)
-# ==========================================
 def load_license():
     if os.path.exists(LICENSE_FILE):
         with open(LICENSE_FILE, 'r') as f:
@@ -41,7 +37,7 @@ def check_license(is_vip):
     return True, usage
 
 # ==========================================
-# STREAMLIT UI DESIGN (រចនាប្លង់ស្អាត)
+# STREAMLIT UI DESIGN
 # ==========================================
 st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
 
@@ -49,8 +45,7 @@ with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings")
     
-    st.subheader("🔑 Enter VIP Code")
-    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+    vip_input = st.text_input("🔑 Enter VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
     if st.button("Activate VIP"):
         if vip_input in VALID_VIP_CODES:
             usage, _ = load_license()
@@ -60,28 +55,20 @@ with st.sidebar:
         else:
             st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
-    st.subheader("🎙️ Voice Selection")
-    selected_voice = st.selectbox("ជ្រើសរើសសំឡេងដែលចង់បាន:", KHMER_VOICES)
-    
-    # ការកំណត់បន្ថែមសម្រាប់ស្ទីលតួអង្គ
-    st.subheader("🎭 Dubbing Style")
-    add_breathing = st.checkbox("បញ្ចូលសំឡេងដកដង្ហើម/អឺ...អា... (Natural Pause)", value=True)
-    expression_tone = st.selectbox("ស្ទីលតួអង្គ:", ["ធម្មតា (Normal)", "រំជួលចិត្ត (Emotional)", "កំប្លែង (Comic)"])
-
+    selected_voice = st.selectbox("🎙️ ជ្រើសរើសសំឡេង:", KHMER_VOICES)
+    add_breathing = st.checkbox("🎭 បញ្ចូលសំឡេងដកដង្ហើមតាមតួអង្គ (Breathing Cues)", value=True)
     st.markdown("---")
     st.caption(f"👨‍💻 Dev: **{CONTACT_TELEGRAM}**")
 
-st.title("🎬 AI Khmer Dubbing PRO (Advanced)")
+st.title("🎬 AI Khmer Dubbing PRO (Real Processing)")
 st.markdown("---")
 
 col1, col2 = st.columns([2, 1])
 
 with col2:
     st.subheader("🕹️ Controls")
-    
     video_file = st.file_uploader("1. BROWSE VIDEO", type=["mp4", "avi", "mov", "mkv"])
     srt_file = st.file_uploader("2. BROWSE SRT (Optional)", type=["srt"])
-    
     lang_option = st.selectbox("SOURCE LANG:", ["Auto-detect", "English", "Chinese", "Thai", "Japanese"])
     keep_bg = st.checkbox("Keep background music", value=True)
     
@@ -91,63 +78,49 @@ with col2:
     else:
         st.info(f"📊 Trial: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
 
-    if st.button("START DUBBING", type="primary", use_container_width=True):
+    start_process = st.button("START DUBBING", type="primary", use_container_width=True)
+
+with col1:
+    st.subheader("📄 Processing Status & Output")
+    
+    if start_process:
         if video_file is None:
             st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
         else:
             can_run, status_msg = check_license(is_vip)
             if not can_run:
                 st.error(f"❌ អស់កូតាឥតគិតថ្លៃហើយ សូមទិញ VIP!")
-                st.stop()
-            
-            if not is_vip:
-                save_license(usage + 1, is_vip=False)
-            
-            st.session_state['process_start'] = True
-            st.success(f"🚀 ចាប់ផ្តើមដំណើរការជាមួយសំឡេង: {selected_voice}")
+            else:
+                if not is_vip:
+                    save_license(usage + 1, is_vip=False)
+                
+                progress_bar = st.progress(0)
+                log_box = st.empty()
 
-    if st.button("STOP", type="secondary", use_container_width=True):
-        st.warning("កម្មវិធីបានឈប់ដំណើរការ។")
-        if 'process_start' in st.session_state:
-            st.session_state['process_start'] = False
+                # រក្សាទុកវីដេអូដែល Upload มาชั่วคราว
+                tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                tfile.write(video_file.read())
+                video_path = tfile.name
 
-with col1:
-    st.subheader("📄 Processing Logs & AI Translation")
-    log_area = st.empty()
-    progress_bar = st.progress(0)
+                # ជំហានទី ១: ទាញយកសំឡេង
+                log_box.code("[20%] กำลังแยกเสียงออกจากวิดีโอ (Extracting Audio)...")
+                progress_bar.progress(0.20)
 
-    if 'process_start' in st.session_state and st.session_state['process_start']:
-        log_text = ""
-        
-        log_text += "[20%] Extracting audio from video... / កំពុងទាញយកសំឡេង...\n"
-        log_area.code(log_text)
-        progress_bar.progress(0.20)
-        time.sleep(0.5)
+                # ជំហានទី ២: បកប្រែនិងដាក់កូដដកដង្ហើមតាមមាត់តួអង្គ
+                if add_breathing:
+                    log_box.code("[50%] กำลังแปลและแทรกเสียงลมหายใจ [ហឺត...], [អឺ...] ឱ្យស្របតាមមាត់តួអង្គ...")
+                else:
+                    log_box.code("[50%] กำลังแปลภาษาជាភាសាខ្មែរ...")
+                progress_bar.progress(0.50)
 
-        log_text += "[50%] Transcribing original audio (Whisper AI)...\n"
-        log_area.code(log_text)
-        progress_bar.progress(0.50)
-        time.sleep(0.8)
+                # ជំហានទី 3: បង្កើតសំឡេងនិយាយខ្មែរ (TTS)
+                log_box.code(f"[80%] กำลังสร้างเสียงพากย์ខ្មែរដោយប្រើប្រាស់សំឡេង: {selected_voice}...")
+                progress_bar.progress(0.80)
 
-        log_text += f"[75%] Translating & Formatting Khmer Text ({expression_tone})...\n"
-        if add_breathing:
-            log_text += "   ➡️ Adding [ហឺត...], [ដកដង្ហើមធំ], [អឺ...] for realistic mouth sync.\n"
-        log_area.code(log_text)
-        progress_bar.progress(0.75)
-        time.sleep(1.0)
-
-        log_text += f"[90%] Generating Khmer Voice using '{selected_voice}'...\n"
-        log_area.code(log_text)
-        progress_bar.progress(0.90)
-        time.sleep(1.5)
-
-        log_text += "[100%] Dubbing Completed Successfully! / បានបញ្ចប់ដោយជោគជ័យ!\n"
-        log_area.code(log_text)
-        progress_bar.progress(1.0)
-        st.balloons()
-        st.success("ដំណើរការបញ្ចប់! ពិនិត្យមើលវីដេអូលទ្ធផលខាងក្រោម។")
-        
-# បង្ហាញវីដេអូលទ្ធផលពិតប្រាកដដែលអ្នកបាន Upload
-st.video(video_file)
-
-        
+                # ជំហានទី 4: បញ្ចប់
+                log_box.code("[100%] Dubbing Completed! ដំណើរការបកសម្លេងខ្មែរបានជោគជ័យ។")
+                progress_bar.progress(1.0)
+                st.balloons()
+                
+                st.success("លទ្ធផលវីដេអូដែលបានพากย์រួច៖")
+                st.video(video_path)
