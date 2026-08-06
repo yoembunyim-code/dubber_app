@@ -1,149 +1,97 @@
-import streamlit as st
-import json
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import threading
+import subprocess
 import os
-import time
 
 # ==========================================
-# CONFIGURATION
+# កូដថ្មីនេះ ត្រូវបានរៀបចំឡើងដើម្បីកែវីដេអូឱ្យមាត់តួអង្គនិយាយខ្មែរ
+# (ត្រូវការតំឡើង Wav2Lip នៅលើកុំព្យូទ័ររបស់អ្នកសិន ទើបដំណើរការ)
 # ==========================================
-CONTACT_TELEGRAM = "@Semsamnang_Dev"
-TRIAL_VIDEO_LIMIT = 3
-LICENSE_FILE = "license.json"
 
-# ==========================================
-# LICENSE MANAGER
-# ==========================================
-def load_license():
-    if os.path.exists(LICENSE_FILE):
-        with open(LICENSE_FILE, 'r') as f:
-            data = json.load(f)
-            return data.get("video_processed", 0)
-    return 0
-
-def save_license(count):
-    with open(LICENSE_FILE, 'w') as f:
-        json.dump({"video_processed": count}, f)
-
-def check_license():
-    usage = load_license()
-    if usage >= TRIAL_VIDEO_LIMIT:
-        return False, usage
-    return True, usage
-
-# ==========================================
-# STREAMLIT UI DESIGN
-# ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
-
-# Header
-st.title("🎬 AI Khmer Dubbing PRO")
-st.markdown("---")
-
-# ===== បង្កើតជួរឈរ 2 (Col1: ឆ្វេង, Col2: ស្តាំ) ដើម្បីកុំឱ្យមាន Error NameError =====
-col1, col2 = st.columns([2, 1])
-
-# ------------------- RIGHT COLUMN: CONTROLS -------------------
-with col2:
-    st.subheader("🕹️ CONTROLS")
-    
-    # File Uploader
-    video_file = st.file_uploader("BROWSE VIDEO", type=["mp4", "avi", "mov", "mkv"])
-    srt_file = st.file_uploader("BROWSE SRT (Optional)", type=["srt"])
-    
-    # Options
-    lang_option = st.selectbox("SOURCE LANG:", ["Auto-detect", "English", "Chinese"])
-    keep_bg = st.checkbox("Keep background music", value=True)
-    
-    # START BUTTON
-    if st.button("START DUBBING", type="primary", use_container_width=True):
-        if video_file is None:
-            st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
-        else:
-            # CHECK LICENSE
-            can_run, usage_count = check_license()
-            if not can_run:
-                st.error(f"❌ អ្នកបានប្រើប្រាស់ដោយឥតគិតថ្លៃ {TRIAL_VIDEO_LIMIT} វីដេអូហើយ!\n\n👉 សូមទិញកូដពេញលេញសម្រាប់ប្រើប្រាស់គ្មានដែនកំណត់។\n📞 ទាក់ទងទិញតាម Telegram: **{CONTACT_TELEGRAM}**")
-                st.stop()
-            
-            # Increment License
-            save_license(usage_count + 1)
-            st.session_state['process_start'] = True
-            st.success(f"កំពុងដំណើរការលើកទី {usage_count + 1}/{TRIAL_VIDEO_LIMIT}")
-
-    # STOP BUTTON
-    if st.button("STOP", type="secondary", use_container_width=True):
-        st.warning("កម្មវិធីបានឈប់ដំណើរការដោយអ្នកប្រើប្រាស់។")
-        if 'process_start' in st.session_state:
-            st.session_state['process_start'] = False
-
-    # Show Telegram contact
-    st.markdown("---")
-    st.caption(f"👨‍💻 Developer: **{CONTACT_TELEGRAM}**")
-
-# ------------------- LEFT COLUMN: LOGS & VIDEO OUTPUT -------------------
-with col1:
-    st.subheader("📄 Processing Logs")
-    log_area = st.empty()
-    progress_bar = st.progress(0)
-
-    # ========== LOGIC TO SIMULATE AI DUBBING ==========
-    if 'process_start' in st.session_state and st.session_state['process_start']:
-        log_text = ""
+class DubbingApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("AI Khmer Dubbing Pro (Lip-Sync Edition)")
+        self.root.geometry("500x500")
         
-        # កំណត់ឈ្មោះឯកសារលទ្ធផល
-        final_output_filename = "output_dubbed_video.mp4"
+        # ផ្ទាំងព័ត៌មាន
+        tk.Label(root, text="ធ្វើវីដេអូនិយាយខ្មែរតាមមាត់តួអង្គ", font=("Arial", 16, "bold")).pack(pady=20)
+
+        # Button ជ្រើសវីដេអូ
+        self.btn_video = tk.Button(root, text="1. ជ្រើសវីដេអូដើម", command=self.browse_video)
+        self.btn_video.pack(pady=5)
+        self.lbl_video = tk.Label(root, text="មិនទាន់ជ្រើស")
+        self.lbl_video.pack()
+
+        # Button ជ្រើសអូឌីយ៉ូសំឡេងខ្មែរ (ដែលបានបកប្រែរួច)
+        self.btn_audio = tk.Button(root, text="2. ជ្រើសសំឡេងខ្មែរ (WAV)", command=self.browse_audio)
+        self.btn_audio.pack(pady=5)
+        self.lbl_audio = tk.Label(root, text="មិនទាន់ជ្រើស")
+        self.lbl_audio.pack()
+
+        # កន្លែងបង្ហាញ Status
+        self.lbl_status = tk.Label(root, text="ត្រៀមដំណើរការ", fg="blue")
+        self.lbl_status.pack(pady=20)
+
+        # Button START
+        self.btn_start = tk.Button(root, text="ចាប់ផ្តើម Lip-Sync (និយាយតាមមាត់)", bg="green", fg="white", font=("Arial", 12), command=self.start_dubbing)
+        self.btn_start.pack(pady=20)
+
+    def browse_video(self):
+        path = filedialog.askopenfilename(filetypes=[("Video", "*.mp4")])
+        if path:
+            self.video_path = path
+            self.lbl_video.config(text=os.path.basename(path))
+
+    def browse_audio(self):
+        path = filedialog.askopenfilename(filetypes=[("Audio", "*.wav")])
+        if path:
+            self.audio_path = path
+            self.lbl_audio.config(text=os.path.basename(path))
+
+    def start_dubbing(self):
+        if not hasattr(self, 'video_path') or not hasattr(self, 'audio_path'):
+            messagebox.showwarning("ព្រមាន", "សូមជ្រើសរើសវីដេអូ និង សំឡេងជាមុនសិន!")
+            return
         
-        # ----------------------------------------------------------------
-        # ធ្វើការក្លែងធ្វើ (Simulation) ជំហាន AI 
-        # (នៅទីនេះអ្នកអាចយកកូដ AI ពិតៗរបស់អ្នកមកដាក់ជំនួសបាន)
-        # ----------------------------------------------------------------
+        self.lbl_status.config(text="កំពុងដំណើរការ... អាចចំណាយពេលបន្តិច (អាស្រ័យលើ GPU)", fg="red")
+        self.btn_start.config(state="disabled")
         
-        log_text += "[80%] Aligning audio... / កំពុងដកស្រង់សំឡេង...\n"
-        log_area.code(log_text)
-        progress_bar.progress(0.80)
-        time.sleep(0.5)
+        # ដំណើរការក្នុង Background កុំឱ្យ GUI បង្កក
+        thread = threading.Thread(target=self.run_wav2lip)
+        thread.start()
 
-        for i in range(8, 23):
-            if 'process_start' not in st.session_state or not st.session_state['process_start']: 
-                break
-            log_text += f"[80%] Aligning audio... {i}/22 / កំពុងដកស្រង់សំឡេង...\n"
-            log_area.code(log_text)
-            time.sleep(0.15) 
-
-        if st.session_state['process_start']:
-            log_text += "[81%] Translating... / កំពុងបកប្រែ...\n"
-            log_area.code(log_text)
-            progress_bar.progress(0.85)
-            time.sleep(1.5)
-
-        if st.session_state['process_start']:
-            log_text += "[92%] Mixing audio into video... / កំពុងផ្សំសំឡេង...\n"
-            log_area.code(log_text)
-            progress_bar.progress(0.92)
-            time.sleep(2)
-
-        if st.session_state['process_start']:
-            log_text += "[96%] Rendering final video... / កំពុង Render...\n"
-            log_area.code(log_text)
-            progress_bar.progress(0.96)
+    def run_wav2lip(self):
+        try:
+            # ============================================================
+            # នេះគឺជាកូដស្នូលដែលធ្វើឱ្យមាត់និយាយតាមសំឡេងខ្មែរ
+            # អ្នកត្រូវយក Wav2Lip មកតំឡើង និងកែផ្លូវ file path ឱ្យត្រូវ
+            # ============================================================
             
-            # ===== Save Video File ទៅក្នុង Server =====
-            # (នៅក្នុងគម្រោងពិត កូដ AI នឹងបង្កើតឯកសារនេះ)
-            # នៅទីនេះខ្ញុំសរសេរកូដសម្រាប់ Save វីដេអូដើមទៅជាឯកសារលទ្ធផល ដើម្បីសាកល្បងឃើញវីដេអូចេញមក
-            with open(final_output_filename, "wb") as f:
-                f.write(video_file.getbuffer()) 
-            time.sleep(1)
-
-        if st.session_state['process_start']:
-            log_text += "[100%] Dubbing Completed Successfully! / បានបញ្ចប់ដោយជោគជ័យ!\n"
-            log_area.code(log_text)
-            progress_bar.progress(1.0)
+            # ឧទាហរណ៍ពាក្យបញ្ជាសម្រាប់ Wav2Lip
+            # ទាមទារឱ្យមានឯកសារ wav2lip_gan.pth នៅក្នុង Folder models
+            cmd = [
+                "python", "wav2lip/inference.py", 
+                "--checkpoint_path", "models/wav2lip_gan.pth",
+                "--face", self.video_path,
+                "--audio", self.audio_path,
+                "--outfile", "output_final_dubbed.mp4"
+            ]
             
-            # ===== បង្ហាញវីដេអូដល់អ្នកប្រើ =====
-            if os.path.exists(final_output_filename):
-                st.success("ដំណើរការបញ្ចប់! នេះជាវីដេអូលទ្ធផលរបស់អ្នក៖")
-                st.video(final_output_filename) # បង្ហាញវីដេអូ
-            else:
-                st.warning("រកមិនឃើញឯកសារវីដេអូទេ។")
+            # រត់ពាក្យបញ្ជា (វានឹងប្រើ GPU ដើម្បីធ្វើ Lip-Sync)
+            subprocess.run(cmd, check=True)
+            
+            self.lbl_status.config(text="ដំណើរការបានបញ្ចប់! ពិនិត្យវីដេអូ output_final_dubbed.mp4", fg="green")
+            messagebox.showinfo("បានបញ្ចប់", "Lip-Sync បានជោគជ័យ! តួអង្គនឹងនិយាយខ្មែរហើយ។")
+            
+        except Exception as e:
+            self.lbl_status.config(text=f"មានបញ្ហា: {str(e)}", fg="red")
+            messagebox.showerror("Error", str(e))
+        finally:
+            self.btn_start.config(state="normal")
 
-        st.session_state['process_start'] = False
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = DubbingApp(root)
+    root.mainloop()
