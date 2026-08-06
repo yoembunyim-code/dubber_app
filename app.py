@@ -7,7 +7,8 @@ import speech_recognition as sr
 from moviepy.editor import VideoFileClip
 from deep_translator import GoogleTranslator
 from gtts import gTTS
-
+# បកប្រែជាភាសាខ្មែរដោយប្រើ deep-translator
+translated_text = GoogleTranslator(source='auto', target='km').translate(original_text)
 # ==========================================
 # CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
 # ==========================================
