@@ -5,7 +5,7 @@ import time
 import tempfile
 import speech_recognition as sr
 from moviepy.editor import VideoFileClip
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 from gtts import gTTS
 
 # ==========================================
