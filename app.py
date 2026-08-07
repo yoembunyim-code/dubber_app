@@ -69,9 +69,23 @@ with st.sidebar:
 
         st.markdown("---")
         
-        # បន្ថែមអក្សរធំៗ និងប៊ូតុងទាក់ទង Telegram
-        st.markdown("<h2 style='text-align: center; color: #0088cc;'>💎 ទិញកូដ VIP តាមតេលេក្រាម</h2>", unsafe_allow_html=True)
-        st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:12px 15px; border-radius:8px; cursor:pointer; width:100%; font-size:16px; font-weight:bold;">💬 ទាក់ទង Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
+        # ផ្នែកបង្ហាញឈ្មោះ Telegram អក្សរធំៗ និងប៊ូតុងចុចទៅ Telegram
+        st.markdown(
+            f"""
+            <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
+                <h3 style="color: #ffffff; margin-bottom: 5px;">💎 ទិញកូដ VIP តាមតេលេក្រាម</h3>
+                <h1 style="color: #0088cc; font-size: 26px; font-weight: bold; margin-top: 5px; margin-bottom: 15px;">
+                    {CONTACT_TELEGRAM}
+                </h1>
+                <a href="{TELEGRAM_LINK}" target="_blank" style="text-decoration: none;">
+                    <button style="background-color: #0088cc; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%;">
+                        💬 ឆាតទៅកាន់ Telegram ឥឡូវនេះ
+                    </button>
+                </a>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
     st.markdown("---")
     selected_voice = st.selectbox(
