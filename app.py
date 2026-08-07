@@ -10,26 +10,31 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 # ==========================================
-# CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
+# CONFIGURATION & DATABASE
 # ==========================================
 CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
 
-# ទាញយកកូដ VIP ពី Streamlit Secrets ដើម្បីសុវត្ថិភាព
 VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
 
 def load_license():
     if os.path.exists(LICENSE_FILE):
-        with open(LICENSE_FILE, 'r') as f:
-            data = json.load(f)
-            return data.get("video_processed", 0), data.get("is_vip", False)
+        try:
+            with open(LICENSE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get("video_processed", 0), data.get("is_vip", False)
+        except Exception:
+            return 0, False
     return 0, False
 
 def save_license(count, is_vip=False):
-    with open(LICENSE_FILE, 'w') as f:
-        json.dump({"video_processed": count, "is_vip": is_vip}, f)
+    try:
+        with open(LICENSE_FILE, 'w') as f:
+            json.dump({"video_processed": count, "is_vip": is_vip}, f)
+    except Exception:
+        pass
 
 def check_license(is_vip):
     if is_vip:
@@ -42,9 +47,8 @@ def check_license(is_vip):
 # ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
 
-# ពិនិត្យស្ថានភាព VIP ជាមុន
 usage, is_vip = load_license()
 
 with st.sidebar:
@@ -53,7 +57,6 @@ with st.sidebar:
     
     if is_vip:
         st.success("🎉 អ្នកកំពុងប្រើប្រាស់កញ្ចប់ VIP Unlimited!")
-        st.info("អរគុណសម្រាប់ការគាំទ្រប្រើប្រាស់សេវាកម្មរបស់យើង!")
     else:
         st.subheader("🔑 Enter VIP Code")
         vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
@@ -74,7 +77,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # បង្ហាញឈ្មោះ Telegram អក្សរធំៗរហូត
     st.markdown(
         f"""
         <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
@@ -161,16 +163,13 @@ with col1:
                 log_area.code("[60%] កំពុងបកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ...")
                 progress_bar.progress(0.60)
 
-                async def generate_tts_with_retry(text, voice, output_path, retries=3):
-                    for attempt in range(retries):
-                        try:
-                            communicate = edge_tts.Communicate(text, voice)
-                            await communicate.save(output_path)
-                            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                                return True
-                        except Exception:
-                            await asyncio.sleep(1)
-                    return False
+                async def generate_tts(text, voice, output_path):
+                    try:
+                        communicate = edge_tts.Communicate(text, voice)
+                        await communicate.save(output_path)
+                        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+                    except Exception:
+                        return False
 
                 async def process_audio():
                     local_count = 0
@@ -195,12 +194,10 @@ with col1:
                         raw_audio_path = os.path.join(temp_dir, f"raw_{local_count}.mp3")
                         fitted_audio_path = os.path.join(temp_dir, f"fitted_{local_count}.wav")
                         
-                        # ព្យាយាមបង្កើតសំឡេងរហូតដល់បានជោគជ័យ
-                        success = await generate_tts_with_retry(kh_text_ready, selected_voice, raw_audio_path)
+                        success = await generate_tts(kh_text_ready, selected_voice, raw_audio_path)
                         if not success:
                             continue
 
-                        # គណនារយៈពេលសំឡេង AI
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
@@ -211,7 +208,6 @@ with col1:
                         except Exception:
                             generated_duration = target_duration
 
-                        # តម្រឹមល្បឿន
                         speed_ratio = generated_duration / target_duration
                         speed_ratio = max(0.7, min(speed_ratio, 1.5))
                         
@@ -254,7 +250,7 @@ with col1:
                     st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
-                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត។")
+                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ!")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
