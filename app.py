@@ -16,6 +16,7 @@ CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
+
 # ទាញយកកូដ VIP ពី Streamlit Secrets ដើម្បីសុវត្ថិភាព
 VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
 
@@ -43,28 +44,35 @@ def check_license(is_vip):
 # ==========================================
 st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
 
+# ពិនិត្យស្ថានភាព VIP ជាមុន
+usage, is_vip = load_license()
+
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings & VIP")
     
-    # ផ្នែកបញ្ចូលកូដ VIP
-    st.subheader("🔑 Enter VIP Code")
-    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
-    if st.button("Activate VIP"):
-        if vip_input in VALID_VIP_CODES:
-            usage, _ = load_license()
-            save_license(usage, is_vip=True)
-            st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
-            st.rerun()
-        else:
-            st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
+    # ប្រសិនបើជា VIP រួចហើយ នឹងលាក់ប្រអប់បញ្ចូល VIP Code និង Telegram
+    if is_vip:
+        st.success("🎉 អ្នកកំពុងប្រើប្រាស់កញ្ចប់ VIP Unlimited!")
+        st.info("អរគុណសម្រាប់ការគាំទ្រប្រើប្រាស់សេវាកម្មរបស់យើង!")
+    else:
+        # ប្រសិនបើនៅជាអ្នកប្រើប្រាស់ Free/Trial នឹងបង្ហាញប្រអប់ VIP Code & Telegram
+        st.subheader("🔑 Enter VIP Code")
+        vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+        if st.button("Activate VIP"):
+            if vip_input in VALID_VIP_CODES:
+                save_license(usage, is_vip=True)
+                st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
+                st.rerun()
+            else:
+                st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
-    st.markdown("---")
-    
-    # ប៊ូតុងទាក់ទងតេលេក្រាមដើម្បីទិញ VIP
-    st.subheader("💎 ទិញកូដ VIP (Unlimit)")
-    st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
-    st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # ប៊ូតុងទាក់ទងតេលេក្រាមដើម្បីទិញ VIP
+        st.subheader("💎 ទិញកូដ VIP (Unlimit)")
+        st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
+        st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
 
     st.markdown("---")
     selected_voice = st.selectbox(
@@ -86,7 +94,6 @@ with col2:
     video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
     
     # បង្ហាញស្ថានភាពកូតា (Trial vs VIP)
-    usage, is_vip = load_license()
     if is_vip:
         st.success("🔓 VIP Mode Active (Unlimited)")
     else:
@@ -130,12 +137,12 @@ with col1:
                 temp_audio = os.path.join(temp_dir, "temp.mp3")
                 subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                model = whisper.load_model("tiny")
+                # ប្តូរទៅប្រើ model 'base' ដើម្បីទាញសំឡេងបានច្បាស់ជាងមុន
+                model = whisper.load_model("base")
                 segments = model.transcribe(temp_audio)["segments"]
 
                 translator = GoogleTranslator(source='auto', target='km')
                 inputs, filters = [], []
-                count = 0
 
                 def add_breathing_pauses(text):
                     if not add_breathing:
@@ -146,28 +153,60 @@ with col1:
                     text = text.replace("។", "។ ").replace(",,", ",").replace(", ,", ",")
                     return text
 
-                log_area.code("[60%] កំពុងបកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ...")
+                log_area.code("[60%] កំពុងបកប្រែ និងតម្រឹមសំឡេង AI ឱ្យស្មើ timing...")
                 progress_bar.progress(0.60)
 
                 async def process_audio():
                     local_count = 0
                     for seg in segments:
                         text = seg["text"].strip()
-                        if not text: continue
+                        start_time = seg["start"]
+                        end_time = seg["end"]
+                        target_duration = end_time - start_time
                         
-                        try: kh_text = translator.translate(text)
-                        except: kh_text = text
+                        if not text or target_duration <= 0.3:
+                            continue
+                        
+                        try:
+                            kh_text = translator.translate(text)
+                        except:
+                            kh_text = text
                         
                         kh_text_ready = add_breathing_pauses(kh_text)
-                        audio_path = os.path.join(temp_dir, f"s_{local_count}.mp3")
+                        raw_audio_path = os.path.join(temp_dir, f"raw_{local_count}.mp3")
+                        fitted_audio_path = os.path.join(temp_dir, f"fitted_{local_count}.wav")
                         
-                        communicate = edge_tts.Communicate(kh_text_ready, selected_voice, rate="-10%", pitch="-2Hz")
-                        await communicate.save(audio_path)
+                        communicate = edge_tts.Communicate(kh_text_ready, selected_voice, pitch="-2Hz")
+                        await communicate.save(raw_audio_path)
                         
-                        delay_ms = int(seg["start"] * 1000)
-                        inputs.extend(["-i", audio_path])
+                        # គណនារយៈពេលនៃសំឡេង AI ដែលទើបបង្កើត
+                        probe_cmd = [
+                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                            '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
+                        ]
+                        res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        try:
+                            generated_duration = float(res.stdout.strip())
+                        except:
+                            generated_duration = target_duration
+
+                        # គណនាសមាមាត្រល្បឿនដើម្បីពន្លឿន ឬពន្យឺតសំឡេង AI ឱ្យត្រូវនឹង timing
+                        speed_ratio = generated_duration / target_duration
+                        speed_ratio = max(0.7, min(speed_ratio, 1.5))  # កម្រិតចន្លោះ 0.7x ទៅ 1.5x
+                        
+                        # ប្រើ atempo ដើម្បីកុំឱ្យសំឡេងនិយាយជាន់គ្នា
+                        stretch_cmd = [
+                            'ffmpeg', '-i', raw_audio_path,
+                            '-filter:a', f'atempo={speed_ratio}',
+                            '-ar', '44100', fitted_audio_path, '-y'
+                        ]
+                        subprocess.run(stretch_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        
+                        delay_ms = int(start_time * 1000)
+                        inputs.extend(["-i", fitted_audio_path])
                         filters.append(f"[{local_count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{local_count}]")
                         local_count += 1
+
                     return local_count
 
                 count = asyncio.run(process_audio())
