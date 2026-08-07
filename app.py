@@ -8,7 +8,8 @@ import whisper
 import subprocess
 from deep_translator import GoogleTranslator
 import edge_tts
-
+# ប្តូរពីកូដចាស់មកប្រើកូដនេះ (កែសម្រួលត្រង់នេះក្នុង app.py)
+model = whisper.load_model("tiny", device="cpu")
 # ==========================================
 # CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
 # ==========================================
