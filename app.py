@@ -10,31 +10,24 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 # ==========================================
-# CONFIGURATION & DATABASE
+# CONFIGURATION & DATABASE (កំណត់រចនាសម្ព័ន្ធ)
 # ==========================================
 CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-
-VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
+VALID_VIP_CODES = ["BUNYIM-VIP-001", "BUNYIM-VIP-002", "BUNYIM-VIP-003"]
 
 def load_license():
     if os.path.exists(LICENSE_FILE):
-        try:
-            with open(LICENSE_FILE, 'r') as f:
-                data = json.load(f)
-                return data.get("video_processed", 0), data.get("is_vip", False)
-        except Exception:
-            return 0, False
+        with open(LICENSE_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get("video_processed", 0), data.get("is_vip", False)
     return 0, False
 
 def save_license(count, is_vip=False):
-    try:
-        with open(LICENSE_FILE, 'w') as f:
-            json.dump({"video_processed": count, "is_vip": is_vip}, f)
-    except Exception:
-        pass
+    with open(LICENSE_FILE, 'w') as f:
+        json.dump({"video_processed": count, "is_vip": is_vip}, f)
 
 def check_license(is_vip):
     if is_vip:
@@ -47,26 +40,30 @@ def check_license(is_vip):
 # ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
-
-usage, is_vip = load_license()
+st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
 
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings & VIP")
     
-    if is_vip:
-        st.success("🎉 អ្នកកំពុងប្រើប្រាស់កញ្ចប់ VIP Unlimited!")
-    else:
-        st.subheader("🔑 Enter VIP Code")
-        vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
-        if st.button("Activate VIP"):
-            if vip_input in VALID_VIP_CODES:
-                save_license(usage, is_vip=True)
-                st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
-                st.rerun()
-            else:
-                st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
+    # ផ្នែកបញ្ចូលកូដ VIP
+    st.subheader("🔑 Enter VIP Code")
+    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+    if st.button("Activate VIP"):
+        if vip_input in VALID_VIP_CODES:
+            usage, _ = load_license()
+            save_license(usage, is_vip=True)
+            st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
+            st.rerun()
+        else:
+            st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
+
+    st.markdown("---")
+    
+    # ប៊ូតុងទាក់ទងតេលេក្រាមដើម្បីទិញ VIP
+    st.subheader("💎 ទិញកូដ VIP (Unlimit)")
+    st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
+    st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
 
     st.markdown("---")
     selected_voice = st.selectbox(
@@ -74,25 +71,8 @@ with st.sidebar:
         ["km-KH-SreymomNeural", "km-KH-PisethNeural"]
     )
     add_breathing = st.checkbox("🎭 បញ្ចូលការផ្អាកដកដង្ហើមតាមតួអង្គ", value=True)
-    
     st.markdown("---")
-    
-    st.markdown(
-        f"""
-        <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
-            <h3 style="color: #ffffff; margin-bottom: 5px;">💎 ទិញកូដ VIP តាមតេលេក្រាម</h3>
-            <h1 style="color: #0088cc; font-size: 24px; font-weight: bold; margin-top: 5px; margin-bottom: 15px;">
-                {CONTACT_TELEGRAM}
-            </h1>
-            <a href="{TELEGRAM_LINK}" target="_blank" style="text-decoration: none;">
-                <button style="background-color: #0088cc; color: white; border: none; padding: 12px 15px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%;">
-                    💬 ឆាតទៅកាន់ Telegram
-                </button>
-            </a>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
+    st.caption(f"👨‍💻 Dev: *{CONTACT_TELEGRAM}*")
 
 st.title("🎬 AI Khmer Video Dubbing PRO (VIP Supported)")
 st.markdown("បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរតាមសាច់រឿងពិតប្រាកដ ព្រមទាំងដាក់បញ្ចូលសំឡេង AI ធម្មជាតិ (Edge-TTS)។")
@@ -104,6 +84,8 @@ with col2:
     st.subheader("🕹️ Controls")
     video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
     
+    # បង្ហាញស្ថានភាពកូតា (Trial vs VIP)
+    usage, is_vip = load_license()
     if is_vip:
         st.success("🔓 VIP Mode Active (Unlimited)")
     else:
@@ -120,11 +102,13 @@ with col1:
         if video_file is None:
             st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
         else:
+            # ពិនិត្យសិទ្ធិប្រើប្រាស់ (License Check)
             can_run, status_msg = check_license(is_vip)
             if not can_run:
                 st.error(f"❌ អ្នកបានប្រើប្រាស់អស់កូតាឥតគិតថ្លៃ (3 វីដេអូ) ហើយ! សូមទាក់ទងមកកាន់ Telegram {CONTACT_TELEGRAM} ដើម្បីទិញកូដ VIP បន្ត។")
                 st.stop()
             
+            # បន្ថើមកំណត់ត្រាការប្រើប្រាស់បើមិនទាន់ជា VIP
             if not is_vip:
                 save_license(usage + 1, is_vip=False)
 
@@ -145,10 +129,12 @@ with col1:
                 temp_audio = os.path.join(temp_dir, "temp.mp3")
                 subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                model = whisper.load_model("base")
+                model = whisper.load_model("tiny")
                 segments = model.transcribe(temp_audio)["segments"]
 
                 translator = GoogleTranslator(source='auto', target='km')
+                inputs, filters = [], []
+                count = 0
 
                 def add_breathing_pauses(text):
                     if not add_breathing:
@@ -162,91 +148,41 @@ with col1:
                 log_area.code("[60%] កំពុងបកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ...")
                 progress_bar.progress(0.60)
 
-                async def generate_tts(text, voice, output_path):
-                    try:
-                        communicate = edge_tts.Communicate(text, voice)
-                        await communicate.save(output_path)
-                        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
-                    except Exception:
-                        return False
-
                 async def process_audio():
-                    audio_segments = []
                     local_count = 0
-                    
                     for seg in segments:
                         text = seg["text"].strip()
-                        start_time = seg["start"]
-                        end_time = seg["end"]
-                        target_duration = end_time - start_time
+                        if not text: continue
                         
-                        if not text or target_duration <= 0.2:
-                            continue
+                        try: kh_text = translator.translate(text)
+                        except: kh_text = text
                         
-                        try:
-                            kh_text = translator.translate(text)
-                        except Exception:
-                            kh_text = text
+                        kh_text_ready = add_breathing_pauses(kh_text)
+                        audio_path = os.path.join(temp_dir, f"s_{local_count}.mp3")
                         
-                        if not kh_text or not kh_text.strip():
-                            continue
-
-                        kh_text_ready = add_breathing_pauses(kh_text.strip())
-                        raw_audio_path = os.path.join(temp_dir, f"raw_{local_count}.mp3")
-                        fitted_audio_path = os.path.join(temp_dir, f"fitted_{local_count}.wav")
+                        communicate = edge_tts.Communicate(kh_text_ready, selected_voice, rate="-10%", pitch="-2Hz")
+                        await communicate.save(audio_path)
                         
-                        success = await generate_tts(kh_text_ready, selected_voice, raw_audio_path)
-                        if not success:
-                            continue
-
-                        probe_cmd = [
-                            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                            '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
-                        ]
-                        res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                        try:
-                            generated_duration = float(res.stdout.strip())
-                        except Exception:
-                            generated_duration = target_duration
-
-                        speed_ratio = generated_duration / target_duration
-                        speed_ratio = max(0.7, min(speed_ratio, 1.8))
-                        
-                        stretch_cmd = [
-                            'ffmpeg', '-i', raw_audio_path,
-                            '-filter:a', f'atempo={speed_ratio}',
-                            '-ar', '44100', '-ac', '2', fitted_audio_path, '-y'
-                        ]
-                        subprocess.run(stretch_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        
-                        audio_segments.append((start_time, fitted_audio_path))
+                        delay_ms = int(seg["start"] * 1000)
+                        inputs.extend(["-i", audio_path])
+                        filters.append(f"[{local_count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{local_count}]")
                         local_count += 1
+                    return local_count
 
-                    return audio_segments
+                count = asyncio.run(process_audio())
 
-                audio_segments = asyncio.run(process_audio())
-
-                if len(audio_segments) > 0:
+                if count > 0:
                     log_area.code("[85%] កំពុងដំឡើងសំឡេង AI ចូលក្នុងវីដេអូ...")
                     progress_bar.progress(0.85)
 
-                    # បង្កើត Audio Track តែមួយដោយប្រើ Filter Complex Overlay
-                    inputs = []
-                    filter_parts = []
-                    
-                    for idx, (start_time, audio_path) in enumerate(audio_segments):
-                        inputs.extend(["-i", audio_path])
-                        delay_ms = int(start_time * 1000)
-                        filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms},volume=2.0[a{idx}]")
-                    
-                    mix_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
-                    filter_str = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(audio_segments)}:normalize=0[outa]"
+                    mix = "".join([f"[a{i}]" for i in range(count)])
+                    filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume={count}[outa]"
                     
                     cmd = ["ffmpeg", "-i", vid_in] + inputs + [
                         "-filter_complex", filter_str,
                         "-map", "0:v:0", "-map", "[outa]",
-                        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                        "-y", vid_out
+                        "-c:v", "copy", "-c:a", "aac", 
+                        "-shortest", "-y", vid_out
                     ]
                     
                     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -258,7 +194,7 @@ with col1:
                     st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
-                    st.warning("មិនអាចបង្កើតសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត។")
+                    st.warning("រកមិនឃើញអត្ថបទត្រូវបកប្រែក្នុងវីដេអូនេះទេ!")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
