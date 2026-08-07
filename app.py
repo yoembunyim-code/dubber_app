@@ -149,7 +149,6 @@ with col1:
                 segments = model.transcribe(temp_audio)["segments"]
 
                 translator = GoogleTranslator(source='auto', target='km')
-                inputs, filters = [], []
 
                 def add_breathing_pauses(text):
                     if not add_breathing:
@@ -172,14 +171,16 @@ with col1:
                         return False
 
                 async def process_audio():
+                    audio_segments = []
                     local_count = 0
+                    
                     for seg in segments:
                         text = seg["text"].strip()
                         start_time = seg["start"]
                         end_time = seg["end"]
                         target_duration = end_time - start_time
                         
-                        if not text or target_duration <= 0.3:
+                        if not text or target_duration <= 0.2:
                             continue
                         
                         try:
@@ -209,36 +210,43 @@ with col1:
                             generated_duration = target_duration
 
                         speed_ratio = generated_duration / target_duration
-                        speed_ratio = max(0.7, min(speed_ratio, 1.5))
+                        speed_ratio = max(0.7, min(speed_ratio, 1.8))
                         
                         stretch_cmd = [
                             'ffmpeg', '-i', raw_audio_path,
                             '-filter:a', f'atempo={speed_ratio}',
-                            '-ar', '44100', fitted_audio_path, '-y'
+                            '-ar', '44100', '-ac', '2', fitted_audio_path, '-y'
                         ]
                         subprocess.run(stretch_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         
-                        delay_ms = int(start_time * 1000)
-                        inputs.extend(["-i", fitted_audio_path])
-                        filters.append(f"[{local_count+1}:a]adelay={delay_ms}|{delay_ms},apad[a{local_count}]")
+                        audio_segments.append((start_time, fitted_audio_path))
                         local_count += 1
 
-                    return local_count
+                    return audio_segments
 
-                count = asyncio.run(process_audio())
+                audio_segments = asyncio.run(process_audio())
 
-                if count > 0:
+                if len(audio_segments) > 0:
                     log_area.code("[85%] កំពុងដំឡើងសំឡេង AI ចូលក្នុងវីដេអូ...")
                     progress_bar.progress(0.85)
 
-                    mix = "".join([f"[a{i}]" for i in range(count)])
-                    filter_str = ";".join(filters) + f";{mix}amix=inputs={count}:duration=longest,volume={count}[outa]"
+                    # បង្កើត Audio Track តែមួយដោយប្រើ Filter Complex Overlay
+                    inputs = []
+                    filter_parts = []
+                    
+                    for idx, (start_time, audio_path) in enumerate(audio_segments):
+                        inputs.extend(["-i", audio_path])
+                        delay_ms = int(start_time * 1000)
+                        filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms},volume=2.0[a{idx}]")
+                    
+                    mix_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
+                    filter_str = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(audio_segments)}:normalize=0[outa]"
                     
                     cmd = ["ffmpeg", "-i", vid_in] + inputs + [
                         "-filter_complex", filter_str,
                         "-map", "0:v:0", "-map", "[outa]",
-                        "-c:v", "copy", "-c:a", "aac", 
-                        "-shortest", "-y", vid_out
+                        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                        "-y", vid_out
                     ]
                     
                     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -250,7 +258,7 @@ with col1:
                     st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
-                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ!")
+                    st.warning("មិនអាចបង្កើតសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត។")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
