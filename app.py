@@ -69,10 +69,9 @@ with st.sidebar:
 
         st.markdown("---")
         
-        # ប៊ូតុងទាក់ទងតេលេក្រាមដើម្បីទិញ VIP
-        st.subheader("💎 ទិញកូដ VIP (Unlimit)")
-        st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
-        st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
+        # បន្ថែមអក្សរធំៗ និងប៊ូតុងទាក់ទង Telegram
+        st.markdown("<h2 style='text-align: center; color: #0088cc;'>💎 ទិញកូដ VIP តាមតេលេក្រាម</h2>", unsafe_allow_html=True)
+        st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:12px 15px; border-radius:8px; cursor:pointer; width:100%; font-size:16px; font-weight:bold;">💬 ទាក់ទង Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
 
     st.markdown("---")
     selected_voice = st.selectbox(
@@ -137,7 +136,6 @@ with col1:
                 temp_audio = os.path.join(temp_dir, "temp.mp3")
                 subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                # ប្តូរទៅប្រើ model 'base' ដើម្បីទាញសំឡេងបានច្បាស់ជាងមុន
                 model = whisper.load_model("base")
                 segments = model.transcribe(temp_audio)["segments"]
 
@@ -179,7 +177,6 @@ with col1:
                         communicate = edge_tts.Communicate(kh_text_ready, selected_voice, pitch="-2Hz")
                         await communicate.save(raw_audio_path)
                         
-                        # គណនារយៈពេលនៃសំឡេង AI ដែលទើបបង្កើត
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
@@ -190,11 +187,9 @@ with col1:
                         except:
                             generated_duration = target_duration
 
-                        # គណនាសមាមាត្រល្បឿនដើម្បីពន្លឿន ឬពន្យឺតសំឡេង AI ឱ្យត្រូវនឹង timing
                         speed_ratio = generated_duration / target_duration
-                        speed_ratio = max(0.7, min(speed_ratio, 1.5))  # កម្រិតចន្លោះ 0.7x ទៅ 1.5x
+                        speed_ratio = max(0.7, min(speed_ratio, 1.5))
                         
-                        # ប្រើ atempo ដើម្បីកុំឱ្យសំឡេងនិយាយជាន់គ្នា
                         stretch_cmd = [
                             'ffmpeg', '-i', raw_audio_path,
                             '-filter:a', f'atempo={speed_ratio}',
