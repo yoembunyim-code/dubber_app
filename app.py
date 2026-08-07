@@ -42,7 +42,19 @@ def check_license(is_vip):
 # STREAMLIT UI DESIGN
 # ==========================================
 st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Dubbing PRO", page_icon="🎬", layout="wide")
 
+# កូដសម្រាប់លាក់ Sidebar ទាំងស្រុង
+st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            display: none;
+        }
+        [data-testid="collapsedControl"] {
+            display: none;
+        }
+    </style>
+""", unsafe_allow_html=True)
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings & VIP")
