@@ -74,7 +74,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # បង្ហាញឈ្មោះ Telegram អក្សរធំៗជានិច្ច
+    # បង្ហាញឈ្មោះ Telegram អក្សរធំៗរហូត
     st.markdown(
         f"""
         <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
@@ -158,8 +158,19 @@ with col1:
                     text = text.replace("។", "។ ").replace(",,", ",").replace(", ,", ",")
                     return text
 
-                log_area.code("[60%] កំពុងបកប្រែ និងតម្រឹមសំឡេង AI ឱ្យស្មើ timing...")
+                log_area.code("[60%] កំពុងបកប្រែ និងបង្កើតសំឡេង AI ខ្មែរ...")
                 progress_bar.progress(0.60)
+
+                async def generate_tts_with_retry(text, voice, output_path, retries=3):
+                    for attempt in range(retries):
+                        try:
+                            communicate = edge_tts.Communicate(text, voice)
+                            await communicate.save(output_path)
+                            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                                return True
+                        except Exception:
+                            await asyncio.sleep(1)
+                    return False
 
                 async def process_audio():
                     local_count = 0
@@ -184,17 +195,12 @@ with col1:
                         raw_audio_path = os.path.join(temp_dir, f"raw_{local_count}.mp3")
                         fitted_audio_path = os.path.join(temp_dir, f"fitted_{local_count}.wav")
                         
-                        # ការពារ Error: No audio was received
-                        try:
-                            communicate = edge_tts.Communicate(kh_text_ready, selected_voice)
-                            await communicate.save(raw_audio_path)
-                        except Exception:
-                            continue  # បើទាញសំឡេងមិនបាន ឱ្យរំលងប្រយោគនោះទៅប្រយោគបន្ទាប់
-
-                        if not os.path.exists(raw_audio_path) or os.path.getsize(raw_audio_path) == 0:
+                        # ព្យាយាមបង្កើតសំឡេងរហូតដល់បានជោគជ័យ
+                        success = await generate_tts_with_retry(kh_text_ready, selected_voice, raw_audio_path)
+                        if not success:
                             continue
 
-                        # គណនារយៈពេលនៃសំឡេង AI ដែលទើបបង្កើត
+                        # គណនារយៈពេលសំឡេង AI
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
@@ -205,6 +211,7 @@ with col1:
                         except Exception:
                             generated_duration = target_duration
 
+                        # តម្រឹមល្បឿន
                         speed_ratio = generated_duration / target_duration
                         speed_ratio = max(0.7, min(speed_ratio, 1.5))
                         
@@ -247,7 +254,7 @@ with col1:
                     st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
-                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត ឬប្តូរវីដេអូ។")
+                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត។")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
