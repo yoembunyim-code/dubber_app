@@ -51,12 +51,10 @@ with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
     st.title("⚙️ Settings & VIP")
     
-    # ប្រសិនបើជា VIP រួចហើយ នឹងលាក់ប្រអប់បញ្ចូល VIP Code និង Telegram
     if is_vip:
         st.success("🎉 អ្នកកំពុងប្រើប្រាស់កញ្ចប់ VIP Unlimited!")
         st.info("អរគុណសម្រាប់ការគាំទ្រប្រើប្រាស់សេវាកម្មរបស់យើង!")
     else:
-        # ប្រសិនបើនៅជាអ្នកប្រើប្រាស់ Free/Trial នឹងបង្ហាញប្រអប់ VIP Code & Telegram
         st.subheader("🔑 Enter VIP Code")
         vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
         if st.button("Activate VIP"):
@@ -67,34 +65,32 @@ with st.sidebar:
             else:
                 st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
-        st.markdown("---")
-        
-        # ផ្នែកបង្ហាញឈ្មោះ Telegram អក្សរធំៗ និងប៊ូតុងចុចទៅ Telegram
-        st.markdown(
-            f"""
-            <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
-                <h3 style="color: #ffffff; margin-bottom: 5px;">💎 ទិញកូដ VIP តាមតេលេក្រាម</h3>
-                <h1 style="color: #0088cc; font-size: 26px; font-weight: bold; margin-top: 5px; margin-bottom: 15px;">
-                    {CONTACT_TELEGRAM}
-                </h1>
-                <a href="{TELEGRAM_LINK}" target="_blank" style="text-decoration: none;">
-                    <button style="background-color: #0088cc; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; width: 100%;">
-                        💬 ឆាតទៅកាន់ Telegram ឥឡូវនេះ
-                    </button>
-                </a>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
     st.markdown("---")
     selected_voice = st.selectbox(
         "🎙️ ជ្រើសរើសសំឡេង AI:", 
         ["km-KH-SreymomNeural", "km-KH-PisethNeural"]
     )
     add_breathing = st.checkbox("🎭 បញ្ចូលការផ្អាកដកដង្ហើមតាមតួអង្គ", value=True)
+    
     st.markdown("---")
-    st.caption(f"👨‍💻 Dev: **{CONTACT_TELEGRAM}**")
+    
+    # បង្ហាញឈ្មោះ Telegram អក្សរធំៗជានិច្ច
+    st.markdown(
+        f"""
+        <div style="background-color: #0e1117; border: 2px solid #0088cc; padding: 15px; border-radius: 10px; text-align: center;">
+            <h3 style="color: #ffffff; margin-bottom: 5px;">💎 ទិញកូដ VIP តាមតេលេក្រាម</h3>
+            <h1 style="color: #0088cc; font-size: 24px; font-weight: bold; margin-top: 5px; margin-bottom: 15px;">
+                {CONTACT_TELEGRAM}
+            </h1>
+            <a href="{TELEGRAM_LINK}" target="_blank" style="text-decoration: none;">
+                <button style="background-color: #0088cc; color: white; border: none; padding: 12px 15px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%;">
+                    💬 ឆាតទៅកាន់ Telegram
+                </button>
+            </a>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
 
 st.title("🎬 AI Khmer Video Dubbing PRO (VIP Supported)")
 st.markdown("បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរតាមសាច់រឿងពិតប្រាកដ ព្រមទាំងដាក់បញ្ចូលសំឡេង AI ធម្មជាតិ (Edge-TTS)។")
@@ -106,7 +102,6 @@ with col2:
     st.subheader("🕹️ Controls")
     video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
     
-    # បង្ហាញស្ថានភាពកូតា (Trial vs VIP)
     if is_vip:
         st.success("🔓 VIP Mode Active (Unlimited)")
     else:
@@ -123,13 +118,11 @@ with col1:
         if video_file is None:
             st.error("សូមជ្រើសរើសវីដេអូជាមុនសិន!")
         else:
-            # ពិនិត្យសិទ្ធិប្រើប្រាស់ (License Check)
             can_run, status_msg = check_license(is_vip)
             if not can_run:
                 st.error(f"❌ អ្នកបានប្រើប្រាស់អស់កូតាឥតគិតថ្លៃ (3 វីដេអូ) ហើយ! សូមទាក់ទងមកកាន់ Telegram {CONTACT_TELEGRAM} ដើម្បីទិញកូដ VIP បន្ត។")
                 st.stop()
             
-            # បន្ថើមកំណត់ត្រាការប្រើប្រាស់បើមិនទាន់ជា VIP
             if not is_vip:
                 save_license(usage + 1, is_vip=False)
 
@@ -181,16 +174,27 @@ with col1:
                         
                         try:
                             kh_text = translator.translate(text)
-                        except:
+                        except Exception:
                             kh_text = text
                         
-                        kh_text_ready = add_breathing_pauses(kh_text)
+                        if not kh_text or not kh_text.strip():
+                            continue
+
+                        kh_text_ready = add_breathing_pauses(kh_text.strip())
                         raw_audio_path = os.path.join(temp_dir, f"raw_{local_count}.mp3")
                         fitted_audio_path = os.path.join(temp_dir, f"fitted_{local_count}.wav")
                         
-                        communicate = edge_tts.Communicate(kh_text_ready, selected_voice, pitch="-2Hz")
-                        await communicate.save(raw_audio_path)
-                        
+                        # ការពារ Error: No audio was received
+                        try:
+                            communicate = edge_tts.Communicate(kh_text_ready, selected_voice)
+                            await communicate.save(raw_audio_path)
+                        except Exception:
+                            continue  # បើទាញសំឡេងមិនបាន ឱ្យរំលងប្រយោគនោះទៅប្រយោគបន្ទាប់
+
+                        if not os.path.exists(raw_audio_path) or os.path.getsize(raw_audio_path) == 0:
+                            continue
+
+                        # គណនារយៈពេលនៃសំឡេង AI ដែលទើបបង្កើត
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio_path
@@ -198,7 +202,7 @@ with col1:
                         res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         try:
                             generated_duration = float(res.stdout.strip())
-                        except:
+                        except Exception:
                             generated_duration = target_duration
 
                         speed_ratio = generated_duration / target_duration
@@ -243,7 +247,7 @@ with col1:
                     st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
                     st.video(vid_out)
                 else:
-                    st.warning("រកមិនឃើញអត្ថបទត្រូវបកប្រែក្នុងវីដេអូនេះទេ!")
+                    st.warning("មិនអាចទាញយកសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត ឬប្តូរវីដេអូ។")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
