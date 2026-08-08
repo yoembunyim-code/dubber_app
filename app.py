@@ -17,7 +17,8 @@ CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-VALID_VIP_CODES = ["BUNYIM-VIP-001", "BUNYIM-VIP-002", "BUNYIM-VIP-003"]
+# ទាញយកកូដ VIP ពី Streamlit Secrets ដើម្បីសុវត្ថិភាព
+VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
 
 def load_license():
     if os.path.exists(LICENSE_FILE):
