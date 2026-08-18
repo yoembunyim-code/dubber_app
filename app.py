@@ -4,9 +4,10 @@ import json
 import asyncio
 import tempfile
 import shutil
+import whisper
 import subprocess
+from deep_translator import GoogleTranslator
 import edge_tts
-import pandas as pd
 
 # ==========================================
 # CONFIGURATION & DATABASE
@@ -45,7 +46,7 @@ def check_license(is_vip):
 # ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing Pro", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
 
 usage, is_vip = load_license()
 
@@ -64,10 +65,22 @@ with st.sidebar:
             st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
     st.markdown("---")
+    st.subheader("🎙️ ការកំណត់សំឡេង AI")
+    male_voice = st.selectbox("👨 សំឡេងតួអង្គប្រុស:", ["km-KH-PisethNeural", "km-KH-ChhornNeural"], index=0)
+    female_voice = st.selectbox("👩 សំឡេងតួអង្គស្រី:", ["km-KH-SreymomNeural"], index=0)
+    
+    voice_mode = st.radio(
+        "🎭 ទម្រង់ប្រើប្រាស់សំឡេង៖",
+        ["ឆ្លាស់គ្នាស្វ័យប្រវត្តិ (Auto Alternate)", "ប្រើសំឡេងប្រុសទាំងអស់", "ប្រើសំឡេងស្រីទាំងអស់"]
+    )
+
+    whisper_model = st.selectbox("🎯 កម្រិតចាប់សម្លេង Whisper:", ["base", "small"], index=0)
+
+    st.markdown("---")
     st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
 
-st.title("🎬 AI Khmer Video Dubbing Pro (Precision Timeline Mode)")
-st.markdown("កែសម្រួលបញ្ហាសំឡេង និងកំណត់ពេលវេលាអត្ថបទតាមតួអង្គប្រុស-ស្រី។")
+st.title("🎬 AI Khmer Auto Dubber Pro (Full Automatic)")
+st.markdown("គ្រាន់តែដាក់វីដេអូចូល ប្រព័ន្ធនឹងស្តាប់ បកប្រែជាភាសាខ្មែរ និងដាក់សំឡេង AI ឱ្យដោយស្វ័យប្រវត្តិដោយមិនចាំបាច់វាយអត្ថបទឡើយ!")
 st.markdown("---")
 
 col1, col2 = st.columns([1, 1])
@@ -81,28 +94,12 @@ with col1:
     else:
         st.warning(f"📊 Trial Usage: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
 
+    start_dubbing = st.button("🚀 ចាប់ផ្តើមបកប្រែ និងដាក់សំឡេងស្វ័យប្រវត្តិ", type="primary", use_container_width=True)
+
 with col2:
-    st.subheader("2. មើលវីដេអូដើមដើម្បីកត់ Timing")
+    st.subheader("2. មើលវីដេអូ និងលទ្ធផល")
     if video_file:
         st.video(video_file)
-
-st.markdown("---")
-st.subheader("3. កំណត់តារាងអត្ថបទ សំឡេង និងពេលវេលា (Timeline Mapping)")
-
-if "timeline_data" not in st.session_state:
-    st.session_state.timeline_data = pd.DataFrame([
-        {"Start (s)": 0.0, "End (s)": 4.0, "Voice": "km-KH-PisethNeural (ប្រុស)", "Text": "បញ្ចូលអត្ថបទដែលចង់ឱ្យតួអង្គប្រុសនិយាយនៅទីនេះ"},
-        {"Start (s)": 4.5, "End (s)": 8.0, "Voice": "km-KH-SreymomNeural (ស្រី)", "Text": "បញ្ចូលអត្ថបទដែលចង់ឱ្យតួអង្គស្រីនិយាយនៅទីនេះ"}
-    ])
-
-edited_df = st.data_editor(
-    st.session_state.timeline_data, 
-    num_rows="dynamic", 
-    use_container_width=True, 
-    key="timeline_editor"
-)
-
-start_dubbing = st.button("🚀 ចាប់ផ្តើមបង្កើតវីដេអូតាម Timeline នេះ", type="primary", use_container_width=True)
 
 if start_dubbing:
     if video_file is None:
@@ -117,41 +114,69 @@ if start_dubbing:
             save_license(usage + 1, is_vip=False)
 
         try:
-            with st.spinner("🤖 កំពុងដំណើរការកាត់តសំឡេង និងផ្គុំចូលវីដេអូ..."):
+            with st.spinner("🤖 កំពុងដំណើរការស្តាប់ បកប្រែ និងបង្កើតសំឡេង AI..."):
                 tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
                 tfile.write(video_file.read())
                 vid_in = tfile.name
-                vid_out = vid_in.replace(".mp4", "_precision_dubbed.mp4")
+                vid_out = vid_in.replace(".mp4", "_auto_dubbed.mp4")
                 temp_dir = tempfile.mkdtemp()
+
+                # ១. ទាញសំឡេងចេញពីវីដេអូ
+                temp_audio = os.path.join(temp_dir, "extracted_audio.mp3")
+                subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+                # ២. ប្រើ Whisper ចាប់ Timing និង Text ពីសំឡេងដើម
+                model = whisper.load_model(whisper_model)
+                transcript = model.transcribe(temp_audio)
+                segments = transcript.get("segments", [])
+
+                translator = GoogleTranslator(source='auto', target='km')
 
                 async def generate_tts(text, voice, output_path):
                     communicate = edge_tts.Communicate(text, voice)
                     await communicate.save(output_path)
 
-                async def create_segments():
+                async def process_auto_segments():
                     audio_segments = []
-                    current_data = st.session_state.get("timeline_editor", edited_df)
+                    seen_texts = set()
                     
-                    for idx, row in current_data.iterrows():
-                        try:
-                            start_t = float(row["Start (s)"])
-                            end_t = float(row["End (s)"])
-                            v_choice = str(row["Voice"])
-                            text_val = str(row["Text"]).strip()
-                        except Exception:
-                            continue
-
-                        if not text_val or text_val == "nan" or end_t <= start_t:
-                            continue
-
-                        voice_code = "km-KH-PisethNeural" if "ប្រុស" in v_choice else "km-KH-SreymomNeural"
-                        
-                        raw_audio = os.path.join(temp_dir, f"raw_{idx}.mp3")
-                        fitted_audio = os.path.join(temp_dir, f"fitted_{idx}.wav")
+                    for idx, seg in enumerate(segments):
+                        text = seg["text"].strip()
+                        start_t = seg["start"]
+                        end_t = seg["end"]
                         target_duration = end_t - start_t
 
-                        await generate_tts(text_val, voice_code, raw_audio)
+                        if not text or target_duration < 0.4:
+                            continue
 
+                        # ទប់ស្កាត់ការនិយាយជាន់គ្នាដដែលៗ
+                        if text.lower() in seen_texts:
+                            continue
+                        seen_texts.add(text.lower())
+
+                        # បកប្រែជាភាសាខ្មែរ
+                        try:
+                            kh_text = translator.translate(text)
+                        except Exception:
+                            kh_text = text
+
+                        if not kh_text:
+                            continue
+
+                        # ជ្រើសរើសសំឡេងប្រុស ឬស្រី
+                        if voice_mode == "ឆ្លាស់គ្នាស្វ័យប្រវត្តិ (Auto Alternate)":
+                            voice_code = male_voice if idx % 2 == 0 else female_voice
+                        elif voice_mode == "ប្រើសំឡេងប្រុសទាំងអស់":
+                            voice_code = male_voice
+                        else:
+                            voice_code = female_voice
+
+                        raw_audio = os.path.join(temp_dir, f"raw_{idx}.mp3")
+                        fitted_audio = os.path.join(temp_dir, f"fitted_{idx}.wav")
+
+                        await generate_tts(kh_text, voice_code, raw_audio)
+
+                        # វាស់ម៉ោងសំឡេង AI ដើម្បីលៃលកល្បឿន (atempo) ឱ្យត្រូវនឹង Timeline ដើម
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio
@@ -176,7 +201,7 @@ if start_dubbing:
 
                     return audio_segments
 
-                audio_segments = asyncio.run(create_segments())
+                audio_segments = asyncio.run(process_auto_segments())
 
                 if len(audio_segments) > 0:
                     inputs = []
@@ -189,7 +214,7 @@ if start_dubbing:
 
                     mix_ai_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
                     
-                    filter_str = ";".join(filter_parts) + f";{mix_ai_inputs}amix=inputs={len(audio_segments)}:duration=longest:dropout_transition=0[ai_mix];[0:a][ai_mix]amix=inputs=2:weights=0.3 1.0[outa]"
+                    filter_str = ";".join(filter_parts) + f";{mix_ai_inputs}amix=inputs={len(audio_segments)}:duration=longest:dropout_transition=0[ai_mix];[0:a][ai_mix]amix=inputs=2:weights=0.2 1.0[outa]"
 
                     cmd = ["ffmpeg", "-i", vid_in] + inputs + [
                         "-filter_complex", filter_str,
@@ -200,15 +225,16 @@ if start_dubbing:
 
                     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-                    st.success("✅ បង្កើតវីដេអូជោគជ័យ ១០០%!")
+                    st.success("✅ បកប្រែ និងបង្កើតវីដេអូស្វ័យប្រវត្តិជោគជ័យ ១០០%!")
                     st.video(vid_out)
 
                     with open(vid_out, "rb") as f:
-                        st.download_button("📥 ទាញយកវីដេអូ", data=f, file_name="dubbed_story.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button("📥 ទាញយកវីដេអូ", data=f, file_name="auto_dubbed_story.mp4", mime="video/mp4", use_container_width=True)
                 else:
-                    st.warning("⚠️ សូមបំពេញអត្ថបទ និងម៉ោងក្នុងតារាងឱ្យបានត្រឹមត្រូវសិន!")
+                    st.warning("⚠️ រកមិនឃើញសម្លេង ឬអត្ថបទនៅក្នុងវីដេអូនេះទេ!")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
         except Exception as e:
+        # ដោះស្រាយបញ្ហា AudioFileClip ឬកំហុសផ្សេងៗដោយស្វ័យប្រវត្តិ
             st.error(f"⚠️ មានបញ្ហាក្នុងការដំណើរការ៖ {e}")
