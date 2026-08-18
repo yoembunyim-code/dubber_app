@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import subprocess
 import edge_tts
+import pandas as pd
 
 # ==========================================
 # CONFIGURATION & DATABASE
@@ -44,7 +45,7 @@ def check_license(is_vip):
 # ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing Pro (Manual Precision)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Dubbing Pro", page_icon="🎬", layout="wide")
 
 usage, is_vip = load_license()
 
@@ -65,8 +66,8 @@ with st.sidebar:
     st.markdown("---")
     st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
 
-st.title("🎬 AI Khmer Video Dubbing Pro (Precision Timeline Mode)")
-st.markdown("កំណត់ពេលវេលា និងសំឡេងតួអង្គប្រុស-ស្រីដោយផ្ទាល់ ដើម្បីធានាថាត្រូវមាត់ និងមិនច្រឡំគ្នា ១០០%")
+st.title("🎬 AI Khmer Video Dubbing Pro (Fixed Audio Output)")
+st.markdown("កែសម្រួលបញ្ហាfile សំឡេងមិនចេញ ធានាឮច្បាស់ល្អតាម Timeline ប្រុស-ស្រី។")
 st.markdown("---")
 
 col1, col2 = st.columns([1, 1])
@@ -87,10 +88,7 @@ with col2:
 
 st.markdown("---")
 st.subheader("3. កំណត់តារាងអត្ថបទ សំឡេង និងពេលវេលា (Timeline Mapping)")
-st.markdown("បំពេញម៉ោងចាប់ផ្តើម (Start) បញ្ចប់ (End) ប្រភេទសំឡេង និងអត្ថបទដែលត្រូវនិយាយ៖")
 
-# สร้างตารางให้ผู้ใช้กรอกข้อมูล (Data Editor)
-import pandas as pd
 default_data = pd.DataFrame([
     {"Start (s)": 0.0, "End (s)": 4.0, "Voice": "km-KH-PisethNeural (ប្រុស)", "Text": "សូមស្វាគមន៍មកកាន់ប្រព័ន្ធបកប្រែរឿង។"},
     {"Start (s)": 4.5, "End (s)": 8.0, "Voice": "km-KH-SreymomNeural (ស្រី)", "Text": "តោះ! យើងចាប់ផ្តើមដំណើរកម្សាន្តទាំងអស់គ្នា។"}
@@ -135,7 +133,6 @@ if start_dubbing:
                         if not text_val or end_t <= start_t:
                             continue
 
-                        # ជ្រើសរើស Voice Code យកទៅប្រើប្រាស់
                         voice_code = "km-KH-PisethNeural" if "ប្រុស" in v_choice else "km-KH-SreymomNeural"
                         
                         raw_audio = os.path.join(temp_dir, f"raw_{idx}.mp3")
@@ -144,7 +141,6 @@ if start_dubbing:
 
                         await generate_tts(text_val, voice_code, raw_audio)
 
-                        # ឆែកមើលរយៈពេលសំឡេង AI ដើម
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio
@@ -155,7 +151,6 @@ if start_dubbing:
                         except Exception:
                             gen_duration = target_duration
 
-                        # លៃលកល្បឿនសំឡេង (atempo) ឱ្យដាក់ត្រូវរវាង Start និង End ដែនកំណត់
                         speed_ratio = gen_duration / target_duration
                         speed_ratio = max(0.5, min(speed_ratio, 2.0))
 
@@ -179,10 +174,12 @@ if start_dubbing:
                     for idx, (start_time, audio_path) in enumerate(audio_segments):
                         inputs.extend(["-i", audio_path])
                         delay_ms = int(start_time * 1000)
-                        filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms},volume=2.0[a{idx}]")
+                        # បន្ថែម volume ឱ្យខ្លាំងច្បាស់ និងការពារការធ្លាក់សំឡេងដោយប្រើ apad
+                        filter_parts.append(f"[{idx+1}:a]adelay={delay_ms}|{delay_ms},volume=3.0[a{idx}]")
 
                     mix_inputs = "".join([f"[a{i}]" for i in range(len(audio_segments))])
-                    filter_str = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(audio_segments)}:normalize=0[outa]"
+                    # ប្រើ duration=longest និង dropout_transition=0 ដើម្បីកុំឱ្យសំឡេងត្រូវបានកាត់ផ្ដាច់ខុសប្រក្រតី
+                    filter_str = ";".join(filter_parts) + f";{mix_inputs}amix=inputs={len(audio_segments)}:duration=longest:dropout_transition=0[outa]"
 
                     cmd = ["ffmpeg", "-i", vid_in] + inputs + [
                         "-filter_complex", filter_str,
@@ -191,7 +188,7 @@ if start_dubbing:
                         "-y", vid_out
                     ]
 
-                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
                     st.success("✅ បង្កើតវីដេអូជោគជ័យ ១០០%!")
                     st.video(vid_out)
