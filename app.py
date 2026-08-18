@@ -1,4 +1,90 @@
-# ជំនួសកូដផ្នែកតារាង និងផ្នែកដំណើរការខាងក្រោមនេះ៖
+import streamlit as st
+import os
+import json
+import asyncio
+import tempfile
+import shutil
+import subprocess
+import edge_tts
+import pandas as pd
+
+# ==========================================
+# CONFIGURATION & DATABASE
+# ==========================================
+CONTACT_TELEGRAM = "@yoem bunyim"
+TELEGRAM_LINK = "https://t.me/bunyimyoem"
+TRIAL_VIDEO_LIMIT = 3
+LICENSE_FILE = "license.json"
+VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
+
+def load_license():
+    if os.path.exists(LICENSE_FILE):
+        try:
+            with open(LICENSE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get("video_processed", 0), data.get("is_vip", False)
+        except Exception:
+            return 0, False
+    return 0, False
+
+def save_license(count, is_vip=False):
+    try:
+        with open(LICENSE_FILE, 'w') as f:
+            json.dump({"video_processed": count, "is_vip": is_vip}, f)
+    except Exception:
+        pass
+
+def check_license(is_vip):
+    if is_vip:
+        return True, "VIP Unlimited"
+    usage, _ = load_license()
+    if usage >= TRIAL_VIDEO_LIMIT:
+        return False, usage
+    return True, usage
+
+# ==========================================
+# STREAMLIT UI DESIGN
+# ==========================================
+st.set_page_config(page_title="AI Khmer Dubbing Pro", page_icon="🎬", layout="wide")
+
+usage, is_vip = load_license()
+
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
+    st.title("⚙️ Settings & VIP")
+    
+    st.subheader("🔑 Enter VIP Code")
+    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
+    if st.button("Activate VIP"):
+        if vip_input in VALID_VIP_CODES:
+            save_license(usage, is_vip=True)
+            st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
+            st.rerun()
+        else:
+            st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
+
+    st.markdown("---")
+    st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
+
+st.title("🎬 AI Khmer Video Dubbing Pro (Precision Timeline Mode)")
+st.markdown("កែសម្រួលបញ្ហាសំឡេង និងកំណត់ពេលវេលាអត្ថបទតាមតួអង្គប្រុស-ស្រី។")
+st.markdown("---")
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("1. ដាក់វីដេអូរបស់អ្នក")
+    video_file = st.file_uploader("ជ្រើសរើសវីដេអូ (MP4, MKV, AVI)", type=["mp4", "avi", "mov", "mkv"])
+    
+    if is_vip:
+        st.success("🔓 VIP Mode Active (Unlimited)")
+    else:
+        st.warning(f"📊 Trial Usage: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
+
+with col2:
+    st.subheader("2. មើលវីដេអូដើមដើម្បីកត់ Timing")
+    if video_file:
+        st.video(video_file)
 
 st.markdown("---")
 st.subheader("3. កំណត់តារាងអត្ថបទ សំឡេង និងពេលវេលា (Timeline Mapping)")
@@ -9,7 +95,6 @@ if "timeline_data" not in st.session_state:
         {"Start (s)": 4.5, "End (s)": 8.0, "Voice": "km-KH-SreymomNeural (ស្រី)", "Text": "បញ្ចូលអត្ថបទដែលចង់ឱ្យតួអង្គស្រីនិយាយនៅទីនេះ"}
     ])
 
-# ប្រើ key ដើម្បីរក្សាទុកទិន្នន័យដែលបានកែប្រែ
 edited_df = st.data_editor(
     st.session_state.timeline_data, 
     num_rows="dynamic", 
@@ -45,7 +130,6 @@ if start_dubbing:
 
                 async def create_segments():
                     audio_segments = []
-                    # ទាញយកទិន្នន័យពិតប្រាកដដែលអ្នកបានកែក្នុងຕារាង
                     current_data = st.session_state.get("timeline_editor", edited_df)
                     
                     for idx, row in current_data.iterrows():
