@@ -17,7 +17,6 @@ CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
-# ទាញយកកូដ VIP ពី Streamlit Secrets ដើម្បីសុវត្ថិភាព
 VALID_VIP_CODES = st.secrets.get("VIP_CODES", [])
 
 def load_license():
@@ -46,10 +45,8 @@ def check_license(is_vip):
     return True, usage
 
 def clean_khmer_text(text):
-    """សម្អាតអត្ថបទឱ្យអានច្បាស់ និងធម្មជាតិជាងមុន"""
     if not text:
         return ""
-    # លុបសញ្ញាផ្លូវការ ឬសញ្ញាដែលនាំឱ្យ AI អានទាក់
     text = re.sub(r'[\"\’\‘\“\”]', '', text)
     text = text.replace("...", "។ ").replace(";", " ")
     return text.strip()
@@ -57,7 +54,7 @@ def clean_khmer_text(text):
 # ==========================================
 # STREAMLIT UI DESIGN
 # ==========================================
-st.set_page_config(page_title="AI Khmer Dubbing PRO (VIP System)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Dubbing PRO (Clean Multi-Voice)", page_icon="🎬", layout="wide")
 
 usage, is_vip = load_license()
 
@@ -76,43 +73,51 @@ with st.sidebar:
             st.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវ។")
 
     st.markdown("---")
-    st.subheader("💎 ទិញកូដ VIP (Unlimit)")
-    st.markdown("ចង់ប្រើប្រាស់គ្មានកំណត់? សូមទាក់ទងមក Telegram:")
-    st.markdown(f'<a href="{TELEGRAM_LINK}" target="_blank"><button style="background-color:#0088cc; color:white; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; width:100%;">💬 Telegram: {CONTACT_TELEGRAM}</button></a>', unsafe_allow_html=True)
+    st.subheader("🎙️ ការកំណត់សំឡេងតួអង្គ (Multi-Voice)")
+    
+    male_voice = st.selectbox(
+        "👨 សំឡេងតួអង្គប្រុស:", 
+        ["km-KH-PisethNeural", "km-KH-ChhornNeural"],
+        index=0
+    )
+    
+    female_voice = st.selectbox(
+        "👩 សំឡេងតួអង្គស្រី:", 
+        ["km-KH-SreymomNeural"],
+        index=0
+    )
 
-    st.markdown("---")
-    selected_voice = st.selectbox(
-        "🎙️ ជ្រើសរើសសំឡេង AI:", 
-        ["km-KH-SreymomNeural", "km-KH-PisethNeural"]
+    voice_mode = st.radio(
+        "🎭 ទម្រង់ប្រើប្រាស់សំឡេង៖",
+        ["ឆ្លាស់គ្នា (Auto Alternate Male/Female)", "ប្រើសំឡេងប្រុសទាំងអស់", "ប្រើសំឡេងស្រីទាំងអស់"]
     )
     
     whisper_model_type = st.selectbox(
         "🎯 ភាពសុក្រឹតនៃការចាប់ចង្វាក់និយាយ:",
         ["small", "base"],
-        index=0,
-        help="small មានភាពប្រាកដនិយម និងចាប់ Timing ត្រូវតួអង្គជាង base"
+        index=0
     )
     
     add_breathing = st.checkbox("🎭 បញ្ចូលការផ្អាកដកដង្ហើមតាមតួអង្គ", value=True)
     st.markdown("---")
-    st.caption(f"👨‍💻 Dev: **{CONTACT_TELEGRAM}**")
+    st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
 
-st.title("🎬 AI Khmer Video Dubbing PRO (VIP Supported)")
-st.markdown("បកប្រែសំឡេងវីដេអូជាភាសាខ្មែរតាមសាច់រឿងពិតប្រាកដ ព្រមទាំងដាក់បញ្ចូលសំឡេង AI ធម្មជាតិ (Edge-TTS)។")
+st.title("🎬 AI Khmer Video Dubbing PRO (Anti-Duplicate & Clean)")
+st.markdown("បកប្រែវីដេអូរឿងជាភាសាខ្មែរ ជាមួយសំឡេងប្រុស-ស្រីឆ្លើយឆ្លងគ្នា និងលុបបំបាត់ការនិយាយជាន់គ្នាច្រើនដង។")
 st.markdown("---")
 
 col1, col2 = st.columns([2, 1])
 
 with col2:
     st.subheader("🕹️ Controls")
-    video_file = st.file_uploader("1. BROWSE VIDEO (Up to 1GB)", type=["mp4", "avi", "mov", "mkv"])
+    video_file = st.file_uploader("1. BROWSE VIDEO (MP4, MKV, AVI)", type=["mp4", "avi", "mov", "mkv"])
     
     if is_vip:
         st.success("🔓 VIP Mode Active (Unlimited)")
     else:
         st.warning(f"📊 Trial Usage: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
 
-    start_dubbing = st.button("🚀 START DUBBING", type="primary", use_container_width=True)
+    start_dubbing = st.button("🚀 START CLEAN DUBBING", type="primary", use_container_width=True)
 
 with col1:
     st.subheader("📄 Processing Logs & Output")
@@ -125,7 +130,7 @@ with col1:
         else:
             can_run, status_msg = check_license(is_vip)
             if not can_run:
-                st.error(f"❌ អ្នកបានប្រើប្រាស់អស់កូតាឥតគិតថ្លៃ (3 វីដេអូ) ហើយ! សូមទាក់ទងមកកាន់ Telegram {CONTACT_TELEGRAM} ដើម្បីទិញកូដ VIP បន្ត។")
+                st.error(f"❌ អ្នកបានប្រើប្រាស់អស់កូតាឥតគិតថ្លៃ! សូមទាក់ទងមកកាន់ Telegram {CONTACT_TELEGRAM} ដើម្បីទិញកូដ VIP បន្ត។")
                 st.stop()
             
             if not is_vip:
@@ -148,7 +153,6 @@ with col1:
                 temp_audio = os.path.join(temp_dir, "temp.mp3")
                 subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
-                # ប្រើប្រាស់ Model ដែលចាប់ចង្វាក់បានច្បាស់
                 model = whisper.load_model(whisper_model_type)
                 segments = model.transcribe(temp_audio)["segments"]
 
@@ -163,7 +167,7 @@ with col1:
                     text = text.replace("។", "។ ").replace(",,", ",").replace(", ,", ",")
                     return text
 
-                log_area.code("[60%] កំពុងបកប្រែ សម្រួលន័យ និងបង្កើតសំឡេង AI ខ្មែរ...")
+                log_area.code("[60%] កំពុងបកប្រែ  lọcប្រយោគស្ទួន និងបែងចែកសំឡេងប្រុស-ស្រី...")
                 progress_bar.progress(0.60)
 
                 async def generate_tts(text, voice, output_path):
@@ -175,21 +179,26 @@ with col1:
                                 return True
                         except Exception:
                             await asyncio.sleep(0.5)
-                    return False
+                        return False
 
                 async def process_audio():
                     audio_segments = []
                     local_count = 0
+                    seen_texts = set()  # ប្រើសម្រាប់ទប់ស្កាត់មិនឱ្យប្រយោគដដែលៗនិយាយជាន់គ្នា
                     
-                    for seg in segments:
+                    for idx, seg in enumerate(segments):
                         text = seg["text"].strip()
                         start_time = seg["start"]
                         end_time = seg["end"]
                         target_duration = end_time - start_time
                         
-                        # បោះបង់ចោលសំឡេងរំខានខ្លីៗ
                         if not text or target_duration <= 0.3:
                             continue
+                        
+                        # បើប្រយោគស្រដៀងគ្នា ឬជាន់គ្នាខ្លាំង មិនបាច់យកទេ
+                        if text.lower() in seen_texts:
+                            continue
+                        seen_texts.add(text.lower())
                         
                         try:
                             kh_text = translator.translate(text)
@@ -200,15 +209,22 @@ with col1:
                         if not kh_text:
                             continue
 
+                        # ជ្រើសរើសសំឡេងប្រុស ឬស្រី
+                        if voice_mode == "ឆ្លាស់គ្នា (Auto Alternate Male/Female)":
+                            chosen_voice = male_voice if local_count % 2 == 0 else female_voice
+                        elif voice_mode == "ប្រើសំឡេងប្រុសទាំងអស់":
+                            chosen_voice = male_voice
+                        else:
+                            chosen_voice = female_voice
+
                         kh_text_ready = add_breathing_pauses(kh_text)
                         raw_audio = os.path.join(temp_dir, f"raw_{local_count}.mp3")
                         fitted_audio = os.path.join(temp_dir, f"fitted_{local_count}.wav")
                         
-                        success = await generate_tts(kh_text_ready, selected_voice, raw_audio)
+                        success = await generate_tts(kh_text_ready, chosen_voice, raw_audio)
                         if not success:
                             continue
 
-                        # គណនារយៈពេលសំឡេង AI ដែលបង្កើតបាន
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio
@@ -219,9 +235,8 @@ with col1:
                         except Exception:
                             generated_duration = target_duration
 
-                        # កែសម្រួលល្បឿនសំឡេង (Speed Stretch) ឱ្យស្មើ Timing ដើម
                         speed_ratio = generated_duration / target_duration
-                        speed_ratio = max(0.7, min(speed_ratio, 1.8))  # ការពារមិនឱ្យលឿន/យឺតពេក
+                        speed_ratio = max(0.7, min(speed_ratio, 1.8))
                         
                         stretch_cmd = [
                             'ffmpeg', '-i', raw_audio,
@@ -265,7 +280,7 @@ with col1:
                     progress_bar.progress(1.0)
                     st.balloons()
                     
-                    st.success("✅ វីដេអូបកប្រែ និងសំឡេងរួចរាល់ជាស្ថាពរ!")
+                    st.success("✅ វីដេអូបកប្រែ និងសំឡេងស្អាតគ្មានការនិយាយជាន់គ្នាស្ទួនៗរួចរាល់!")
                     st.video(vid_out)
                 else:
                     st.warning("មិនអាចបង្កើតសំឡេង AI ខ្មែរបានទេ! សូមព្យាយាមម្តងទៀត។")
