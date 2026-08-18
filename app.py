@@ -80,7 +80,7 @@ with st.sidebar:
     st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
 
 st.title("🎬 AI Khmer Auto Dubber Pro (Full Automatic)")
-st.markdown("គ្រាន់តែដាក់វីដេអូចូល ប្រព័ន្ធនឹងស្តាប់ បកប្រែជាភាសាខ្មែរ និងដាក់សំឡេង AI ឱ្យដោយស្វ័យប្រវត្តិដោយមិនចាំបាច់វាយអត្ថបទឡើយ!")
+st.markdown("ដាក់វីដេអូដែលមានសំឡេងចូល ប្រព័ន្ធនឹងបកប្រែជាភាសាខ្មែរ និងដាក់សំឡេង AI ឱ្យដោយស្វ័យប្រវត្តិ!")
 st.markdown("---")
 
 col1, col2 = st.columns([1, 1])
@@ -123,7 +123,14 @@ if start_dubbing:
 
                 # ១. ទាញសំឡេងចេញពីវីដេអូ
                 temp_audio = os.path.join(temp_dir, "extracted_audio.mp3")
-                subprocess.run(['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                extract_cmd = ['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y']
+                res_ext = subprocess.run(extract_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                # ឆែកមើលថាតើវីដេអូមានសំឡេងឬអត់
+                if res_ext.returncode != 0 or not os.path.exists(temp_audio) or os.path.getsize(temp_audio) < 1000:
+                    st.error("⚠️ វីដេអូនេះគ្មានសំឡេង (No Audio Track) ឬមិនអាចទាញយកសំឡេងបានទេ។ សូមព្យាយាមប្តូរវីដេអូផ្សេងដែលមានសំឡេងស្រាប់។")
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    st.stop()
 
                 # ២. ប្រើ Whisper ចាប់ Timing និង Text ពីសំឡេងដើម
                 model = whisper.load_model(whisper_model)
@@ -149,12 +156,10 @@ if start_dubbing:
                         if not text or target_duration < 0.4:
                             continue
 
-                        # ទប់ស្កាត់ការនិយាយជាន់គ្នាដដែលៗ
                         if text.lower() in seen_texts:
                             continue
                         seen_texts.add(text.lower())
 
-                        # បកប្រែជាភាសាខ្មែរ
                         try:
                             kh_text = translator.translate(text)
                         except Exception:
@@ -163,7 +168,6 @@ if start_dubbing:
                         if not kh_text:
                             continue
 
-                        # ជ្រើសរើសសំឡេងប្រុស ឬស្រី
                         if voice_mode == "ឆ្លាស់គ្នាស្វ័យប្រវត្តិ (Auto Alternate)":
                             voice_code = male_voice if idx % 2 == 0 else female_voice
                         elif voice_mode == "ប្រើសំឡេងប្រុសទាំងអស់":
@@ -176,7 +180,6 @@ if start_dubbing:
 
                         await generate_tts(kh_text, voice_code, raw_audio)
 
-                        # វាស់ម៉ោងសំឡេង AI ដើម្បីលៃលកល្បឿន (atempo) ឱ្យត្រូវនឹង Timeline ដើម
                         probe_cmd = [
                             'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                             '-of', 'default=noprint_wrappers=1:nokey=1', raw_audio
@@ -231,10 +234,9 @@ if start_dubbing:
                     with open(vid_out, "rb") as f:
                         st.download_button("📥 ទាញយកវីដេអូ", data=f, file_name="auto_dubbed_story.mp4", mime="video/mp4", use_container_width=True)
                 else:
-                    st.warning("⚠️ រកមិនឃើញសម្លេង ឬអត្ថបទនៅក្នុងវីដេអូនេះទេ!")
+                    st.warning("⚠️ Whisper រកមិនឃើញសម្លេង ឬប្រយោគដែលអាចបកប្រែបានក្នុងវីដេអូនេះទេ។")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
         except Exception as e:
-        # ដោះស្រាយបញ្ហា AudioFileClip ឬកំហុសផ្សេងៗដោយស្វ័យប្រវត្តិ
             st.error(f"⚠️ មានបញ្ហាក្នុងការដំណើរការ៖ {e}")
