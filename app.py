@@ -44,19 +44,88 @@ def check_license(is_vip):
     return True, usage
 
 # ==========================================
-# STREAMLIT UI DESIGN
+# STREAMLIT UI DESIGN (3D FUTURISTIC THEME)
 # ==========================================
-st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI Khmer Auto Dubber Pro 3D", page_icon="🎬", layout="wide")
+
+# Inject Custom 3D & Glassmorphism CSS
+st.markdown("""
+<style>
+    /* Global App Background & Font */
+    .stApp {
+        background: radial-gradient(circle at 50% 10%, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        color: #ffffff;
+    }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #11111d 0%, #0a0a12 100%);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 5px 0px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 3D Glassmorphism Cards Container */
+    div.stMarkdown, .stFileUploader {
+        border-radius: 16px;
+    }
+
+    /* 3D Elevated Buttons */
+    div.stButton > button {
+        background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
+        color: white;
+        font-weight: 700;
+        border-radius: 12px;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        box-shadow: 0 10px 25px rgba(233, 69, 96, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    div.stButton > button:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 15px 35px rgba(233, 69, 96, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.6);
+    }
+    div.stButton > button:active {
+        transform: translateY(-1px);
+    }
+
+    /* Inputs & Selectboxes 3D Depth */
+    .stSelectbox div[data-baseweb="select"], .stTextInput input {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 10px;
+        color: white !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    /* Headers Glow 3D Effect */
+    h1, h2, h3 {
+        text-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
+        letter-spacing: 0.5px;
+    }
+
+    /* File Uploader 3D Border */
+    div[data-testid="stFileUploader"] {
+        border: 2px dashed rgba(233, 69, 96, 0.5);
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 15px;
+        padding: 10px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    }
+</style>
+""", unsafe_allow_html=True)
 
 usage, is_vip = load_license()
 
+# ==========================================
+# SIDEBAR CONFIGURATION
+# ==========================================
 with st.sidebar:
     st.image("https://cdn-icons-png.flaticon.com/512/3176/3176366.png", width=80)
-    st.title("⚙️ Settings & VIP")
+    st.title("⚙️ កوالកំណត់ & VIP")
     
-    st.subheader("🔑 Enter VIP Code")
-    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ")
-    if st.button("Activate VIP"):
+    st.subheader("🔑 បញ្ចូលលេខកូដ VIP")
+    vip_input = st.text_input("VIP Code", placeholder="បញ្ចូលលេខកូដនៅទីនេះ", type="password")
+    if st.button("🌟 Activate VIP 3D"):
         if vip_input in VALID_VIP_CODES:
             save_license(usage, is_vip=True)
             st.success("✅ បានធ្វើឱ្យសកម្ម VIP ដោយជោគជ័យ!")
@@ -77,30 +146,36 @@ with st.sidebar:
     whisper_model = st.selectbox("🎯 កម្រិតចាប់សម្លេង Whisper:", ["base", "small"], index=0)
 
     st.markdown("---")
-    st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
+    st.markdown(f"💎 ទិញកូដ VIP: <a href='{TELEGRAM_LINK}' target='_blank' style='color: #ff6b6b; text-decoration: none;'><b>{CONTACT_TELEGRAM}</b></a>", unsafe_allow_html=True)
 
-st.title("🎬 AI Khmer Auto Dubber Pro (Full Automatic)")
-st.markdown("ដាក់វីដេអូដែលមានសំឡេងចូល ប្រព័ន្ធនឹងបកប្រែជាភាសាខ្មែរ និងដាក់សំឡេង AI ឱ្យដោយស្វ័យប្រវត្តិ!")
+# ==========================================
+# MAIN INTERFACE (3D LAYOUT)
+# ==========================================
+st.title("🎬 AI Khmer Auto Dubber Pro 3D")
+st.markdown("ប្រព័ន្ធបកប្រែវីដេអูជាភាសាខ្មែร និងដាក់សំឡេង AI ស្វ័យប្រវត្តិ (3D Futuristic Edition)")
 st.markdown("---")
 
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    st.subheader("1. ដាក់វីដេអូរបស់អ្នក")
+    st.subheader("1. ដាក់បញ្ចូលវីដេអូរបស់អ្នក")
     video_file = st.file_uploader("ជ្រើសរើសវីដេអូ (MP4, MKV, AVI)", type=["mp4", "avi", "mov", "mkv"])
     
     if is_vip:
-        st.success("🔓 VIP Mode Active (Unlimited)")
+        st.success("🔓 VIP Mode Active (Unlimited 3D)")
     else:
         st.warning(f"📊 Trial Usage: {usage}/{TRIAL_VIDEO_LIMIT} Videos")
 
-    start_dubbing = st.button("🚀 ចាប់ផ្តើមបកប្រែ និងដាក់សំឡេងស្វ័យប្រវត្តិ", type="primary", use_container_width=True)
+    start_dubbing = st.button("🚀 ចាប់ផ្តើមបកប្រែ & បង្កើតសំឡេង 3D", use_container_width=True)
 
 with col2:
     st.subheader("2. មើលវីដេអូ និងលទ្ធផល")
     if video_file:
         st.video(video_file)
 
+# ==========================================
+# PROCESSING LOGIC (BACKEND)
+# ==========================================
 if start_dubbing:
     if video_file is None:
         st.error("សូមដាក់បញ្ចូលវីដេអូជាមុនសិន!")
@@ -114,7 +189,7 @@ if start_dubbing:
             save_license(usage + 1, is_vip=False)
 
         try:
-            with st.spinner("🤖 កំពុងដំណើរការស្តាប់ បកប្រែ និងបង្កើតសំឡេង AI..."):
+            with st.spinner("🤖 កំពុងដំណើរការស្តាប់ បកប្រែ និងបង្កើតសំឡេង AI 3D..."):
                 tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
                 tfile.write(video_file.read())
                 vid_in = tfile.name
@@ -126,13 +201,12 @@ if start_dubbing:
                 extract_cmd = ['ffmpeg', '-i', vid_in, '-q:a', '0', '-map', 'a', temp_audio, '-y']
                 res_ext = subprocess.run(extract_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-                # ឆែកមើលថាតើវីដេអូមានសំឡេងឬអត់
                 if res_ext.returncode != 0 or not os.path.exists(temp_audio) or os.path.getsize(temp_audio) < 1000:
-                    st.error("⚠️ វីដេអូនេះគ្មានសំឡេង (No Audio Track) ឬមិនអាចទាញយកសំឡេងបានទេ។ សូមព្យាយាមប្តូរវីដេអូផ្សេងដែលមានសំឡេងស្រាប់។")
+                    st.error("⚠️ វីដេអូនេះគ្មានសំឡេង (No Audio Track) ឬមិនអាចទាញយកសំឡេងได้ទេ។")
                     shutil.rmtree(temp_dir, ignore_errors=True)
                     st.stop()
 
-                # ២. ប្រើ Whisper ចាប់ Timing និង Text ពីសំឡេងដើម
+                # ២. ប្រើ Whisper ចាប់ Timing & Text
                 model = whisper.load_model(whisper_model)
                 transcript = model.transcribe(temp_audio)
                 segments = transcript.get("segments", [])
@@ -228,13 +302,13 @@ if start_dubbing:
 
                     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-                    st.success("✅ បកប្រែ និងបង្កើតវីដេអូស្វ័យប្រវត្តិជោគជ័យ ១០០%!")
+                    st.success("✅ បកប្រែ និងបង្កើតវីដេអូ 3D ជោគជ័យ ១០០%!")
                     st.video(vid_out)
 
                     with open(vid_out, "rb") as f:
-                        st.download_button("📥 ទាញយកវីដេអូ", data=f, file_name="auto_dubbed_story.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button("📥 ទាញយកវីដេអូ 3D", data=f, file_name="auto_dubbed_3d_story.mp4", mime="video/mp4", use_container_width=True)
                 else:
-                    st.warning("⚠️ Whisper រកមិនឃើញសម្លេង ឬប្រយោគដែលអាចបកប្រែបានក្នុងវីដេអូនេះទេ។")
+                    st.warning("⚠️ Whisper រកមិនឃើញសម្លេង ឬប្រយោគដែលអាចបកប្រែได้ទេ។")
 
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
