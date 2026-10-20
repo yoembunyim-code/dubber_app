@@ -14,7 +14,6 @@ import edge_tts
 # ==========================================
 st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
 
-# CSS + CSS/3D Floating Animation Background
 custom_bg_html = """
 <style>
 /* Background Styling */
@@ -117,7 +116,7 @@ TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
 
 # បញ្ជី VIP Codes សារថ្មី
-DEFAULT_VIP_CODES = ["VIP2026", "KHMER_DUB_VIP", "BUNYIM_PRO", "VIP8888", "KHMER2026"]
+DEFAULT_VIP_CODES = ["VIP2026", "KHMER_DUB_VIP", "BUNYIM_PRO", "VIP8888"]
 
 try:
     VALID_VIP_CODES = st.secrets.get("VIP_CODES", DEFAULT_VIP_CODES)
@@ -191,7 +190,7 @@ else:
     st.sidebar.warning(f"⏳ ស្ថានភាព៖ **Free Trial** (សល់ {remaining}/{TRIAL_VIDEO_LIMIT} វីដេអូ)")
     st.sidebar.markdown(f"📩 ទាក់ទងទិញកូដ VIP: [{CONTACT_TELEGRAM}]({TELEGRAM_LINK})")
 
-st.sidebar.hr()
+st.sidebar.markdown("---")
 st.sidebar.header("⚙️ ការកំណត់សំឡេង និង Model")
 whisper_model_type = st.sidebar.selectbox("ជ្រើសរើស Whisper Model:", ["tiny", "base", "small", "medium"], index=1)
 khmer_voice = st.sidebar.selectbox("ជ្រើសរើសសំឡេងខ្មែរ:", ["km-KH-SreymomNeural", "km-KH-PisethNeural"])
@@ -211,12 +210,10 @@ if uploaded_file is not None:
         if st.button("🚀 ចាប់ផ្តើមបញ្ចូលសំឡេងខ្មែរ"):
             with st.spinner("កំពុងដំណើរការទាញយក និងបកប្រែសំឡេង..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
-                    # ១. រក្សាទុកវីដេអូបណ្តោះអាសន្ន
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ២. ដំណើរការ Whisper
                     st.info("🎙️ កំពុងទាញយកអត្ថបទនិយាយចេញពីវីដេអូ (Speech-to-Text)...")
                     model = whisper.load_model(whisper_model_type)
                     result = model.transcribe(input_video_path)
@@ -228,13 +225,11 @@ if uploaded_file is not None:
                     else:
                         st.write("**អត្ថបទដើមដែលចាប់បាន៖**", full_text)
 
-                        # ៣. បកប្រែជាភាសាខ្មែរ
                         st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
                         translator = GoogleTranslator(source='auto', target='km')
                         translated_text = translator.translate(full_text)
                         st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                        # ៤. បង្កើតសំឡេងនិយាយភាសាខ្មែរ
                         output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
                         st.info("🔊 កំពុងបង្កើតសំឡេងនិយាយភាសាខ្មែរ...")
                         
