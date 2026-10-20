@@ -10,14 +10,113 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 # ==========================================
-# CONFIGURATION & DATABASE
+# PAGE CONFIG & CUSTOM 3D ANIMATED CSS/JS
+# ==========================================
+st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
+
+# CSS + CSS/3D Floating Animation Background
+custom_bg_html = """
+<style>
+/* Background Styling */
+.stApp {
+    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #1a1c29);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* 3D Floating Bubbles / Spheres */
+.area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.circles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+.circles li {
+    position: absolute;
+    display: block;
+    list-style: none;
+    width: 20px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    animation: animate 25s linear infinite;
+    bottom: -150px;
+    border-radius: 50%;
+}
+
+.circles li:nth-child(1) { left: 25%; width: 80px; height: 80px; animation-delay: 0s; }
+.circles li:nth-child(2) { left: 10%; width: 30px; height: 30px; animation-delay: 2s; animation-duration: 12s; }
+.circles li:nth-child(3) { left: 70%; width: 40px; height: 40px; animation-delay: 4s; }
+.circles li:nth-child(4) { left: 40%; width: 60px; height: 60px; animation-delay: 0s; animation-duration: 18s; }
+.circles li:nth-child(5) { left: 65%; width: 20px; height: 20px; animation-delay: 0s; }
+.circles li:nth-child(6) { left: 75%; width: 110px; height: 110px; animation-delay: 3s; }
+.circles li:nth-child(7) { left: 35%; width: 150px; height: 150px; animation-delay: 7s; }
+.circles li:nth-child(8) { left: 50%; width: 25px; height: 25px; animation-delay: 15s; animation-duration: 45s; }
+.circles li:nth-child(9) { left: 20%; width: 15px; height: 15px; animation-delay: 2s; animation-duration: 35s; }
+.circles li:nth-child(10) { left: 85%; width: 150px; height: 150px; animation-delay: 0s; animation-duration: 11s; }
+
+@keyframes animate {
+    0% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        opacity: 1;
+        border-radius: 50%;
+    }
+    50% {
+        transform: translateY(-500px) rotate(360deg) scale(1.2);
+        opacity: 0.6;
+        border-radius: 40%;
+    }
+    100% {
+        transform: translateY(-1000px) rotate(720deg) scale(0.8);
+        opacity: 0;
+        border-radius: 50%;
+    }
+}
+</style>
+
+<div class="area">
+    <ul class="circles">
+        <li></li><li></li><li></li><li></li><li></li>
+        <li></li><li></li><li></li><li></li><li></li>
+    </ul>
+</div>
+"""
+st.markdown(custom_bg_html, unsafe_allow_html=True)
+
+
+# ==========================================
+# CONFIGURATION & VIP SYSTEM
 # ==========================================
 CONTACT_TELEGRAM = "@yoem bunyim"
 TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
 
-# បញ្ជី VIP Codes សារថ្មី (អ្នកអាចបន្ថែម ឬកែប្រែត្រង់នេះបាន)
+# បញ្ជី VIP Codes សារថ្មី
 DEFAULT_VIP_CODES = ["VIP2026", "KHMER_DUB_VIP", "BUNYIM_PRO", "VIP8888", "KHMER2026"]
 
 try:
@@ -26,9 +125,6 @@ except Exception:
     VALID_VIP_CODES = DEFAULT_VIP_CODES
 
 
-# ==========================================
-# LICENSE & VIP MANAGEMENT
-# ==========================================
 def load_license():
     if os.path.exists(LICENSE_FILE):
         try:
@@ -52,9 +148,6 @@ license_data = load_license()
 # TEXT-TO-SPEECH (EDGE TTS) ENGINE
 # ==========================================
 async def generate_khmer_audio(text, output_file, voice="km-KH-SreymomNeural"):
-    """
-    បង្កើតសំឡេងនិយាយភាសាខ្មែរចេញពីអត្ថបទ ដោយមានការពិនិត្យការពារកុំឱ្យមាន error ប្រសិនបើអត្ថបទទទេ
-    """
     clean_text = text.strip() if text else ""
     if not clean_text:
         st.warning("⚠️ មិនមានអត្ថបទសម្រាប់បកប្រែបង្កើតជាសំឡេងទេ។")
@@ -73,12 +166,10 @@ def text_to_speech_khmer(text, output_file, voice="km-KH-SreymomNeural"):
 
 
 # ==========================================
-# STREAMLIT UI LAYOUT
+# MAIN INTERFACE
 # ==========================================
-st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
-
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ")
+st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (ជាមួយ 3D Animated Background)")
 
 # --- SIDEBAR: VIP & SETTINGS ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
@@ -107,12 +198,11 @@ khmer_voice = st.sidebar.selectbox("ជ្រើសរើសសំឡេងខ�
 
 
 # ==========================================
-# MAIN DUBBING PROCESS
+# UPLOAD AND PROCESS
 # ==========================================
 uploaded_file = st.file_uploader("បញ្ចូលវីដេអូរបស់អ្នក (.mp4, .mov, .avi):", type=["mp4", "mov", "avi"])
 
 if uploaded_file is not None:
-    # ពិនិត្យលក្ខខណ្ឌប្រើប្រាស់ Trial
     if not license_data.get("is_vip") and license_data.get("usage_count", 0) >= TRIAL_VIDEO_LIMIT:
         st.error("⚠️ អ្នកបានប្រើប្រាស់អស់ចំនួនដង Free Trial ហើយ! សូមបញ្ចូលលេខកូដ VIP ដើម្បីបន្តប្រើប្រាស់។")
     else:
@@ -121,12 +211,12 @@ if uploaded_file is not None:
         if st.button("🚀 ចាប់ផ្តើមបញ្ចូលសំឡេងខ្មែរ"):
             with st.spinner("កំពុងដំណើរការទាញយក និងបកប្រែសំឡេង..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
-                    # ១. រក្សាទុកវីដេអូជាបណ្តោះអាសន្ន
+                    # ១. រក្សាទុកវីដេអូបណ្តោះអាសន្ន
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ២. ដំណើរការ Whisper រកមើលអត្ថបទនិយាយ
+                    # ២. ដំណើរការ Whisper
                     st.info("🎙️ កំពុងទាញយកអត្ថបទនិយាយចេញពីវីដេអូ (Speech-to-Text)...")
                     model = whisper.load_model(whisper_model_type)
                     result = model.transcribe(input_video_path)
@@ -144,7 +234,7 @@ if uploaded_file is not None:
                         translated_text = translator.translate(full_text)
                         st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                        # ៤. បង្កើតសំឡេងនិយាយភាសាខ្មែរ (TTS)
+                        # ៤. បង្កើតសំឡេងនិយាយភាសាខ្មែរ
                         output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
                         st.info("🔊 កំពុងបង្កើតសំឡេងនិយាយភាសាខ្មែរ...")
                         
@@ -154,9 +244,8 @@ if uploaded_file is not None:
                             st.audio(output_audio_path)
                             st.success("✅ បង្កើតសំឡេងបញ្ចូលជាភាសាខ្មែរបានជោគជ័យ!")
 
-                            # កើនចំនួនប្រើប្រាស់ប្រសិនបើជា Free User
                             if not license_data.get("is_vip"):
                                 license_data["usage_count"] = license_data.get("usage_count", 0) + 1
                                 save_license(license_data)
                         else:
-                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ No audio was received. Please verify that your parameters are correct.")
+                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ Please verify your video audio input.")
