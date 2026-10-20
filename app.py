@@ -1,12 +1,11 @@
 import streamlit as st
 import os
 import json
-import asyncio
 import tempfile
 import time
 import whisper
 from deep_translator import GoogleTranslator
-import edge_tts
+from gtts import gTTS
 
 # ==========================================
 # PAGE CONFIG & 3D ANIMATED BACKGROUND CSS
@@ -128,49 +127,28 @@ license_data = load_license()
 
 
 # ==========================================
-# STABLE TEXT-TO-SPEECH (EDGE TTS) FUNCTION
+# STABLE TEXT-TO-SPEECH (GTTS) FUNCTION
 # ==========================================
-async def generate_khmer_audio_stable(text, output_file, voice="km-KH-SreymomNeural"):
+def text_to_speech_khmer(text, output_file):
     clean_text = text.strip() if text else ""
     if not clean_text:
         return False
 
     try:
-        # កាត់អត្ថបទវែងៗជាកំណាត់ៗ (Max 300 characters per chunk) ដើម្បីការពារ Edge TTS Error
-        chunk_size = 300
-        chunks = [clean_text[i:i+chunk_size] for i in range(0, len(clean_text), chunk_size)]
-        
-        temp_files = []
-        for idx, chunk in enumerate(chunks):
-            if not chunk.strip():
-                continue
-            part_file = f"{output_file}_part_{idx}.mp3"
-            communicate = edge_tts.Communicate(chunk, voice)
-            await communicate.save(part_file)
-            temp_files.append(part_file)
-
-        # បញ្ចូលဖាំយសំឡេងតូចៗទាំងនោះបញ្ចូលគ្នាជាឯកសារចុងក្រោយ
-        with open(output_file, 'wb') as outfile:
-            for f_name in temp_files:
-                if os.path.exists(f_name):
-                    with open(f_name, 'rb') as infile:
-                        outfile.write(infile.read())
-                    os.remove(f_name)
-
+        # ใช้ gTTS สำหรับภาษาเขมร (lang='km') เสถียรและไม่เคยมีปัญหา No audio
+        tts = gTTS(text=clean_text, lang='km', slow=False)
+        tts.save(output_file)
         return os.path.exists(output_file) and os.path.getsize(output_file) > 0
     except Exception as e:
         st.error(f"កំហុស TTS: {e}")
         return False
-
-def text_to_speech_khmer(text, output_file, voice="km-KH-SreymomNeural"):
-    return asyncio.run(generate_khmer_audio_stable(text, output_file, voice))
 
 
 # ==========================================
 # UI INTERFACE
 # ==========================================
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (មានសំឡេងប្រុស-ស្រី & 3D Background)")
+st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (មានមុខងារ gTTS & 3D Background)")
 
 # --- SIDEBAR ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
@@ -194,15 +172,6 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ ការកំណត់សំឡេង និង Model")
 whisper_model_type = st.sidebar.selectbox("ជ្រើសរើស Whisper Model:", ["tiny", "base", "small", "medium"], index=1)
-
-dub_mode = st.sidebar.selectbox(
-    "ជម្រើសរបៀបបញ្ចូលសំឡេង:",
-    [
-        "សំឡេងស្រីសុទ្ធ (Sreymom)", 
-        "សំឡេងប្រុសសុទ្ធ (Piseth)", 
-        "ប្រុសស្រីឆ្លើយឆ្លងគ្នាស្វ័យប្រវត្តិ (Multi-Speaker)"
-    ]
-)
 
 
 # ==========================================
@@ -239,8 +208,8 @@ if uploaded_file is not None:
                         translated_text = ""
                         try:
                             translator = GoogleTranslator(source='auto', target='km')
-                            if len(full_text) > 300:
-                                chunks = [full_text[i:i+300] for i in range(0, len(full_text), 300)]
+                            if len(full_text) > 400:
+                                chunks = [full_text[i:i+400] for i in range(0, len(full_text), 400)]
                                 translated_chunks = []
                                 for chunk in chunks:
                                     translated_chunks.append(translator.translate(chunk))
@@ -254,19 +223,11 @@ if uploaded_file is not None:
                         if translated_text:
                             st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                            # ៣. Stable Text-to-Speech Generation
+                            # ៣. Stable Text-to-Speech (gTTS)
                             output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
+                            st.info("🔊 កំពុងបង្កើតសំឡេងនិយាយភាសាខ្មែរ (gTTS)...")
                             
-                            if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
-                                chosen_voice = "km-KH-SreymomNeural"
-                            elif "ប្រុសសុទ្ធ" in dub_mode:
-                                chosen_voice = "km-KH-PisethNeural"
-                            else:
-                                chosen_voice = "km-KH-SreymomNeural"
-
-                            st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយ ({dub_mode})...")
-                            
-                            tts_success = text_to_speech_khmer(translated_text, output_audio_path, voice=chosen_voice)
+                            tts_success = text_to_speech_khmer(translated_text, output_audio_path)
 
                             if tts_success and os.path.exists(output_audio_path):
                                 st.audio(output_audio_path)
@@ -276,6 +237,7 @@ if uploaded_file is not None:
                                     license_data["usage_count"] = license_data.get("usage_count", 0) + 1
                                     save_license(license_data)
                             else:
-                                st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀតជាមួយវីដេអូខ្លីជាងមុន។")
+                                st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។")
                         else:
                             st.error("⚠️ ការបកប្រែបរាជ័យ។")
+                            
