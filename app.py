@@ -7,6 +7,7 @@ import time
 import whisper
 from deep_translator import GoogleTranslator
 import edge_tts
+from gtts import gTTS
 
 # ==========================================
 # PAGE CONFIG & 3D ANIMATED BACKGROUND CSS
@@ -128,28 +129,37 @@ license_data = load_license()
 
 
 # ==========================================
-# STABLE EDGE-TTS FUNCTION (SUPPORT MULTI-SPEAKER)
+# ULTRA-STABLE TTS FUNCTION (EDGE-TTS WITH GTTS FALLBACK)
 # ==========================================
-async def generate_edge_audio(text, output_file, voice="km-KH-SreymomNeural"):
+async def generate_edge_audio_safe(text, output_file, voice="km-KH-SreymomNeural"):
     clean_text = text.strip() if text else ""
     if not clean_text:
         return False
     try:
         communicate = edge_tts.Communicate(clean_text, voice)
         await communicate.save(output_file)
+        if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+            return True
+    except Exception:
+        pass
+    
+    # Fallback to gTTS if Edge-TTS fails
+    try:
+        tts = gTTS(text=clean_text, lang='km', slow=False)
+        tts.save(output_file)
         return os.path.exists(output_file) and os.path.getsize(output_file) > 0
     except Exception:
         return False
 
-def text_to_speech_edge(text, output_file, voice="km-KH-SreymomNeural"):
-    return asyncio.run(generate_edge_audio(text, output_file, voice))
+def text_to_speech_safe(text, output_file, voice="km-KH-SreymomNeural"):
+    return asyncio.run(generate_edge_audio_safe(text, output_file, voice))
 
 
 # ==========================================
 # UI INTERFACE
 # ==========================================
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (មានសំឡេងប្រុស-ស្រីឆ្លើយឆ្លង & 3D Background)")
+st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (មានប្រុស-ស្រីឆ្លើយឆ្លង & 3D Background)")
 
 # --- SIDEBAR ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
@@ -174,7 +184,6 @@ st.sidebar.markdown("---")
 st.sidebar.header("⚙️ ការកំណត់សំឡេង និង Model")
 whisper_model_type = st.sidebar.selectbox("ជ្រើសរើស Whisper Model:", ["tiny", "base", "small", "medium"], index=1)
 
-# បន្ថែមជម្រើសសំឡេងប្រុស-ស្រីមកវិញ
 dub_mode = st.sidebar.selectbox(
     "ជម្រើសរបៀបបញ្ចូលសំឡេង:",
     [
@@ -203,11 +212,10 @@ if uploaded_file is not None:
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ១. Whisper Transcription with Segments
+                    # ១. Whisper Transcription
                     st.info("🎙️ កំពុងទាញយកឃ្លាប្រយោគពីវីដេអូ...")
                     model = whisper.load_model(whisper_model_type)
                     result = model.transcribe(input_video_path)
-                    segments = result.get("segments", [])
                     full_text = result.get("text", "").strip()
 
                     if not full_text:
@@ -218,68 +226,63 @@ if uploaded_file is not None:
                         # ២. Translation
                         st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
                         translator = GoogleTranslator(source='auto', target='km')
-                        
-                        # បែងចែកប្រយោគ ឬកាត់ជាកំណាត់ៗដើម្បីធ្វើការឆ្លើយឆ្លងប្រុស-ស្រីបានល្អ
-                        translated_sentences = []
-                        if segments and len(segments) > 1:
-                            for idx, seg in enumerate(segments):
-                                seg_text = seg.get("text", "").strip()
-                                if seg_text:
-                                    try:
-                                        tr_seg = translator.translate(seg_text)
-                                        time.sleep(0.2)
-                                    except Exception:
-                                        tr_seg = seg_text
-                                    
-                                    # កំណត់សំឡេងប្រុស (Piseth) ឬ ស្រី (Sreymom) ឆ្លើយឆ្លងគ្នាដូរវេន
-                                    if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
-                                        v_choice = "km-KH-SreymomNeural" if idx % 2 == 0 else "km-KH-PisethNeural"
-                                    elif "ប្រុសសុទ្ធ" in dub_mode:
-                                        v_choice = "km-KH-PisethNeural"
-                                    else:
-                                        v_choice = "km-KH-SreymomNeural"
-                                    
-                                    translated_sentences.append((tr_seg, v_choice))
-                        else:
-                            # ករណីវីដេអូខ្លី ឬអត់មាន Segment ច្បាស់
-                            try:
-                                tr_full = translator.translate(full_text)
-                            except Exception:
-                                tr_full = full_text
-                            
-                            v_choice = "km-KH-PisethNeural" if "ប្រុសសុទ្ធ" in dub_mode else "km-KH-SreymomNeural"
-                            translated_sentences.append((tr_full, v_choice))
-
-                        # បង្ហាញអត្ថបទបកប្រែ
-                        all_translated_text = " ".join([item[0] for item in translated_sentences])
-                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", all_translated_text)
-
-                        # ៣. ដំណើរការបង្កើតសំឡេង (TTS) តាមប្រយោគនីមួយៗ
-                        output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
-                        st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយ ({dub_mode})...")
-
-                        part_files = []
-                        for idx, (sentence, voice_type) in enumerate(translated_sentences):
-                            part_file = os.path.join(temp_dir, f"part_{idx}.mp3")
-                            success = text_to_speech_edge(sentence, part_file, voice=voice_type)
-                            if success:
-                                part_files.append(part_file)
-
-                        # បញ្ចូលဖាំយសំឡេងទាំងអស់ចូលគ្នា
-                        if part_files:
-                            with open(output_audio_path, 'wb') as outfile:
-                                for f_path in part_files:
-                                    with open(f_path, 'rb') as infile:
-                                        outfile.write(infile.read())
-
-                            if os.path.exists(output_audio_path) and os.path.getsize(output_audio_path) > 0:
-                                st.audio(output_audio_path)
-                                st.success("✅ បង្កើតសំឡេងប្រុស-ស្រីឆ្លើយឆ្លងគ្នារួចរាល់ជាជោគជ័យ!")
-
-                                if not license_data.get("is_vip"):
-                                    license_data["usage_count"] = license_data.get("usage_count", 0) + 1
-                                    save_license(license_data)
+                        try:
+                            if len(full_text) > 400:
+                                chunks = [full_text[i:i+400] for i in range(0, len(full_text), 400)]
+                                translated_chunks = []
+                                for chunk in chunks:
+                                    translated_chunks.append(translator.translate(chunk))
+                                    time.sleep(0.2)
+                                translated_text = " ".join(translated_chunks)
                             else:
-                                st.error("⚠️ មិនអាចបញ្ចូលឯកសារសំឡេងបានទេ។")
+                                translated_text = translator.translate(full_text)
+                        except Exception:
+                            translated_text = full_text
+
+                        if translated_text:
+                            st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
+
+                            # ៣. Stable Multi-Speaker Generation
+                            output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
+                            st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយ ({dub_mode})...")
+
+                            # កាត់អត្ថបទជាប្រយោគខ្លីៗដើម្បីធ្វើប្រុស-ស្រីឆ្លើយឆ្លង
+                            sentences = [s.strip() for s in translated_text.replace("。", ".").split(".") if s.strip()]
+                            if not sentences:
+                                sentences = [translated_text]
+
+                            part_files = []
+                            for idx, sentence in enumerate(sentences):
+                                part_file = os.path.join(temp_dir, f"part_{idx}.mp3")
+                                
+                                if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
+                                    v_choice = "km-KH-SreymomNeural" if idx % 2 == 0 else "km-KH-PisethNeural"
+                                elif "ប្រុសសុទ្ធ" in dub_mode:
+                                    v_choice = "km-KH-PisethNeural"
+                                else:
+                                    v_choice = "km-KH-SreymomNeural"
+
+                                success = text_to_speech_safe(sentence, part_file, voice=v_choice)
+                                if success:
+                                    part_files.append(part_file)
+
+                            # បញ្ចូលဖាំយសំឡេងទាំងអស់ចូលគ្នា
+                            if part_files:
+                                with open(output_audio_path, 'wb') as outfile:
+                                    for f_path in part_files:
+                                        with open(f_path, 'rb') as infile:
+                                            outfile.write(infile.read())
+
+                                if os.path.exists(output_audio_path) and os.path.getsize(output_audio_path) > 0:
+                                    st.audio(output_audio_path)
+                                    st.success("✅ បង្កើតសំឡេងប្រុស-ស្រីឆ្លើយឆ្លងគ្នារួចរាល់ជាជោគជ័យ!")
+
+                                    if not license_data.get("is_vip"):
+                                        license_data["usage_count"] = license_data.get("usage_count", 0) + 1
+                                        save_license(license_data)
+                                else:
+                                    st.error("⚠️ មិនអាចបញ្ចូលឯកសារសំឡេងបានទេ។")
+                            else:
+                                st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀត។")
                         else:
-                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀត។ា")
+                            st.error("⚠️ ការបកប្រែបរាជ័យ។")
