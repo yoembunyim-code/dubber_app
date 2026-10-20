@@ -3,20 +3,19 @@ import os
 import json
 import asyncio
 import tempfile
-import shutil
+import time
 import whisper
-import subprocess
 from deep_translator import GoogleTranslator
+from deep_translator.exceptions import TooManyRequests
 import edge_tts
 
 # ==========================================
-# PAGE CONFIG & CUSTOM 3D ANIMATED CSS/JS
+# PAGE CONFIG & 3D ANIMATED BACKGROUND CSS
 # ==========================================
 st.set_page_config(page_title="AI Khmer Auto Dubber Pro", page_icon="🎬", layout="wide")
 
 custom_bg_html = """
 <style>
-/* Background Styling */
 .stApp {
     background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #1a1c29);
     background-size: 400% 400%;
@@ -29,7 +28,6 @@ custom_bg_html = """
     100% { background-position: 0% 50%; }
 }
 
-/* 3D Floating Bubbles / Spheres */
 .area {
     position: fixed;
     top: 0;
@@ -79,21 +77,9 @@ custom_bg_html = """
 .circles li:nth-child(10) { left: 85%; width: 150px; height: 150px; animation-delay: 0s; animation-duration: 11s; }
 
 @keyframes animate {
-    0% {
-        transform: translateY(0) rotate(0deg) scale(1);
-        opacity: 1;
-        border-radius: 50%;
-    }
-    50% {
-        transform: translateY(-500px) rotate(360deg) scale(1.2);
-        opacity: 0.6;
-        border-radius: 40%;
-    }
-    100% {
-        transform: translateY(-1000px) rotate(720deg) scale(0.8);
-        opacity: 0;
-        border-radius: 50%;
-    }
+    0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; border-radius: 50%; }
+    50% { transform: translateY(-500px) rotate(360deg) scale(1.2); opacity: 0.6; border-radius: 40%; }
+    100% { transform: translateY(-1000px) rotate(720deg) scale(0.8); opacity: 0; border-radius: 50%; }
 }
 </style>
 
@@ -115,7 +101,6 @@ TELEGRAM_LINK = "https://t.me/bunyimyoem"
 TRIAL_VIDEO_LIMIT = 3
 LICENSE_FILE = "license.json"
 
-# បញ្ជី VIP Codes សារថ្មី
 DEFAULT_VIP_CODES = ["VIP2026", "KHMER_DUB_VIP", "BUNYIM_PRO", "VIP8888"]
 
 try:
@@ -144,12 +129,11 @@ license_data = load_license()
 
 
 # ==========================================
-# TEXT-TO-SPEECH (EDGE TTS) ENGINE
+# TEXT-TO-SPEECH (EDGE TTS)
 # ==========================================
 async def generate_khmer_audio(text, output_file, voice="km-KH-SreymomNeural"):
     clean_text = text.strip() if text else ""
     if not clean_text:
-        st.warning("⚠️ មិនមានអត្ថបទសម្រាប់បកប្រែបង្កើតជាសំឡេងទេ។")
         return False
 
     try:
@@ -157,7 +141,7 @@ async def generate_khmer_audio(text, output_file, voice="km-KH-SreymomNeural"):
         await communicate.save(output_file)
         return True
     except Exception as e:
-        st.error(f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង (Edge TTS): {e}")
+        st.error(f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង: {e}")
         return False
 
 def text_to_speech_khmer(text, output_file, voice="km-KH-SreymomNeural"):
@@ -165,82 +149,112 @@ def text_to_speech_khmer(text, output_file, voice="km-KH-SreymomNeural"):
 
 
 # ==========================================
-# MAIN INTERFACE
+# UI INTERFACE
 # ==========================================
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (ជាមួយ 3D Animated Background)")
+st.caption("កម្មវិធីស្វ័យប្រវត្តិបកប្រែ និងបញ្ចូលសំឡេងវីដេអូជាភាសាខ្មែរ (មានសំឡេងប្រុស-ស្រី និង 3D Background)")
 
-# --- SIDEBAR: VIP & SETTINGS ---
+# --- SIDEBAR ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
-
 vip_input = st.sidebar.text_input("បញ្ចូលលេខកូដ VIP៖", value=license_data.get("vip_code", ""))
 if st.sidebar.button("ផ្ទៀងផ្ទាត់ VIP"):
     if vip_input.strip() in VALID_VIP_CODES:
         license_data["is_vip"] = True
         license_data["vip_code"] = vip_input.strip()
         save_license(license_data)
-        st.sidebar.success("🎉 អ្នកបានបើកប្រើប្រាស់មុខងារ VIP ជោគជ័យ!")
+        st.sidebar.success("🎉 បើកដំណើរការ VIP ជោគជ័យ!")
     else:
         st.sidebar.error("❌ លេខកូដ VIP មិនត្រឹមត្រូវទេ!")
 
 if license_data.get("is_vip"):
-    st.sidebar.info("🌟 ស្ថានភាព៖ **VIP Account** (មិនមានដែនកំណត់)")
+    st.sidebar.info("🌟 ស្ថានភាព៖ **VIP Account**")
 else:
     remaining = max(0, TRIAL_VIDEO_LIMIT - license_data.get("usage_count", 0))
-    st.sidebar.warning(f"⏳ ស្ថានភាព៖ **Free Trial** (សល់ {remaining}/{TRIAL_VIDEO_LIMIT} វីដេអូ)")
+    st.sidebar.warning(f"⏳ ស្ថានភាព៖ **Free Trial** (សល់ {remaining}/{TRIAL_VIDEO_LIMIT})")
     st.sidebar.markdown(f"📩 ទាក់ទងទិញកូដ VIP: [{CONTACT_TELEGRAM}]({TELEGRAM_LINK})")
 
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ ការកំណត់សំឡេង និង Model")
 whisper_model_type = st.sidebar.selectbox("ជ្រើសរើស Whisper Model:", ["tiny", "base", "small", "medium"], index=1)
-khmer_voice = st.sidebar.selectbox("ជ្រើសរើសសំឡេងខ្មែរ:", ["km-KH-SreymomNeural", "km-KH-PisethNeural"])
+
+# បន្ថែមជម្រើសសំឡេងប្រុស ឬស្រី
+voice_choice = st.sidebar.selectbox(
+    "ជ្រើសរើសសំឡេងតួអង្គ (Voice):", 
+    ["ស្រី (Sreymom - ធម្មជាតិ)", "ប្រុស (Piseth - ធ្ងន់ច្បាស់)"]
+)
+khmer_voice = "km-KH-SreymomNeural" if "ស្រី" in voice_choice else "km-KH-PisethNeural"
 
 
 # ==========================================
-# UPLOAD AND PROCESS
+# PROCESSING
 # ==========================================
 uploaded_file = st.file_uploader("បញ្ចូលវីដេអូរបស់អ្នក (.mp4, .mov, .avi):", type=["mp4", "mov", "avi"])
 
 if uploaded_file is not None:
     if not license_data.get("is_vip") and license_data.get("usage_count", 0) >= TRIAL_VIDEO_LIMIT:
-        st.error("⚠️ អ្នកបានប្រើប្រាស់អស់ចំនួនដង Free Trial ហើយ! សូមបញ្ចូលលេខកូដ VIP ដើម្បីបន្តប្រើប្រាស់។")
+        st.error("⚠️ អស់ចំនួនដងសាកល្បង Free Trial ហើយ! សូមបញ្ចូលលេខកូដ VIP។")
     else:
         st.video(uploaded_file)
         
         if st.button("🚀 ចាប់ផ្តើមបញ្ចូលសំឡេងខ្មែរ"):
-            with st.spinner("កំពុងដំណើរការទាញយក និងបកប្រែសំឡេង..."):
+            with st.spinner("កំពុងដំណើរការទាញយក និងបកប្រែ (សូមរង់ចាំបន្តិច)..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    st.info("🎙️ កំពុងទាញយកអត្ថបទនិយាយចេញពីវីដេអូ (Speech-to-Text)...")
+                    # ១. Whisper Speech-to-Text
+                    st.info("🎙️ កំពុងទាញយកអត្ថបទនិយាយចេញពីវីដេអូ...")
                     model = whisper.load_model(whisper_model_type)
                     result = model.transcribe(input_video_path)
-                    
                     full_text = result.get("text", "").strip()
 
                     if not full_text:
-                        st.error("⚠️ បរាជ័យ៖ មិនអាចចាប់យកសំឡេងនិយាយក្នុងវីដេអូបានទេ។ សូមពិនិត្យមើលថាតើវីដេអូនោះមានសំឡេងនិយាយច្បាស់លាស់ដែរឬទេ។")
+                        st.error("⚠️ រកមិនឃើញសំឡេងនិយាយក្នុងវីដេអូនេះទេ។")
                     else:
-                        st.write("**អត្ថបទដើមដែលចាប់បាន៖**", full_text)
+                        st.write("**អត្ថបទដើមដែលទាញបាន៖**", full_text)
 
+                        # ២. ការពារ Error TooManyRequests ដោយការផ្អាកបន្តិចនិងកាត់បំណែកអត្ថបទវែងៗ
                         st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
-                        translator = GoogleTranslator(source='auto', target='km')
-                        translated_text = translator.translate(full_text)
-                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
+                        translated_text = ""
+                        try:
+                            translator = GoogleTranslator(source='auto', target='km')
+                            # ប្រសិនបើអត្ថបទវែងពេក កាត់វាជាកំណាត់ៗដើម្បីការពារ Rate Limit
+                            if len(full_text) > 400:
+                                chunks = [full_text[i:i+400] for i in range(0, len(full_text), 400)]
+                                translated_chunks = []
+                                for chunk in chunks:
+                                    translated_chunks.append(translator.translate(chunk))
+                                    time.sleep(0.5) # រំលងពេលបន្តិចដើម្បីការពារ TooManyRequests
+                                translated_text = " ".join(translated_chunks)
+                            else:
+                                translated_text = translator.translate(full_text)
+                        except TooManyRequests:
+                            st.warning("⚠️ ប្រព័ន្ធបកប្រែជាប់ដែនកំណត់បណ្តោះអាសន្ន (TooManyRequests)។ កំពុងព្យាយាមម្តងទៀត...")
+                            time.sleep(2)
+                            try:
+                                translator = GoogleTranslator(source='auto', target='km')
+                                translated_text = translator.translate(full_text[:300]) # យកទំហំល្មម
+                            except Exception as ex:
+                                st.error(f"ការបកប្រែបរាជ័យ៖ {ex}")
+                        except Exception as e:
+                            st.error(f"កំហុសក្នុងការបកប្រែ៖ {e}")
 
-                        output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
-                        st.info("🔊 កំពុងបង្កើតសំឡេងនិយាយភាសាខ្មែរ...")
-                        
-                        tts_success = text_to_speech_khmer(translated_text, output_audio_path, voice=khmer_voice)
+                        if translated_text:
+                            st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                        if tts_success and os.path.exists(output_audio_path):
-                            st.audio(output_audio_path)
-                            st.success("✅ បង្កើតសំឡេងបញ្ចូលជាភាសាខ្មែរបានជោគជ័យ!")
+                            # ៣. បង្កើតសំឡេង TTS (ប្រុស ឬ ស្រី)
+                            output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
+                            st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយ ({voice_choice})...")
+                            
+                            tts_success = text_to_speech_khmer(translated_text, output_audio_path, voice=khmer_voice)
 
-                            if not license_data.get("is_vip"):
-                                license_data["usage_count"] = license_data.get("usage_count", 0) + 1
-                                save_license(license_data)
-                        else:
-                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ Please verify your video audio input.")
+                            if tts_success and os.path.exists(output_audio_path):
+                                st.audio(output_audio_path)
+                                st.success("✅ បង្កើតសំឡេងបញ្ចូលជាភាសាខ្មែរបានជោគជ័យ!")
+
+                                if not license_data.get("is_vip"):
+                                    license_data["usage_count"] = license_data.get("usage_count", 0) + 1
+                                    save_license(license_data)
+                            else:
+                                st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ No audio was received.")
