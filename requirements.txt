@@ -3,3 +3,9 @@ whisper
 deep-translator
 gtts
 torch
+streamlit
+whisper
+deep-translator
+gtts
+edge-tts
+torch
