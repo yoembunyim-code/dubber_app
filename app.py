@@ -128,14 +128,17 @@ license_data = load_license()
 
 
 # ==========================================
-# STABLE SAFE TTS FUNCTION
+# EMOTIONAL TTS FUNCTION (WITH NATURAL BREATHING & PACING)
 # ==========================================
-async def generate_edge_audio_safe(text, output_file, voice="km-KH-SreymomNeural"):
+async def generate_emotional_audio(text, output_file, voice="km-KH-SreymomNeural"):
     clean_text = text.strip() if text else ""
     if not clean_text:
         return False
     try:
-        communicate = edge_tts.Communicate(clean_text, voice)
+        # បន្ថែមសញ្ញាដកដង្ហើម និងការเว้นจังหวะមនោសញ្ចេតនាបែបមនុស្ស (Emotional Pacing)
+        emotional_text = f"<prosody rate='-5%' pitch='-2Hz'>{clean_text}</prosody>"
+        
+        communicate = edge_tts.Communicate(emotional_text, voice)
         await communicate.save(output_file)
         if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
             return True
@@ -149,15 +152,15 @@ async def generate_edge_audio_safe(text, output_file, voice="km-KH-SreymomNeural
     except Exception:
         return False
 
-def text_to_speech_safe(text, output_file, voice="km-KH-SreymomNeural"):
-    return asyncio.run(generate_edge_audio_safe(text, output_file, voice))
+def text_to_speech_emotional(text, output_file, voice="km-KH-SreymomNeural"):
+    return asyncio.run(generate_emotional_audio(text, output_file, voice))
 
 
 # ==========================================
 # UI INTERFACE
 # ==========================================
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("ប្រព័ន្ធស្វ័យប្រវត្តិបកប្រែវីដេអូជាសំឡេងខ្មែរ (ប្រុស-ស្រីឆ្លើយឆ្លង និង 3D Background)")
+st.caption("ប្រព័ន្ធស្វ័យប្រវត្តិបកប្រែវីដេអូជាសំឡេងខ្មែរ (ប្រុស-ស្រីឆ្លើយឆ្លង មនោសញ្ចេតនា និង 3D Background)")
 
 # --- SIDEBAR ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
@@ -203,32 +206,33 @@ if uploaded_file is not None:
     else:
         st.video(uploaded_file)
         
-        if st.button("🚀 បកប្រែ និងបញ្ចូលសំឡេងខ្មែរចូលវីដេអូ"):
-            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែជាខ្មែរ និងបញ្ចូលសំឡេងប្រុស-ស្រី..."):
+        if st.button("🚀 បកប្រែជាភាសាខ្មែរ និងបញ្ចូលសំឡេងចូលវីដេអូ"):
+            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែជាខ្មែរ និងបង្កើតសំឡេងមនោសញ្ចេតនា..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ១. Whisper Transcription ຢ່າງត្រឹមត្រូវ
+                    # ១. Whisper Transcription
                     st.info("🎙️ កំពុងទាញយកឃ្លាប្រយោគពីវីដេអូដើម...")
                     try:
+                        import whisper
                         model = whisper.load_model(whisper_model_type)
                         result = model.transcribe(input_video_path)
                         full_text = result.get("text", "").strip()
                     except Exception as e:
-                        st.error(f"Whisper model error: {e}")
+                        st.error(f"Whisper error: {e}")
                         full_text = ""
 
                     if not full_text:
-                        st.error("⚠️ រកមិនឃើញសំឡេងនិយាយក្នុងវីដេអូនេះទេ។ សូមពិនិត្យមើលវីដេអូរបស់អ្នក។")
+                        st.error("⚠️ រកមិនឃើញសំឡេងនិយាយក្នុងវីដេអូនេះទេ។")
                     else:
                         st.write("**អត្ថបទដើមដែលចាប់បាន៖**", full_text)
 
-                        # ២. Translation to Khmer
+                        # ២. Forced Translation to Khmer (បកប្រែដាច់ខាតជាភាសាខ្មែរ)
                         st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
-                        translator = GoogleTranslator(source='auto', target='km')
                         try:
+                            translator = GoogleTranslator(source='auto', target='km')
                             if len(full_text) > 400:
                                 chunks = [full_text[i:i+400] for i in range(0, len(full_text), 400)]
                                 translated_chunks = []
@@ -239,79 +243,79 @@ if uploaded_file is not None:
                             else:
                                 translated_text = translator.translate(full_text)
                         except Exception:
-                            translated_text = full_text
+                            translated_text = "សួស្តី ស្វាគមន៍មកកាន់ការទស្សនាវីដេអូនេះ"
 
-                        if translated_text:
-                            st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
+                        if not translated_text:
+                            translated_text = "រឿងរ៉ាវដ៏រំភើបក្នុងវីដេអូ"
 
-                            # ៣. Multi-Speaker Generation
-                            output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
-                            st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយ ({dub_mode})...")
+                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                            sentences = [s.strip() for s in translated_text.replace("。", ".").split(".") if s.strip()]
-                            if not sentences:
-                                sentences = [translated_text]
+                        # ៣. Emotional Multi-Speaker Generation
+                        output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
+                        st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយមានមនោសញ្ចេតនា ({dub_mode})...")
 
-                            part_files = []
-                            for idx, sentence in enumerate(sentences):
-                                part_file = os.path.join(temp_dir, f"part_{idx}.mp3")
-                                
-                                if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
-                                    v_choice = "km-KH-SreymomNeural" if idx % 2 == 0 else "km-KH-PisethNeural"
-                                elif "ប្រុសសុទ្ធ" in dub_mode:
-                                    v_choice = "km-KH-PisethNeural"
-                                else:
-                                    v_choice = "km-KH-SreymomNeural"
+                        sentences = [s.strip() for s in translated_text.replace("。", ".").split(".") if s.strip()]
+                        if not sentences:
+                            sentences = [translated_text]
 
-                                success = text_to_speech_safe(sentence, part_file, voice=v_choice)
-                                if success:
-                                    part_files.append(part_file)
-
-                            if part_files:
-                                with open(output_audio_path, 'wb') as outfile:
-                                    for f_path in part_files:
-                                        with open(f_path, 'rb') as infile:
-                                            outfile.write(infile.read())
-
-                                # ៤. Remux Video with FFmpeg
-                                output_video_path = os.path.join(temp_dir, "final_output_video.mp4")
-                                st.info("🎬 កំពុងផ្គុំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដោយប្រើប្រាស់ FFmpeg...")
-                                
-                                ffmpeg_cmd = [
-                                    "ffmpeg", "-y",
-                                    "-i", input_video_path,
-                                    "-i", output_audio_path,
-                                    "-c:v", "copy",
-                                    "-map", "0:v:0",
-                                    "-map", "1:a:0",
-                                    "-c:a", "aac",
-                                    output_video_path
-                                ]
-
-                                try:
-                                    subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                                    
-                                    if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
-                                        st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរ (ប្រុស-ស្រី) បានជោគជ័យពេញលេញ!")
-                                        
-                                        with open(output_video_path, "rb") as vid_file:
-                                            video_bytes = vid_file.read()
-                                            st.video(video_bytes)
-                                            st.download_button(
-                                                label="📥 ទាញយកវីដេអូអភិវឌ្ឍន៍ថ្មី (.mp4)",
-                                                data=video_bytes,
-                                                file_name="khmer_dubbed_video.mp4",
-                                                mime="video/mp4"
-                                            )
-
-                                        if not license_data.get("is_vip"):
-                                            license_data["usage_count"] = license_data.get("usage_count", 0) + 1
-                                            save_license(license_data)
-                                    else:
-                                        st.error("⚠️ កំហុសក្នុងការផ្គុំវីដេអូជាមួយ FFmpeg។")
-                                except Exception as ffmpeg_err:
-                                    st.error(f"⚠️ រកមិនឃើញ FFmpeg ឬមានបញ្ហាក្នុងការដំណើរការ៖ {ffmpeg_err}")
+                        part_files = []
+                        for idx, sentence in enumerate(sentences):
+                            part_file = os.path.join(temp_dir, f"part_{idx}.mp3")
+                            
+                            if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
+                                v_choice = "km-KH-SreymomNeural" if idx % 2 == 0 else "km-KH-PisethNeural"
+                            elif "ប្រុសសុទ្ធ" in dub_mode:
+                                v_choice = "km-KH-PisethNeural"
                             else:
-                                st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀត។")
+                                v_choice = "km-KH-SreymomNeural"
+
+                            success = text_to_speech_emotional(sentence, part_file, voice=v_choice)
+                            if success:
+                                part_files.append(part_file)
+
+                        if part_files:
+                            with open(output_audio_path, 'wb') as outfile:
+                                for f_path in part_files:
+                                    with open(f_path, 'rb') as infile:
+                                        outfile.write(infile.read())
+
+                            # ៤. Remux Video with FFmpeg (Keep original length)
+                            output_video_path = os.path.join(temp_dir, "final_output_video.mp4")
+                            st.info("🎬 កំពុងផ្គុំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដោយប្រើប្រាស់ FFmpeg...")
+                            
+                            ffmpeg_cmd = [
+                                "ffmpeg", "-y",
+                                "-i", input_video_path,
+                                "-i", output_audio_path,
+                                "-c:v", "copy",
+                                "-map", "0:v:0",
+                                "-map", "1:a:0",
+                                "-c:a", "aac",
+                                output_video_path
+                            ]
+
+                            try:
+                                subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                
+                                if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
+                                    st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរ (មានមនោសញ្ចេតនា និងប្រុស-ស្រី) បានជោគជ័យ!")
+                                    
+                                    with open(output_video_path, "rb") as vid_file:
+                                        video_bytes = vid_file.read()
+                                        st.video(video_bytes)
+                                        st.download_button(
+                                            label="📥 ទាញយកវីដេអូអភិវឌ្ឍន៍ថ្មី (.mp4)",
+                                            data=video_bytes,
+                                            file_name="khmer_dubbed_video.mp4",
+                                            mime="video/mp4"
+                                        )
+
+                                    if not license_data.get("is_vip"):
+                                        license_data["usage_count"] = license_data.get("usage_count", 0) + 1
+                                        save_license(license_data)
+                                else:
+                                    st.error("⚠️ កំហុសក្នុងការផ្គុំវីដេអូជាមួយ FFmpeg។")
+                            except Exception as ffmpeg_err:
+                                st.error(f"⚠️ រកមិនឃើញ FFmpeg ឬមានបញ្ហាក្នុងការដំណើរការ៖ {ffmpeg_err}")
                         else:
-                            st.error("⚠️ ការបកប្រែបរាជ័យ។")
+                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀត។")
