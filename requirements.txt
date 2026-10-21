@@ -1,10 +1,5 @@
 streamlit
-whisper
-deep-translator
-gtts
-torch
-streamlit
-whisper
+openai-whisper
 deep-translator
 gtts
 edge-tts
