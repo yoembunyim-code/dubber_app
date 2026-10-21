@@ -217,7 +217,7 @@ if uploaded_file is not None:
                         result = model.transcribe(input_video_path)
                         full_text = result.get("text", "").strip()
                     except Exception as e:
-                        st.error(whisper model error: {e})
+                        st.error(f"Whisper model error: {e}")
                         full_text = ""
 
                     if not full_text:
@@ -273,7 +273,7 @@ if uploaded_file is not None:
                                         with open(f_path, 'rb') as infile:
                                             outfile.write(infile.read())
 
-                                # ៤. Remux Video with FFmpeg (រក្សាប្រវែងវីដេអូដើមដោយមិនកាត់តម្រឹមខុស)
+                                # ៤. Remux Video with FFmpeg
                                 output_video_path = os.path.join(temp_dir, "final_output_video.mp4")
                                 st.info("🎬 កំពុងផ្គុំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដោយប្រើប្រាស់ FFmpeg...")
                                 
