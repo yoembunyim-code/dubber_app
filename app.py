@@ -122,7 +122,7 @@ def save_license(data):
         with open(LICENSE_FILE, "w") as f:
             json.dump(data, f)
     except Exception as e:
-        st.error(f"មិនអាចរក្សាទុកព័ត៌មានអាជ្ញាបណ្ណได้ទេ: {e}")
+        st.error(f"មិនអាចរក្សាទុកព័ត៌មានអាជ្ញាបណ្ណបានទេ: {e}")
 
 license_data = load_license()
 
