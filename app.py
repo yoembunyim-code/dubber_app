@@ -4,6 +4,7 @@ import json
 import asyncio
 import tempfile
 import time
+import re
 import whisper
 from deep_translator import GoogleTranslator
 import edge_tts
@@ -128,21 +129,21 @@ license_data = load_license()
 
 
 # ==========================================
-# EMOTIONAL TTS FUNCTION (NATURAL BREATHING)
+# RELIABLE TTS FUNCTION FOR KHMER
 # ==========================================
-async def generate_emotional_audio(text, output_file, voice="km-KH-SreymomNeural"):
+async def generate_edge_audio(text, output_file, voice="km-KH-SreymomNeural"):
     clean_text = text.strip() if text else ""
     if not clean_text:
         return False
     try:
-        emotional_text = f"<prosody rate='-5%' pitch='-2Hz'>{clean_text}</prosody>"
-        communicate = edge_tts.Communicate(emotional_text, voice)
+        communicate = edge_tts.Communicate(clean_text, voice)
         await communicate.save(output_file)
         if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
             return True
     except Exception:
         pass
     
+    # Fallback to gTTS for Khmer
     try:
         tts = gTTS(text=clean_text, lang='km', slow=False)
         tts.save(output_file)
@@ -150,15 +151,15 @@ async def generate_emotional_audio(text, output_file, voice="km-KH-SreymomNeural
     except Exception:
         return False
 
-def text_to_speech_emotional(text, output_file, voice="km-KH-SreymomNeural"):
-    return asyncio.run(generate_emotional_audio(text, output_file, voice))
+def text_to_speech_khmer(text, output_file, voice="km-KH-SreymomNeural"):
+    return asyncio.run(generate_edge_audio(text, output_file, voice))
 
 
 # ==========================================
 # UI INTERFACE
 # ==========================================
 st.title("🎬 AI Khmer Auto Dubber Pro")
-st.caption("ប្រព័ន្ធស្វ័យប្រវត្តិបកប្រែវីដេអូជាសំឡេងខ្មែរ (ប្រុស-ស្រីឆ្លើយឆ្លង មនោសញ្ចេតនា និង 3D Background)")
+st.caption("ប្រព័ន្ធស្វ័យប្រវត្តិបកប្រែវីដេអូជាសំឡេងខ្មែរ (ប្រុស-ស្រីឆ្លើយឆ្លង និង 3D Background)")
 
 # --- SIDEBAR ---
 st.sidebar.header("🔑 ប្រព័ន្ធអាជ្ញាបណ្ណ & VIP")
@@ -205,71 +206,62 @@ if uploaded_file is not None:
         st.video(uploaded_file)
         
         if st.button("🚀 បកប្រែជាភាសាខ្មែរ និងបញ្ចូលសំឡេងចូលវីដេអូ"):
-            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែចំអត្ថបទដើម និងបង្កើតសំឡេងមនោសញ្ចេតនា..."):
+            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែជាខ្មែរ និងបង្កើតសំឡេង..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ១. Whisper Transcription (ទាញយកអត្ថបទពិតពីវីដេអូ)
+                    # ១. Whisper Transcription
                     st.info("🎙️ កំពុងទាញយកឃ្លាប្រយោគពីវីដេអូដើម...")
                     try:
-                        import whisper
                         model = whisper.load_model(whisper_model_type)
                         result = model.transcribe(input_video_path)
                         full_text = result.get("text", "").strip()
                     except Exception as e:
-                        st.error(f"Whisper error: {e}")
+                        st.error(f"Whisper Error: {e}")
                         full_text = ""
 
                     if not full_text:
                         st.error("⚠️ រកមិនឃើញសំឡេងនិយាយក្នុងវីដេអូនេះទេ។")
                     else:
-                        st.write("**អត្ថបទដើមដែលចាប់បានពីវីដេអូ៖**", full_text)
+                        st.write("**អត្ថបទដើមដែលចាប់បាន៖**", full_text)
 
-                        # ២. Accurate Translation (បកប្រែចំអត្ថបទដើម 100% គ្មានការដាក់ពាក្យក្លែងក្លាយ)
-                        st.info("🌐 កំពុងបកប្រែអត្ថបទដើមជាភាសាខ្មែរ...")
+                        # ២. Robust Translation to Khmer (បកប្រែជាខ្មែរដាច់ខាត)
+                        st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
                         translator = GoogleTranslator(source='auto', target='km')
                         
-                        try:
-                            # កាត់អត្ថបទជាកំណាត់ៗเพื่อបកប្រែឱ្យបានត្រឹមត្រូវនិងរលូន
-                            words = full_text.split()
-                            chunks = []
-                            current_chunk = ""
-                            for word in words:
-                                if len(current_chunk) + len(word) < 300:
-                                    current_chunk += " " + word
+                        # កាត់អត្ថបទជាប្រយោគ/ឃ្លីខ្លីៗដើម្បីឱ្យការបកប្រែច្បាស់ និងមិនស្ទះ
+                        sentences_src = re.split(r'[.,!?。！？\n]', full_text)
+                        sentences_src = [s.strip() for s in sentences_src if s.strip()]
+                        
+                        translated_list = []
+                        for s in sentences_src:
+                            try:
+                                tr = translator.translate(s)
+                                if tr and tr.strip() != s.strip():
+                                    translated_list.append(tr.strip())
                                 else:
-                                    chunks.append(current_chunk.strip())
-                                    current_chunk = word
-                            if current_chunk:
-                                chunks.append(current_chunk.strip())
-                            
-                            translated_chunks = []
-                            for chunk in chunks:
-                                tr = translator.translate(chunk)
-                                if tr:
-                                    translated_chunks.append(tr)
-                                else:
-                                    translated_chunks.append(chunk)
-                                time.sleep(0.1)
-                            
-                            translated_text = " ".join(translated_chunks)
-                        except Exception:
-                            translated_text = full_text # ប្រសិនបើបកប្រែមិនចេញ យកអត្ថបទដើមមកប្រើកុំឱ្យខុសអត្ថន័យ
+                                    # Try fallback with direct chinese-to-khmer
+                                    tr_fallback = GoogleTranslator(source='zh-CN', target='km').translate(s)
+                                    translated_list.append(tr_fallback.strip() if tr_fallback else s)
+                            except Exception:
+                                translated_list.append(s)
+                            time.sleep(0.15)
 
-                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ (ពិតប្រាកដ)៖**", translated_text)
+                        translated_text = " ".join(translated_list)
+                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
 
-                        # ៣. Emotional Multi-Speaker Generation
+                        # ៣. Create Khmer Audio
                         output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
-                        st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយមានមនោសញ្ចេតនា ({dub_mode})...")
+                        st.info(f"🔊 កំពុងបង្កើតសំឡេងនិយាយខ្មែរ ({dub_mode})...")
 
-                        sentences = [s.strip() for s in translated_text.replace("。", ".").split(".") if s.strip()]
-                        if not sentences:
-                            sentences = [translated_text]
+                        khmer_sentences = [s.strip() for s in re.split(r'[.,!️\n]|ជា', translated_text) if s.strip()]
+                        if not khmer_sentences:
+                            khmer_sentences = [translated_text]
 
                         part_files = []
-                        for idx, sentence in enumerate(sentences):
+                        for idx, sentence in enumerate(khmer_sentences):
                             part_file = os.path.join(temp_dir, f"part_{idx}.mp3")
                             
                             if "ប្រុសស្រីឆ្លើយឆ្លង" in dub_mode:
@@ -279,7 +271,7 @@ if uploaded_file is not None:
                             else:
                                 v_choice = "km-KH-SreymomNeural"
 
-                            success = text_to_speech_emotional(sentence, part_file, voice=v_choice)
+                            success = text_to_speech_khmer(sentence, part_file, voice=v_choice)
                             if success:
                                 part_files.append(part_file)
 
@@ -289,7 +281,7 @@ if uploaded_file is not None:
                                     with open(f_path, 'rb') as infile:
                                         outfile.write(infile.read())
 
-                            # ៤. Remux Video with FFmpeg (រក្សាប្រវែងដើមរបស់វីដេអូ)
+                            # ៤. FFmpeg Audio/Video Remixing
                             output_video_path = os.path.join(temp_dir, "final_output_video.mp4")
                             st.info("🎬 កំពុងផ្គុំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដោយប្រើប្រាស់ FFmpeg...")
                             
@@ -308,7 +300,7 @@ if uploaded_file is not None:
                                 subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                                 
                                 if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
-                                    st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរចំអត្ថន័យដើមបានជោគជ័យ!")
+                                    st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរបានជោគជ័យ!")
                                     
                                     with open(output_video_path, "rb") as vid_file:
                                         video_bytes = vid_file.read()
@@ -326,6 +318,6 @@ if uploaded_file is not None:
                                 else:
                                     st.error("⚠️ កំហុសក្នុងការផ្គុំវីដេអូជាមួយ FFmpeg។")
                             except Exception as ffmpeg_err:
-                                st.error(f"⚠️ រកមិនឃើញ FFmpeg ឬមានបញ្ហាក្នុងការដំណើរការ៖ {ffmpeg_err}")
+                                st.error(f"⚠️ កំហុស FFmpeg: {ffmpeg_err}")
                         else:
-                            st.error("⚠️ មិនអាចបង្កើតសំឡេងបានទេ។ សូមព្យាយាមម្តងទៀត។")
+                            st.error("⚠️ មិនអាចបង្កើតសំឡេងខ្មែរបានទេ។")
