@@ -1,6 +1,7 @@
 streamlit
 openai-whisper
 deep-translator
-gtts
 edge-tts
+gTTS
 torch
+pydub
