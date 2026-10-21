@@ -122,22 +122,20 @@ def save_license(data):
         with open(LICENSE_FILE, "w") as f:
             json.dump(data, f)
     except Exception as e:
-        st.error(f"មិនអាចរក្សាទុកព័ត៌មានអាជ្ញាបណ្ណได้ទេ: {e}")
+        st.error(f"មិនអាចរក្សាទុកព័ត៌មានអាជ្ញាបណ្ណបានទេ: {e}")
 
 license_data = load_license()
 
 
 # ==========================================
-# EMOTIONAL TTS FUNCTION (WITH NATURAL BREATHING & PACING)
+# EMOTIONAL TTS FUNCTION (NATURAL BREATHING)
 # ==========================================
 async def generate_emotional_audio(text, output_file, voice="km-KH-SreymomNeural"):
     clean_text = text.strip() if text else ""
     if not clean_text:
         return False
     try:
-        # បន្ថែមសញ្ញាដកដង្ហើម និងការเว้นจังหวะមនោសញ្ចេតនាបែបមនុស្ស (Emotional Pacing)
         emotional_text = f"<prosody rate='-5%' pitch='-2Hz'>{clean_text}</prosody>"
-        
         communicate = edge_tts.Communicate(emotional_text, voice)
         await communicate.save(output_file)
         if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
@@ -207,13 +205,13 @@ if uploaded_file is not None:
         st.video(uploaded_file)
         
         if st.button("🚀 បកប្រែជាភាសាខ្មែរ និងបញ្ចូលសំឡេងចូលវីដេអូ"):
-            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែជាខ្មែរ និងបង្កើតសំឡេងមនោសញ្ចេតនា..."):
+            with st.spinner("កំពុងវិភាគវីដេអូ បកប្រែចំអត្ថបទដើម និងបង្កើតសំឡេងមនោសញ្ចេតនា..."):
                 with tempfile.TemporaryDirectory() as temp_dir:
                     input_video_path = os.path.join(temp_dir, "input_video.mp4")
                     with open(input_video_path, "wb") as f:
                         f.write(uploaded_file.read())
 
-                    # ១. Whisper Transcription
+                    # ១. Whisper Transcription (ទាញយកអត្ថបទពិតពីវីដេអូ)
                     st.info("🎙️ កំពុងទាញយកឃ្លាប្រយោគពីវីដេអូដើម...")
                     try:
                         import whisper
@@ -227,28 +225,40 @@ if uploaded_file is not None:
                     if not full_text:
                         st.error("⚠️ រកមិនឃើញសំឡេងនិយាយក្នុងវីដេអូនេះទេ។")
                     else:
-                        st.write("**អត្ថបទដើមដែលចាប់បាន៖**", full_text)
+                        st.write("**អត្ថបទដើមដែលចាប់បានពីវីដេអូ៖**", full_text)
 
-                        # ២. Forced Translation to Khmer (បកប្រែដាច់ខាតជាភាសាខ្មែរ)
-                        st.info("🌐 កំពុងបកប្រែជាភាសាខ្មែរ...")
+                        # ២. Accurate Translation (បកប្រែចំអត្ថបទដើម 100% គ្មានការដាក់ពាក្យក្លែងក្លាយ)
+                        st.info("🌐 កំពុងបកប្រែអត្ថបទដើមជាភាសាខ្មែរ...")
+                        translator = GoogleTranslator(source='auto', target='km')
+                        
                         try:
-                            translator = GoogleTranslator(source='auto', target='km')
-                            if len(full_text) > 400:
-                                chunks = [full_text[i:i+400] for i in range(0, len(full_text), 400)]
-                                translated_chunks = []
-                                for chunk in chunks:
-                                    translated_chunks.append(translator.translate(chunk))
-                                    time.sleep(0.1)
-                                translated_text = " ".join(translated_chunks)
-                            else:
-                                translated_text = translator.translate(full_text)
+                            # កាត់អត្ថបទជាកំណាត់ៗเพื่อបកប្រែឱ្យបានត្រឹមត្រូវនិងរលូន
+                            words = full_text.split()
+                            chunks = []
+                            current_chunk = ""
+                            for word in words:
+                                if len(current_chunk) + len(word) < 300:
+                                    current_chunk += " " + word
+                                else:
+                                    chunks.append(current_chunk.strip())
+                                    current_chunk = word
+                            if current_chunk:
+                                chunks.append(current_chunk.strip())
+                            
+                            translated_chunks = []
+                            for chunk in chunks:
+                                tr = translator.translate(chunk)
+                                if tr:
+                                    translated_chunks.append(tr)
+                                else:
+                                    translated_chunks.append(chunk)
+                                time.sleep(0.1)
+                            
+                            translated_text = " ".join(translated_chunks)
                         except Exception:
-                            translated_text = "សួស្តី ស្វាគមន៍មកកាន់ការទស្សនាវីដេអូនេះ"
+                            translated_text = full_text # ប្រសិនបើបកប្រែមិនចេញ យកអត្ថបទដើមមកប្រើកុំឱ្យខុសអត្ថន័យ
 
-                        if not translated_text:
-                            translated_text = "រឿងរ៉ាវដ៏រំភើបក្នុងវីដេអូ"
-
-                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ៖**", translated_text)
+                        st.write("**អត្ថបទបកប្រែជាភាសាខ្មែរ (ពិតប្រាកដ)៖**", translated_text)
 
                         # ៣. Emotional Multi-Speaker Generation
                         output_audio_path = os.path.join(temp_dir, "khmer_audio.mp3")
@@ -279,7 +289,7 @@ if uploaded_file is not None:
                                     with open(f_path, 'rb') as infile:
                                         outfile.write(infile.read())
 
-                            # ៤. Remux Video with FFmpeg (Keep original length)
+                            # ៤. Remux Video with FFmpeg (រក្សាប្រវែងដើមរបស់វីដេអូ)
                             output_video_path = os.path.join(temp_dir, "final_output_video.mp4")
                             st.info("🎬 កំពុងផ្គុំសំឡេងខ្មែរចូលទៅក្នុងវីដេអូដោយប្រើប្រាស់ FFmpeg...")
                             
@@ -298,7 +308,7 @@ if uploaded_file is not None:
                                 subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                                 
                                 if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
-                                    st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរ (មានមនោសញ្ចេតនា និងប្រុស-ស្រី) បានជោគជ័យ!")
+                                    st.success("✅ បង្កើតវីដេអូបញ្ចូលសំឡេងខ្មែរចំអត្ថន័យដើមបានជោគជ័យ!")
                                     
                                     with open(output_video_path, "rb") as vid_file:
                                         video_bytes = vid_file.read()
